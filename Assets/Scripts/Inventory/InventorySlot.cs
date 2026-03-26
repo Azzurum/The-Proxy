@@ -21,15 +21,10 @@ public class InventorySlot : MonoBehaviour, IDropHandler, IPointerEnterHandler
             RectTransform itemRect = eventData.pointerDrag.GetComponent<RectTransform>();
             DraggableItem dragLogic = eventData.pointerDrag.GetComponent<DraggableItem>();
 
-            // 1. Center the item on the dropped slot
-            itemRect.position = transform.position;
-
-            // 2. Grid Math Variables
-            float gridStep = 80f; // 75px cell + 5px spacing
+            float gridStep = 80f;
             float halfStep = gridStep / 2f;
             Vector2 snapOffset = Vector2.zero;
 
-            // 3. Calculate Item Size in Cells
             int cellsX = Mathf.RoundToInt(itemRect.rect.width / gridStep);
             int cellsY = Mathf.RoundToInt(itemRect.rect.height / gridStep);
 
@@ -40,46 +35,49 @@ public class InventorySlot : MonoBehaviour, IDropHandler, IPointerEnterHandler
                 cellsY = temp;
             }
 
-            // 4. Default Alignment (Shift right/down if the item size is even)
             if (cellsX % 2 == 0) snapOffset.x = halfStep;
             if (cellsY % 2 == 0) snapOffset.y = -halfStep;
 
-            // 5. BOUNDARY CLAMPING MATH
             int actualLeftCol = slotCoordinate.x;
             int actualTopRow = slotCoordinate.y;
 
-            // A. Prevent hanging off the Right Edge (Max Column is 9)
             int rightEdge = actualLeftCol + cellsX - 1;
             if (rightEdge > 9)
             {
                 int overflowX = rightEdge - 9;
-                actualLeftCol -= overflowX; // Update the memory
-                snapOffset.x -= (overflowX * gridStep); // Physically bump it left
+                actualLeftCol -= overflowX;
+                snapOffset.x -= (overflowX * gridStep);
             }
 
-            // B. Prevent hanging off the Bottom Edge (Min Row is 0)
             int bottomEdge = actualTopRow - cellsY + 1;
             if (bottomEdge < 0)
             {
                 int underflowY = 0 - bottomEdge;
-                actualTopRow += underflowY; // Update the memory
-                snapOffset.y += (underflowY * gridStep); // Physically bump it up
+                actualTopRow += underflowY;
+                snapOffset.y += (underflowY * gridStep);
             }
 
-            // 6. Apply the final visual shift
-            itemRect.anchoredPosition += snapOffset;
+            // Calculate theoretical anchor BEFORE snapping
+            Vector2Int anchorCoordinate = new Vector2Int(actualLeftCol, actualTopRow - cellsY + 1);
 
-            // 7. Send the corrected data to the backend Manager
             InventoryManager manager = FindFirstObjectByType<InventoryManager>();
             if (manager != null)
             {
-                // The technical anchor is the Bottom-Left most cell it occupies
-                Vector2Int anchorCoordinate = new Vector2Int(actualLeftCol, actualTopRow - cellsY + 1);
+                // THE GATEKEEPER CHECK: Is the space free?
+                if (!manager.IsSpaceFree(anchorCoordinate, cellsX, cellsY, eventData.pointerDrag))
+                {
+                    // Space is blocked! Send the battery back to where it came from.
+                    if (dragLogic != null) dragLogic.ReturnToOrigin();
+                    Debug.LogWarning("Drop Rejected: Space is occupied by Corruption or another item.");
+                    return; // Stop the code here!
+                }
 
-                // Only register if we aren't hovering over the trash slot
-                manager.RegisterItemPlacement(eventData.pointerDrag, anchorCoordinate, dragLogic != null && dragLogic.isRotated);
+                // If we pass the Gatekeeper, physically center and clamp the item
+                itemRect.position = transform.position;
+                itemRect.anchoredPosition += snapOffset;
 
-                Debug.Log($"SUCCESS: Perfect Snap! Clamped Anchor: Column {anchorCoordinate.x}, Row {anchorCoordinate.y}");
+                // Register the new position in the backend
+                manager.RegisterItemPlacement(eventData.pointerDrag, anchorCoordinate, cellsX, cellsY, dragLogic != null && dragLogic.isRotated);
             }
         }
     }

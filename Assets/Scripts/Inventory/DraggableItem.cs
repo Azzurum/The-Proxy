@@ -88,4 +88,10 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         Debug.Log("Drag forcefully cancelled via Tab. Item reset.");
     }
+
+    // This allows the grid to reject a drop and send the item back
+    public void ReturnToOrigin()
+    {
+        rectTransform.anchoredPosition = originalPosition;
+    }
 }

@@ -8,4 +8,6 @@ public class InventoryItem
     public bool isLocked;
     public bool isQuestItem;
     public bool isRotated;
+    public bool isCorruption; // Flags this item as a dead block
+    public GameObject uiObject; // Connects the math to the visual battery on screen
 }
