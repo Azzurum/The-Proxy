@@ -1,3 +1,4 @@
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class MetRigManager : MonoBehaviour
@@ -27,20 +28,23 @@ public class MetRigManager : MonoBehaviour
         }
     }
 
-    private void ToggleRig()
+    // Look for where you are setting your UI Canvas active/inactive
+    public void ToggleRig()
     {
-        isRigOpen = !isRigOpen;
-
-        // 1. Show or hide the 10x10 Grid UI
+        // 1. FIXED: We use your actual variable name (terminalOverlayUI)
+        // We also removed 'bool' so it updates your public variable at the top of the script!
+        isRigOpen = !terminalOverlayUI.activeSelf;
         terminalOverlayUI.SetActive(isRigOpen);
 
-        // 2. Magnetically clamp or unclamp the boots
-        if (playerController != null)
+        // 2. Find the monster in the scene
+        ProxyAI proxy = FindFirstObjectByType<ProxyAI>();
+
+        // 3. Tell the monster if the UI is open (sprint) or closed (creep)
+        if (proxy != null)
         {
-            playerController.isRooted = isRigOpen;
+            proxy.OnSignalSpike(isRigOpen);
         }
 
-        // 3. Trigger the Signal Spike if the rig was just opened
         if (isRigOpen)
         {
             EmitSignalSpike();
