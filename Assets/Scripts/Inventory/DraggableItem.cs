@@ -7,6 +7,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private CanvasGroup canvasGroup;
     private RectTransform rectTransform;
     private Canvas canvas;
+    private Vector2 originalPosition;
+    private Transform originalParent;
 
     [Header("Item State")]
     public bool isRotated = false; // Tracks the state for the InventoryManager later [cite: 123]
@@ -35,6 +37,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         transform.SetAsLastSibling();
         canvasGroup.blocksRaycasts = false;
         canvasGroup.alpha = 0.7f;
+        originalParent = transform.parent;
+        originalPosition = rectTransform.anchoredPosition;
     }
 
     public void OnDrag(PointerEventData eventData)
@@ -58,5 +62,30 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         rectTransform.Rotate(0, 0, -90f);
 
         Debug.Log("Item Rotated! Current isRotated state: " + isRotated);
+    }
+
+    // This triggers automatically if the M.E.T. Rig is closed (Canvas disabled)
+    void OnDisable()
+    {
+        if (isDragging)
+        {
+            ForceCancelDrag();
+        }
+    }
+
+    private void ForceCancelDrag()
+    {
+        isDragging = false;
+        canvasGroup.blocksRaycasts = true;
+        canvasGroup.alpha = 1f;
+
+        // Snap it back to its original location
+        if (originalParent != null)
+        {
+            transform.SetParent(originalParent);
+            rectTransform.anchoredPosition = originalPosition;
+        }
+
+        Debug.Log("Drag forcefully cancelled via Tab. Item reset.");
     }
 }

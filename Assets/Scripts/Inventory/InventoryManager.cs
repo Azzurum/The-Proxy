@@ -9,7 +9,9 @@ public class InventoryManager : MonoBehaviour
     [Header("Visual UI Setup")]
     public GameObject slotPrefab;
     public Transform gridContainer;
-
+    [Header("World Spawning")]
+    public Transform playerTransform; // Drag Player_Kaelen here in the Inspector
+    public GameObject physicalBatteryPrefab; // The physical item to spawn on the ground
     [Header("Active Data")]
     // This list tracks every item currently materialized in Kaelen's M.E.T. Rig
     public List<InventoryItem> activeItems = new List<InventoryItem>();
@@ -24,8 +26,29 @@ public class InventoryManager : MonoBehaviour
         int totalSlots = gridWidth * gridHeight;
         for (int i = 0; i < totalSlots; i++)
         {
-            Instantiate(slotPrefab, gridContainer);
+            GameObject newSlot = Instantiate(slotPrefab, gridContainer);
+
+            // Calculate the exact Column (X) and Row (Y)
+            int col = i % gridWidth;
+            // UI generates top-to-bottom, but our logic requires Row 0 to be the bottom
+            int row = (gridHeight - 1) - (i / gridWidth);
+
+            // Assign the coordinate to the slot's memory
+            newSlot.GetComponent<InventorySlot>().slotCoordinate = new Vector2Int(col, row);
         }
+    }
+
+    public void RegisterItemPlacement(GameObject uiItem, Vector2Int anchorCoordinate, bool isRotated)
+    {
+        // Create a new data package for this item
+        InventoryItem newData = new InventoryItem();
+        newData.position = anchorCoordinate; // The bottom-left anchor [cite: 119]
+        newData.isRotated = isRotated;
+
+        // Add it to the master tracking list
+        activeItems.Add(newData);
+
+        Debug.Log($"BACKEND LINKED: Item registered at Column {anchorCoordinate.x}, Row {anchorCoordinate.y}!");
     }
 
     public void ResolveCorruptionTick()
@@ -87,6 +110,22 @@ public class InventoryManager : MonoBehaviour
 
         // 4. Clear any penalties if the top row is safe again
         ResetCrushPenaltyIfClear();
+    }
+    public void DiscardItemToWorld(GameObject uiItem)
+    {
+        // 1. Spawn the physical item at Kaelen's feet
+        if (physicalBatteryPrefab != null && playerTransform != null)
+        {
+            Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
+            Debug.Log("Item ejected from M.E.T. Rig into the physical world.");
+        }
+        else
+        {
+            Debug.LogWarning("Cannot spawn item: Player Transform or Prefab is missing in InventoryManager!");
+        }
+
+        // 2. Destroy the dragged UI element permanently
+        Destroy(uiItem);
     }
 
     // --- Helper Methods (Stubs to prevent errors until we build them) ---
