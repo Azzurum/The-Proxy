@@ -1,43 +1,62 @@
 using UnityEngine;
-using UnityEngine.EventSystems; // Required for UI drag interfaces
+using UnityEngine.EventSystems;
 
-// We add the IBeginDrag, IDrag, and IEndDrag interfaces to listen to the mouse
+[RequireComponent(typeof(CanvasGroup))]
 public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
-    [Header("Drag State")]
-    public Transform originalParent;
-
     private CanvasGroup canvasGroup;
+    private RectTransform rectTransform;
+    private Canvas canvas;
+
+    [Header("Item State")]
+    public bool isRotated = false; // Tracks the state for the InventoryManager later [cite: 123]
+    private bool isDragging = false; // Safety lock so you can't rotate items sitting on the grid
 
     void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
+        rectTransform = GetComponent<RectTransform>();
+        canvas = GetComponentInParent<Canvas>();
+    }
+
+    void Update()
+    {
+        // If we are currently holding the item and press 'R', rotate it!
+        if (isDragging && Input.GetKeyDown(KeyCode.R))
+        {
+            RotateItem();
+        }
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        originalParent = transform.parent;
+        isDragging = true; // Unlock rotation
 
-        // Move the item to the very top layer of the UI so it doesn't drag *underneath* the grid
         transform.SetAsLastSibling();
-
-        // Turn off raycasts so the mouse can detect the grid slots behind this item
         canvasGroup.blocksRaycasts = false;
-
-        // Make the item slightly transparent while dragging
         canvasGroup.alpha = 0.7f;
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        // Make the item's position exactly match the mouse cursor
-        transform.position = Input.mousePosition;
+        rectTransform.anchoredPosition += eventData.delta / canvas.scaleFactor;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        // Restore solid collision and opacity when you let go of the mouse click
+        isDragging = false; // Lock rotation
+
         canvasGroup.blocksRaycasts = true;
         canvasGroup.alpha = 1f;
+    }
+
+    private void RotateItem()
+    {
+        isRotated = !isRotated; // Toggle the internal state
+
+        // Visually rotate the item -90 degrees on the Z axis
+        rectTransform.Rotate(0, 0, -90f);
+
+        Debug.Log("Item Rotated! Current isRotated state: " + isRotated);
     }
 }
