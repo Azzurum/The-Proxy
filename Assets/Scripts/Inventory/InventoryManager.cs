@@ -53,6 +53,25 @@ public class InventoryManager : MonoBehaviour
         SpawnCorruptionAtRowZero();
     }
 
+    public void ExecuteClean()
+    {
+        // 1. Remove the bottom row of corruption
+        RemoveBottomCorruptionRow();
+
+        // 2. Data Gravity Reversion: Sort items by their Y position (bottom to top)
+        // This ensures lower items drop first, clearing space for the higher items to follow.
+        activeItems.Sort((a, b) => a.position.y.CompareTo(b.position.y));
+
+        // 3. Snap items down
+        foreach (var item in activeItems)
+        {
+            ApplyGravityDrop(item);
+        }
+
+        // 4. Clear any penalties if the top row is safe again
+        ResetCrushPenaltyIfClear();
+    }
+
     // --- Helper Methods (Stubs to prevent errors until we build them) ---
 
     private void EscalateCrushPenaltyTimer()
@@ -73,5 +92,22 @@ public class InventoryManager : MonoBehaviour
     private void SpawnCorruptionAtRowZero()
     {
         Debug.Log("New corruption row spawned at Index 0.");
+    }
+
+    private void RemoveBottomCorruptionRow()
+    {
+        Debug.Log("Standard Clean executed: Row 0 Corruption removed.");
+    }
+
+    private void ApplyGravityDrop(InventoryItem item)
+    {
+        // We will write the complex collision math for this later.
+        // For now, it just acknowledges the drop.
+        Debug.Log("Applying Data Gravity: Item snaps down to lowest available slot.");
+    }
+
+    private void ResetCrushPenaltyIfClear()
+    {
+        Debug.Log("Top row checked. Crush penalties reset if clear.");
     }
 }
