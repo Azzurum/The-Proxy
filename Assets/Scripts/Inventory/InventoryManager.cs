@@ -6,10 +6,27 @@ public class InventoryManager : MonoBehaviour
     [Header("Grid Configuration")]
     public int gridWidth = 10; // 10 columns 
     public int gridHeight = 10; // Row Index 0 to 9, where 9 is the top 
+    [Header("Visual UI Setup")]
+    public GameObject slotPrefab;
+    public Transform gridContainer;
 
     [Header("Active Data")]
     // This list tracks every item currently materialized in Kaelen's M.E.T. Rig
     public List<InventoryItem> activeItems = new List<InventoryItem>();
+
+    void Start()
+    {
+        GenerateVisualGrid();
+    }
+
+    private void GenerateVisualGrid()
+    {
+        int totalSlots = gridWidth * gridHeight;
+        for (int i = 0; i < totalSlots; i++)
+        {
+            Instantiate(slotPrefab, gridContainer);
+        }
+    }
 
     public void ResolveCorruptionTick()
     {
