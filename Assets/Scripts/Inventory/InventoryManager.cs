@@ -18,12 +18,16 @@ public class InventoryManager : MonoBehaviour
     [Header("Pickup Setup")]
     public GameObject uiBatteryPrefab; // The 1x2 UI item to spawn
     [Header("Active Data")]
-    // This list tracks every item currently materialized in Kaelen's M.E.T. Rig
-    public List<InventoryItem> activeItems = new List<InventoryItem>();
+    public List<InventoryItem> activeItems = new List<InventoryItem>(); // This list tracks every item currently materialized in Kaelen's M.E.T. Rig
+    [Header("MOTHER-v4 System Shock")]
+    public float shockInterval = 10f; // Seconds between each corruption wave
+    private float shockTimer;
+    public bool isSystemActive = true; // A switch to pause the timer if needed
 
     void Start()
     {
         GenerateVisualGrid();
+        shockTimer = shockInterval;
     }
 
     private void GenerateVisualGrid()
@@ -110,17 +114,23 @@ public class InventoryManager : MonoBehaviour
 
     void Update()
     {
-        // Press the Spacebar to manually force a Corruption Tick for testing
-        if (Input.GetKeyDown(KeyCode.Space))
+        // 1. The Automated Timer
+        if (isSystemActive)
         {
-            Debug.Log("DEBUG: Manual Corruption Tick Triggered!");
-            ResolveCorruptionTick();
+            shockTimer -= Time.deltaTime;
+
+            if (shockTimer <= 0f)
+            {
+                Debug.LogWarning("SYSTEM SHOCK: MOTHER-v4 is corrupting the grid!");
+                ResolveCorruptionTick(); // Trigger the wave!
+
+                shockTimer = shockInterval; // Reset the clock
+            }
         }
 
-        // Press 'C' to manually execute the Clean Protocol for testing
+        // 2. Keep your 'C' key for testing the Clean Protocol!
         if (Input.GetKeyDown(KeyCode.C))
         {
-            Debug.Log("DEBUG: Manual Clean Protocol Triggered!");
             ExecuteCleanProtocol();
         }
     }
