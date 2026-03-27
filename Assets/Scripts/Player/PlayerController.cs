@@ -6,9 +6,8 @@ public class PlayerController : MonoBehaviour
     [Header("Movement Settings")]
     public float moveSpeed = 5f;
 
-    [Header("M.E.T. Rig State")]
-    // This is the flag we will trigger later when the inventory opens
-    public bool isRooted = false;
+    [Header("System State")]
+    public bool isRooted = false; // Locks Kaelen in place when M.E.T. Rig is open
 
     private Rigidbody2D rb;
     private Vector2 movementInput;
@@ -20,24 +19,25 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        // 1. Check if the boots are magnetically clamped
+        // 1. THE LOCKDOWN: If boots are clamped, kill momentum and skip input!
         if (isRooted)
         {
             movementInput = Vector2.zero;
-            return; // Stop reading input entirely
+            rb.linearVelocity = Vector2.zero; // Force stop any physics sliding
+            return;
         }
 
-        // 2. Read WASD or Arrow Key inputs
+        // 2. Read standard WASD or Arrow Key inputs
         movementInput.x = Input.GetAxisRaw("Horizontal");
         movementInput.y = Input.GetAxisRaw("Vertical");
 
-        // Normalize ensures diagonal movement isn't twice as fast
+        // 3. Normalize prevents moving twice as fast diagonally
         movementInput = movementInput.normalized;
     }
 
     void FixedUpdate()
     {
-        // 3. Apply the movement to the physics body
+        // Apply the calculated movement to the physics body
         rb.MovePosition(rb.position + movementInput * moveSpeed * Time.fixedDeltaTime);
     }
 }

@@ -1,4 +1,3 @@
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class MetRigManager : MonoBehaviour
@@ -6,6 +5,8 @@ public class MetRigManager : MonoBehaviour
     [Header("System References")]
     public GameObject terminalOverlayUI; // Drag the UI_TerminalOverlay here
     public PlayerController playerController; // Drag Player_Kaelen here
+    [Header("Faraday Shielding")]
+    public bool inFaradayZone = false; // Is Kaelen standing in a safe room?
 
     [Header("Rig State")]
     public bool isRigOpen = false;
@@ -28,32 +29,37 @@ public class MetRigManager : MonoBehaviour
         }
     }
 
-    // Look for where you are setting your UI Canvas active/inactive
     public void ToggleRig()
     {
-        // 1. FIXED: We use your actual variable name (terminalOverlayUI)
-        // We also removed 'bool' so it updates your public variable at the top of the script!
         isRigOpen = !terminalOverlayUI.activeSelf;
         terminalOverlayUI.SetActive(isRigOpen);
 
-        // 2. Find the monster in the scene
-        ProxyAI proxy = FindFirstObjectByType<ProxyAI>();
-
-        // 3. Tell the monster if the UI is open (sprint) or closed (creep)
-        if (proxy != null)
+        if (playerController != null)
         {
-            proxy.OnSignalSpike(isRigOpen);
+            playerController.isRooted = isRigOpen;
         }
 
-        if (isRigOpen)
+        ProxyAI proxy = FindFirstObjectByType<ProxyAI>();
+        if (proxy != null)
         {
-            EmitSignalSpike();
+            // LORE LOGIC: The Faraday Zone actively blocks the signal!
+            bool signalLeaked = isRigOpen && !inFaradayZone;
+            proxy.OnSignalSpike(signalLeaked);
+        }
+
+        // Console Warnings based on where you are standing
+        if (isRigOpen && !inFaradayZone)
+        {
+            Debug.Log("<color=red>SIGNAL SPIKE:</color> Massive electromagnetic flare emitted! The Proxy is listening...");
+        }
+        else if (isRigOpen && inFaradayZone)
+        {
+            Debug.Log("<color=cyan>FARADAY SHIELD ACTIVE:</color> M.E.T. Rig opened safely. Signal masked.");
         }
     }
 
     private void EmitSignalSpike()
     {
-        // We will connect this to the Proxy AI's detection system later
         Debug.Log("SIGNAL SPIKE: Massive electromagnetic flare emitted! The Proxy is listening...");
     }
 }
