@@ -3,8 +3,12 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 [RequireComponent(typeof(CanvasGroup))]
-public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
 {
+    [Header("Item Details")]
+    public string itemName = "Unknown Object";
+    [TextArea] public string itemDescription = "A strange item with unknown properties.";
+
     [Header("Item Footprint")]
     public int sizeX = 1;
     public int sizeY = 2;
@@ -15,12 +19,12 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private RectTransform rectTransform;
     private Canvas canvas;
 
-    // --- LIVE MEMORY (Accessible by the Manager) ---
+    // --- RESTORED LIVE MEMORY (Accessible by the Manager) ---
     public static DraggableItem itemBeingDragged;
+    public bool ejectedFromRig = false;
     public InventoryGrid originalGrid;
     public Vector2 originalLocalPosition;
     public Vector2Int originalAnchorCoord;
-    public bool ejectedFromRig = false; // Tracks if it gets pushed out while holding it
 
     private Transform originalParent;
     private bool originalIsRotated;
@@ -47,15 +51,24 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (isDragging && Input.GetKeyDown(KeyCode.R)) RotateItem();
     }
 
+    // --- INSPECTION CLICK ---
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (!isDragging && ItemInspector.Instance != null)
+        {
+            ItemInspector.Instance.InspectItem(this);
+        }
+    }
+
     public void OnBeginDrag(PointerEventData eventData)
     {
         isDragging = true;
-        itemBeingDragged = this;
-        ejectedFromRig = false;
+        itemBeingDragged = this; // Restored
+        ejectedFromRig = false;  // Restored
 
         originalLocalPosition = rectTransform.localPosition;
-        originalGrid = GetComponentInParent<InventoryGrid>();
 
+        originalGrid = GetComponentInParent<InventoryGrid>();
         if (originalGrid != null)
         {
             foreach (var item in originalGrid.activeItems)
@@ -94,6 +107,20 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         canvasGroup.blocksRaycasts = true;
         canvasGroup.alpha = 1f;
 
+        // --- HOTBAR SHORTCUT CHECK ---
+        GameObject droppedOn = eventData.pointerCurrentRaycast.gameObject;
+        if (droppedOn != null)
+        {
+            HotbarSlot hotbarSlot = droppedOn.GetComponentInParent<HotbarSlot>();
+            if (hotbarSlot != null)
+            {
+                hotbarSlot.AssignShortcut(this);
+                ReturnToOrigin();
+                itemBeingDragged = null; // Restored
+                return;
+            }
+        }
+
         InventoryGrid[] allGrids = FindObjectsByType<InventoryGrid>(FindObjectsSortMode.None);
         InventoryGrid bestGrid = null;
 
@@ -119,7 +146,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             int anchorX = Mathf.RoundToInt((itemBottomLeftX - gridBottomLeftX) / 80f);
             int anchorY = Mathf.RoundToInt((itemBottomLeftY - gridBottomLeftY) / 80f);
 
-            // Boundary Clamping
             if (anchorX < 0) anchorX = 0;
             if (anchorX + sizeX > bestGrid.gridWidth) anchorX = bestGrid.gridWidth - sizeX;
             int bottomActiveRow = bestGrid.gridHeight - bestGrid.activeHeight;
@@ -128,7 +154,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
             Vector2Int bestAnchor = new Vector2Int(anchorX, anchorY);
 
-            // Drop Validation
             if (bestGrid.IsSpaceFree(bestAnchor, sizeX, sizeY, gameObject))
             {
                 foreach (var g in allGrids) g.RemoveItem(gameObject);
@@ -147,14 +172,14 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
                     originalGrid.gameObject.SetActive(false);
                 }
 
-                itemBeingDragged = null;
+                itemBeingDragged = null; // Restored
                 return;
             }
             else Debug.LogWarning("Drop Rejected: Space is occupied!");
         }
 
         ReturnToOrigin();
-        itemBeingDragged = null;
+        itemBeingDragged = null; // Restored
     }
 
     private void RotateItem()
@@ -168,7 +193,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void ReturnToOrigin()
     {
-        // 1. Check if the grid pushed it entirely off the screen while we were holding it
+        // Restored check for rig ejection
         if (ejectedFromRig)
         {
             InventoryManager mgr = FindFirstObjectByType<InventoryManager>();
@@ -188,7 +213,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             rectTransform.localScale = Vector3.one;
             transform.SetAsLastSibling();
 
-            // Returns to the NEW LIVE MEMORY coordinate
             originalGrid.RegisterItem(gameObject, originalAnchorCoord, sizeX, sizeY, isRotated);
             rectTransform.localPosition = originalLocalPosition;
         }
