@@ -4,13 +4,12 @@ using UnityEngine.UI;
 
 public class InventoryManager : MonoBehaviour
 {
-    [Header("Grid Configuration")]
-    public int gridWidth = 10;
-    public int gridHeight = 10;
+    [Header("Connected Grids")]
+    public InventoryGrid mainRigGrid;
+    public InventoryGrid externalStorageGrid;
 
     [Header("Visual UI Setup")]
     public GameObject slotPrefab;
-    public Transform gridContainer;
 
     [Header("World Spawning")]
     public Transform playerTransform;
@@ -18,12 +17,6 @@ public class InventoryManager : MonoBehaviour
 
     [Header("Corruption Setup")]
     public GameObject corruptionPrefab;
-
-    [Header("Pickup Setup")]
-    public GameObject uiBatteryPrefab;
-
-    [Header("Active Data")]
-    public List<InventoryItem> activeItems = new List<InventoryItem>();
 
     [Header("MOTHER-v4 System Shock")]
     public float shockInterval = 10f;
@@ -33,264 +26,201 @@ public class InventoryManager : MonoBehaviour
 
     void Start()
     {
-        GenerateVisualGrid();
-        shockTimer = shockInterval;
-    }
+        if (mainRigGrid != null) mainRigGrid.activeItems.Clear();
+        if (externalStorageGrid != null) externalStorageGrid.activeItems.Clear();
 
-    private void GenerateVisualGrid()
-    {
-        int totalSlots = gridWidth * gridHeight;
-        for (int i = 0; i < totalSlots; i++)
+        if (mainRigGrid != null) mainRigGrid.InitializeGridVisuals(slotPrefab);
+        if (externalStorageGrid != null)
         {
-            GameObject newSlot = Instantiate(slotPrefab, gridContainer);
-
-            int col = i % gridWidth;
-            int row = (gridHeight - 1) - (i / gridWidth);
-
-            newSlot.GetComponent<InventorySlot>().slotCoordinate = new Vector2Int(col, row);
+            externalStorageGrid.InitializeGridVisuals(slotPrefab);
+            externalStorageGrid.gameObject.SetActive(false);
         }
-    }
 
-    public void RegisterItemPlacement(GameObject uiItem, Vector2Int anchorCoordinate, int cellsX, int cellsY, bool isRotated)
-    {
-        // 1. Erase old memory if moved
-        activeItems.RemoveAll(item => item.uiObject == uiItem);
+        if (mainRigGrid != null && externalStorageGrid != null)
+        {
+            RectTransform mainRect = mainRigGrid.GetComponent<RectTransform>();
+            mainRect.anchorMin = new Vector2(0.5f, 0.5f);
+            mainRect.anchorMax = new Vector2(0.5f, 0.5f);
+            mainRect.pivot = new Vector2(0.5f, 0.5f);
+            mainRect.anchoredPosition = Vector2.zero;
 
-        // 2. Register new placement
-        InventoryItem newData = new InventoryItem();
-        newData.position = anchorCoordinate;
-        newData.size = new Vector2Int(cellsX, cellsY);
-        newData.isRotated = isRotated;
-        newData.uiObject = uiItem;
+            RectTransform extRect = externalStorageGrid.GetComponent<RectTransform>();
+            extRect.SetParent(mainRect.parent);
+            extRect.anchorMin = new Vector2(0.5f, 0.5f);
+            extRect.anchorMax = new Vector2(0.5f, 0.5f);
+            extRect.pivot = new Vector2(0.5f, 0.5f);
+            extRect.anchoredPosition = new Vector2(540f, 0f);
+        }
 
-        activeItems.Add(newData);
+        shockTimer = shockInterval;
     }
 
     void Update()
     {
-        // 1. Automated System Shock Timer
         if (isSystemActive)
         {
             shockTimer -= Time.deltaTime;
-
-            if (systemShockProgressBar != null)
-            {
-                systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
-            }
+            if (systemShockProgressBar != null) systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
 
             if (shockTimer <= 0f)
             {
-                Debug.LogWarning("SYSTEM SHOCK: MOTHER-v4 is corrupting the grid!");
                 ResolveCorruptionTick();
                 shockTimer = shockInterval;
             }
         }
-
-        // 2. Manual Clean Protocol Trigger
-        if (Input.GetKeyDown(KeyCode.C))
-        {
-            ExecuteCleanProtocol();
-        }
+        if (Input.GetKeyDown(KeyCode.C)) ExecuteCleanProtocol();
     }
 
     public void ResolveCorruptionTick()
     {
-        // 1. Shift everything UP
-        foreach (var item in activeItems)
+        // 1. Move all grid items UP
+        for (int i = 0; i < mainRigGrid.activeItems.Count; i++)
         {
-            item.position.y += 1;
+            InventoryItem item = mainRigGrid.activeItems[i];
+            item.position = new Vector2Int(item.position.x, item.position.y + 1);
+            mainRigGrid.activeItems[i] = item;
 
             if (item.uiObject != null)
             {
                 RectTransform rect = item.uiObject.GetComponent<RectTransform>();
-                rect.anchoredPosition += new Vector2(0, 80f);
+                rect.localPosition = mainRigGrid.GetSnapPosition(item.position, item.size.x, item.size.y);
             }
         }
 
-        // 2. Ceiling Ejection Check (Row 9+)
-        for (int i = activeItems.Count - 1; i >= 0; i--)
+        // --- NEW: Shift the Dragged Item's Live Memory UP ---
+        if (DraggableItem.itemBeingDragged != null && DraggableItem.itemBeingDragged.originalGrid == mainRigGrid)
         {
-            InventoryItem item = activeItems[i];
+            DraggableItem.itemBeingDragged.originalAnchorCoord.y += 1;
+            DraggableItem.itemBeingDragged.originalLocalPosition.y += 80f;
+
+            // If it gets pushed completely out of the grid while we are holding it, flag it for ejection
+            int topEdge = DraggableItem.itemBeingDragged.originalAnchorCoord.y + DraggableItem.itemBeingDragged.sizeY - 1;
+            if (topEdge > 9) DraggableItem.itemBeingDragged.ejectedFromRig = true;
+        }
+
+        // 2. Eject top items
+        for (int i = mainRigGrid.activeItems.Count - 1; i >= 0; i--)
+        {
+            InventoryItem item = mainRigGrid.activeItems[i];
             int topEdge = item.position.y + item.size.y - 1;
 
             if (topEdge > 9)
             {
-                // Eject helpful items to the physical world
-                if (!item.isCorruption && item.uiObject != null)
+                if (!item.isCorruption && item.uiObject != null && physicalBatteryPrefab != null && playerTransform != null)
                 {
-                    if (physicalBatteryPrefab != null && playerTransform != null)
-                    {
-                        Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
-                        Debug.LogWarning("WARNING: Storage breach! Item forcibly ejected from M.E.T. Rig!");
-                    }
+                    Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
                 }
-
-                // Destroy UI visual and delete from memory
                 if (item.uiObject != null) Destroy(item.uiObject);
-                activeItems.RemoveAt(i);
+                mainRigGrid.activeItems.RemoveAt(i);
             }
         }
-
-        // 3. Spawn new corruption at bottom
         SpawnCorruptionAtRowZero();
     }
 
     public void ExecuteCleanProtocol()
     {
         bool didCleanAnything = false;
-
-        // 1. Vaporize Row 0 Corruption
-        for (int i = activeItems.Count - 1; i >= 0; i--)
+        for (int i = mainRigGrid.activeItems.Count - 1; i >= 0; i--)
         {
-            InventoryItem item = activeItems[i];
-
+            InventoryItem item = mainRigGrid.activeItems[i];
             if (item.isCorruption && item.position.y == 0)
             {
                 if (item.uiObject != null) Destroy(item.uiObject);
-                activeItems.RemoveAt(i);
+                mainRigGrid.activeItems.RemoveAt(i);
                 didCleanAnything = true;
             }
         }
 
-        // 2. Apply Gravity Shift (Items fall down 1 row)
         if (didCleanAnything)
         {
-            foreach (var item in activeItems)
+            // Move grid items DOWN
+            for (int i = 0; i < mainRigGrid.activeItems.Count; i++)
             {
-                item.position.y -= 1;
+                InventoryItem item = mainRigGrid.activeItems[i];
+                item.position = new Vector2Int(item.position.x, item.position.y - 1);
+                mainRigGrid.activeItems[i] = item;
 
                 if (item.uiObject != null)
                 {
                     RectTransform rect = item.uiObject.GetComponent<RectTransform>();
-                    rect.anchoredPosition -= new Vector2(0, 80f);
+                    rect.localPosition = mainRigGrid.GetSnapPosition(item.position, item.size.x, item.size.y);
                 }
             }
-            Debug.Log("CLEAN PROTOCOL EXECUTED: Gravity shift applied.");
+
+            // --- NEW: Shift the Dragged Item's Live Memory DOWN ---
+            if (DraggableItem.itemBeingDragged != null && DraggableItem.itemBeingDragged.originalGrid == mainRigGrid)
+            {
+                DraggableItem.itemBeingDragged.originalAnchorCoord.y -= 1;
+                DraggableItem.itemBeingDragged.originalLocalPosition.y -= 80f;
+                DraggableItem.itemBeingDragged.ejectedFromRig = false; // It is safe inside the grid again
+            }
         }
-    }
-
-    public void DiscardItemToWorld(GameObject uiItem)
-    {
-        activeItems.RemoveAll(item => item.uiObject == uiItem);
-
-        if (physicalBatteryPrefab != null && playerTransform != null)
-        {
-            Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
-        }
-
-        Destroy(uiItem);
     }
 
     private void SpawnCorruptionAtRowZero()
     {
-        InventorySlot[] allSlots = FindObjectsByType<InventorySlot>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        for (int x = 0; x < gridWidth; x++)
+        for (int x = 0; x < mainRigGrid.gridWidth; x++)
         {
             Vector2Int spawnCoord = new Vector2Int(x, 0);
 
-            foreach (var slot in allSlots)
-            {
-                if (slot.slotCoordinate == spawnCoord)
-                {
-                    GameObject newBlock = Instantiate(corruptionPrefab, gridContainer.parent);
-                    newBlock.transform.position = slot.transform.position;
+            GameObject newBlock = Instantiate(corruptionPrefab, mainRigGrid.transform);
+            RectTransform rect = newBlock.GetComponent<RectTransform>();
 
-                    InventoryItem badData = new InventoryItem();
-                    badData.position = spawnCoord;
-                    badData.size = new Vector2Int(1, 1);
-                    badData.uiObject = newBlock;
-                    badData.isCorruption = true;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(80f, 80f);
+            rect.localPosition = mainRigGrid.GetSnapPosition(spawnCoord, 1, 1);
+            rect.localScale = Vector3.one;
 
-                    activeItems.Add(badData);
-                    break;
-                }
-            }
+            mainRigGrid.RegisterItem(newBlock, spawnCoord, 1, 1, false);
+            mainRigGrid.activeItems[mainRigGrid.activeItems.Count - 1].isCorruption = true;
         }
     }
 
     public bool TryPickupItem(GameObject uiPrefabToSpawn, int sizeX, int sizeY, bool isQuestItem = false)
     {
-        activeItems.RemoveAll(item => item.uiObject == null);
-
-        InventorySlot[] allSlots = gridContainer.GetComponentsInChildren<InventorySlot>(true);
-        if (allSlots.Length == 0) return false;
-
-        // Scan the grid bottom-to-top, left-to-right
-        for (int y = 0; y <= gridHeight - sizeY; y++)
+        if (externalStorageGrid.activeItems.Count > 0)
         {
-            for (int x = 0; x <= gridWidth - sizeX; x++)
-            {
-                Vector2Int testCoord = new Vector2Int(x, y);
-
-                // Ask the Gatekeeper if this massive footprint is entirely empty
-                if (IsSpaceFree(testCoord, sizeX, sizeY, null))
-                {
-                    foreach (var slot in allSlots)
-                    {
-                        if (slot.slotCoordinate == testCoord)
-                        {
-                            GameObject newItem = Instantiate(uiPrefabToSpawn, gridContainer.parent);
-
-                            // Center the object on the bottom-left anchor slot
-                            newItem.transform.position = slot.transform.position;
-
-                            // MATH: Shift the UI up and right based on how many extra cells it takes up (40px per extra cell)
-                            float shiftX = (sizeX - 1) * 40f;
-                            float shiftY = (sizeY - 1) * 40f;
-                            newItem.GetComponent<RectTransform>().anchoredPosition += new Vector2(shiftX, shiftY);
-
-                            // Register it into the backend math
-                            RegisterItemPlacement(newItem, testCoord, sizeX, sizeY, false);
-
-                            // If it's a quest item, we flag it so it triggers the System Crush later!
-                            activeItems[activeItems.Count - 1].isQuestItem = isQuestItem;
-
-                            return true;
-                        }
-                    }
-                }
-            }
+            Debug.LogWarning($"<color=yellow>BUFFER FULL:</color> You must organize your gear!");
+            return false;
         }
 
-        Debug.LogWarning($"<color=red>PICKUP FAILED:</color> Not enough contiguous space for a {sizeX}x{sizeY} item!");
-        return false;
-    }
+        externalStorageGrid.gameObject.SetActive(true);
+        externalStorageGrid.SetMode(3, false);
 
-    public bool IsSpaceFree(Vector2Int anchor, int width, int height, GameObject itemBeingMoved)
-    {
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                Vector2Int targetCell = new Vector2Int(anchor.x + x, anchor.y + y);
+        Vector2Int memCoord = new Vector2Int(1, 8);
+        if (sizeX == 3 && sizeY == 3) memCoord = new Vector2Int(0, 7);
+        else if (sizeX == 2 && sizeY == 1) memCoord = new Vector2Int(0, 8);
+        else if (sizeX == 1 && sizeY == 2) memCoord = new Vector2Int(1, 8);
 
-                foreach (var item in activeItems)
-                {
-                    if (item.uiObject == itemBeingMoved) continue;
+        GameObject newItem = Instantiate(uiPrefabToSpawn, externalStorageGrid.transform);
 
-                    bool overlapsX = targetCell.x >= item.position.x && targetCell.x < (item.position.x + item.size.x);
-                    bool overlapsY = targetCell.y >= item.position.y && targetCell.y < (item.position.y + item.size.y);
+        RectTransform rect = newItem.GetComponent<RectTransform>();
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(sizeX * 80f, sizeY * 80f);
 
-                    if (overlapsX && overlapsY) return false;
-                }
-            }
-        }
+        rect.localPosition = externalStorageGrid.GetSnapPosition(memCoord, sizeX, sizeY);
+        rect.localScale = Vector3.one;
+        Vector3 lp = rect.localPosition; lp.z = 0; rect.localPosition = lp;
+
+        externalStorageGrid.RegisterItem(newItem, memCoord, sizeX, sizeY, false);
         return true;
     }
 
-    // --- NEW: Objective & Combat Resource Management ---
+    public void DiscardItemToWorld(GameObject uiItem)
+    {
+        mainRigGrid.RemoveItem(uiItem);
+        externalStorageGrid.RemoveItem(uiItem);
+
+        if (physicalBatteryPrefab != null && playerTransform != null) Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
+        Destroy(uiItem);
+    }
+
     public bool TryConsumeBatteries(int amountRequired)
     {
         List<InventoryItem> foundBatteries = new List<InventoryItem>();
-
-        foreach (var item in activeItems)
+        foreach (var item in mainRigGrid.activeItems)
         {
-            // If it's not corruption, assume it's a battery
-            if (!item.isCorruption)
-            {
-                foundBatteries.Add(item);
-            }
+            if (!item.isCorruption && !item.isQuestItem) foundBatteries.Add(item);
         }
 
         if (foundBatteries.Count >= amountRequired)
@@ -299,11 +229,10 @@ public class InventoryManager : MonoBehaviour
             {
                 InventoryItem batteryToBurn = foundBatteries[i];
                 if (batteryToBurn.uiObject != null) Destroy(batteryToBurn.uiObject);
-                activeItems.Remove(batteryToBurn);
+                mainRigGrid.activeItems.Remove(batteryToBurn);
             }
-            return true; // Successfully consumed
+            return true;
         }
-
-        return false; // Not enough batteries
+        return false;
     }
 }
