@@ -10,4 +10,5 @@ public class InventoryItem
     public bool isRotated;
     public bool isCorruption; // Flags this item as a dead block
     public GameObject uiObject; // Connects the math to the visual battery on screen
+    public ItemData itemData; // Reference to the item's data
 }

@@ -21,8 +21,17 @@ public class InventoryManager : MonoBehaviour
     [Header("MOTHER-v4 System Shock")]
     public float shockInterval = 10f;
     private float shockTimer;
+
+    [Header("Grid Constants")]
+    public float cellSize = 80f;
+    public float externalGridOffsetX = 540f;
     public bool isSystemActive = true;
     public Slider systemShockProgressBar;
+
+    [Header("Crush Penalties")]
+    private int crushTier = 0;
+    private float crushTimer = 0f;
+    private float[] crushDurations = { 5f, 10f }; // Tier 1 and 2 durations, tier 3 permanent
 
     void Start()
     {
@@ -49,7 +58,7 @@ public class InventoryManager : MonoBehaviour
             extRect.anchorMin = new Vector2(0.5f, 0.5f);
             extRect.anchorMax = new Vector2(0.5f, 0.5f);
             extRect.pivot = new Vector2(0.5f, 0.5f);
-            extRect.anchoredPosition = new Vector2(540f, 0f);
+            extRect.anchoredPosition = new Vector2(externalGridOffsetX, 0f);
         }
 
         shockTimer = shockInterval;
@@ -68,6 +77,22 @@ public class InventoryManager : MonoBehaviour
                 shockTimer = shockInterval;
             }
         }
+
+        // Manage crush penalties
+        if (crushTimer > 0)
+        {
+            crushTimer -= Time.deltaTime;
+            if (crushTimer <= 0)
+            {
+                crushTier = Mathf.Max(0, crushTier - 1);
+                Debug.Log($"Crush Penalty Tier degraded to {crushTier}");
+                if (crushTier > 0)
+                {
+                    crushTimer = crushDurations[Mathf.Min(crushTier - 1, crushDurations.Length - 1)];
+                }
+            }
+        }
+
         if (Input.GetKeyDown(KeyCode.C)) ExecuteCleanProtocol();
     }
 
@@ -91,7 +116,7 @@ public class InventoryManager : MonoBehaviour
         if (DraggableItem.itemBeingDragged != null && DraggableItem.itemBeingDragged.originalGrid == mainRigGrid)
         {
             DraggableItem.itemBeingDragged.originalAnchorCoord.y += 1;
-            DraggableItem.itemBeingDragged.originalLocalPosition.y += 80f;
+            DraggableItem.itemBeingDragged.originalLocalPosition.y += cellSize;
 
             // If it gets pushed completely out of the grid while we are holding it, flag it for ejection
             int topEdge = DraggableItem.itemBeingDragged.originalAnchorCoord.y + DraggableItem.itemBeingDragged.sizeY - 1;
@@ -115,6 +140,17 @@ public class InventoryManager : MonoBehaviour
             }
         }
         SpawnCorruptionAtRowZero();
+    }
+
+    private void EscalateCrushPenaltyTimer()
+    {
+        crushTier = Mathf.Min(crushTier + 1, 3);
+        if (crushTier <= 2)
+        {
+            crushTimer = crushDurations[crushTier - 1];
+        }
+        // Tier 3 is permanent
+        Debug.Log($"Crush Penalty Tier {crushTier} activated!");
     }
 
     public void ExecuteCleanProtocol()
@@ -151,7 +187,7 @@ public class InventoryManager : MonoBehaviour
             if (DraggableItem.itemBeingDragged != null && DraggableItem.itemBeingDragged.originalGrid == mainRigGrid)
             {
                 DraggableItem.itemBeingDragged.originalAnchorCoord.y -= 1;
-                DraggableItem.itemBeingDragged.originalLocalPosition.y -= 80f;
+                DraggableItem.itemBeingDragged.originalLocalPosition.y -= cellSize;
                 DraggableItem.itemBeingDragged.ejectedFromRig = false; // It is safe inside the grid again
             }
         }
@@ -167,7 +203,7 @@ public class InventoryManager : MonoBehaviour
             RectTransform rect = newBlock.GetComponent<RectTransform>();
 
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(80f, 80f);
+            rect.sizeDelta = new Vector2(cellSize, cellSize);
             rect.localPosition = mainRigGrid.GetSnapPosition(spawnCoord, 1, 1);
             rect.localScale = Vector3.one;
 
@@ -196,7 +232,7 @@ public class InventoryManager : MonoBehaviour
 
         RectTransform rect = newItem.GetComponent<RectTransform>();
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(sizeX * 80f, sizeY * 80f);
+        rect.sizeDelta = new Vector2(sizeX * cellSize, sizeY * cellSize);
 
         rect.localPosition = externalStorageGrid.GetSnapPosition(memCoord, sizeX, sizeY);
         rect.localScale = Vector3.one;
@@ -235,4 +271,53 @@ public class InventoryManager : MonoBehaviour
         }
         return false;
     }
+
+    public void AddCorruptionRow()
+    {
+        // Shift all items up
+        for (int i = 0; i < mainRigGrid.activeItems.Count; i++)
+        {
+            InventoryItem item = mainRigGrid.activeItems[i];
+            item.position = new Vector2Int(item.position.x, item.position.y + 1);
+            mainRigGrid.activeItems[i] = item;
+
+            if (item.uiObject != null)
+            {
+                RectTransform rect = item.uiObject.GetComponent<RectTransform>();
+                rect.localPosition = mainRigGrid.GetSnapPosition(item.position, item.size.x, item.size.y);
+            }
+        }
+
+        // Handle dragged item
+        if (DraggableItem.itemBeingDragged != null && DraggableItem.itemBeingDragged.originalGrid == mainRigGrid)
+        {
+            DraggableItem.itemBeingDragged.originalAnchorCoord.y += 1;
+            DraggableItem.itemBeingDragged.originalLocalPosition.y += cellSize;
+
+            int topEdge = DraggableItem.itemBeingDragged.originalAnchorCoord.y + DraggableItem.itemBeingDragged.sizeY - 1;
+            if (topEdge > 9) DraggableItem.itemBeingDragged.ejectedFromRig = true;
+        }
+
+        // Eject items
+        for (int i = mainRigGrid.activeItems.Count - 1; i >= 0; i--)
+        {
+            InventoryItem item = mainRigGrid.activeItems[i];
+            int topEdge = item.position.y + item.size.y - 1;
+
+            if (topEdge > 9)
+            {
+                if (!item.isCorruption && item.uiObject != null && physicalBatteryPrefab != null && playerTransform != null)
+                {
+                    Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
+                }
+                if (item.uiObject != null) Destroy(item.uiObject);
+                mainRigGrid.activeItems.RemoveAt(i);
+            }
+        }
+
+        SpawnCorruptionAtRowZero();
+    }
+
+    public int CrushTier => crushTier;
+    public bool HasHallucinations => crushTier >= 2;
 }

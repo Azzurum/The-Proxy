@@ -23,6 +23,8 @@ public class ProxyAI : MonoBehaviour
 
     private float currentSpeed;
     private SpriteRenderer spriteRenderer;
+    private MetRigManager metRigManager;
+    private GameOverManager gameOverManager;
 
     [Header("Stun Resistance")]
     private bool isStunned = false;
@@ -30,8 +32,19 @@ public class ProxyAI : MonoBehaviour
     private float stunMemoryTimer = 0f;
     private float memoryResetTime = 60f; // Proxy forgets stuns after 60 seconds
 
+    [Header("Signal Response")]
+    [SerializeField] private float immediateSignalDistance = 3f;
+    [SerializeField] private float delayedSignalDistance = 10f;
+    [SerializeField] private float investigateSignalDistance = 20f;
+    [SerializeField] private float delayedHuntSeconds = 2f;
+
+    [Header("Knockback")]
+    [SerializeField] private float knockbackSpeed = 25f; // Very fast, violent shove
+
     [Header("Repulsor State")]
     private bool isKnockedBack = false;
+
+    private Coroutine delayedHuntCoroutine;
 
     void Start()
     {
@@ -44,6 +57,10 @@ public class ProxyAI : MonoBehaviour
             GameObject player = GameObject.Find("Player_Kaelen");
             if (player != null) targetPlayer = player.transform;
         }
+
+        // Cache global managers to avoid repeated searches
+        metRigManager = FindFirstObjectByType<MetRigManager>();
+        gameOverManager = FindFirstObjectByType<GameOverManager>();
 
         // Initialize position tracking
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
@@ -89,10 +106,8 @@ public class ProxyAI : MonoBehaviour
 
     private void HuntPlayer()
     {
-        MetRigManager manager = FindFirstObjectByType<MetRigManager>();
-
         // Kaelen is ONLY exposed if the Rig is screaming AND he is not shielded
-        bool isSignalEmitting = (manager != null && manager.isRigOpen && !manager.inFaradayZone);
+        bool isSignalEmitting = (metRigManager != null && metRigManager.isRigOpen && !metRigManager.inFaradayZone);
 
         // SCENARIO A: M.E.T. Rig is open! Perfect tracking.
         if (isSignalEmitting && targetPlayer != null)
@@ -152,18 +167,52 @@ public class ProxyAI : MonoBehaviour
     }
 
     // The Manager will call this to wake the monster up!
-    public void OnSignalSpike(bool isListening)
+    public void OnSignalSpike(bool isListening, float distance)
     {
-        if (isListening)
+        if (isListening && distance >= 0)
         {
-            currentSpeed = sprintSpeed;
-            if (spriteRenderer != null) spriteRenderer.color = Color.red; // Turn blood red
+            lastKnownPosition = targetPlayer.position;
+            hasLastKnownPosition = true;
+            isWandering = false;
+
+            // Graduated detection based on distance
+            if (distance < immediateSignalDistance) // Nearby: Immediate Hunt
+            {
+                currentSpeed = sprintSpeed;
+                if (spriteRenderer != null) spriteRenderer.color = Color.red;
+                Debug.Log("PROXY: Signal detected nearby! Immediate hunt.");
+            }
+            else if (distance < delayedSignalDistance) // Far: Delayed Hunt
+            {
+                if (delayedHuntCoroutine != null) StopCoroutine(delayedHuntCoroutine);
+                delayedHuntCoroutine = StartCoroutine(DelayedHunt(delayedHuntSeconds));
+                Debug.Log("PROXY: Signal detected far! Delayed hunt.");
+            }
+            else if (distance < investigateSignalDistance) // Very Far: Investigate
+            {
+                currentSpeed = baseSpeed;
+                if (spriteRenderer != null) spriteRenderer.color = Color.yellow; // Different color for investigate
+                Debug.Log("PROXY: Signal detected very far! Investigating.");
+            }
         }
         else
         {
+            if (delayedHuntCoroutine != null) 
+            {
+                StopCoroutine(delayedHuntCoroutine);
+                Debug.Log("PROXY: Delayed hunt canceled - signal turned off!");
+            }
             currentSpeed = baseSpeed;
             if (spriteRenderer != null) spriteRenderer.color = Color.magenta; // Return to normal color
         }
+    }
+
+    private System.Collections.IEnumerator DelayedHunt(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        currentSpeed = sprintSpeed;
+        if (spriteRenderer != null) spriteRenderer.color = Color.red;
+        Debug.Log("PROXY: Delayed hunt activated!");
     }
 
     // This built-in Unity function fires the exact frame the Proxy touches another collider
@@ -229,10 +278,9 @@ public class ProxyAI : MonoBehaviour
         isStunned = false;
 
         // Return to normal color
-        MetRigManager uiManager = FindFirstObjectByType<MetRigManager>();
         if (spriteRenderer != null)
         {
-            spriteRenderer.color = (uiManager != null && uiManager.isRigOpen) ? Color.red : Color.magenta;
+            spriteRenderer.color = (metRigManager != null && metRigManager.isRigOpen) ? Color.red : Color.magenta;
         }
     }
 
@@ -256,8 +304,6 @@ public class ProxyAI : MonoBehaviour
         // 2. Calculate the exact direction AWAY from Kaelen
         Vector2 pushDirection = (myPos2D - playerPos2D).normalized;
         Vector2 targetPosition = myPos2D + (pushDirection * distance);
-
-        float knockbackSpeed = 25f; // Very fast, violent shove
 
         // 3. Slide the monster backward until it hits the target spot
         while (Vector2.Distance(myPos2D, targetPosition) > 0.1f)

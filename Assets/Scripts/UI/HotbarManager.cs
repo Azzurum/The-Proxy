@@ -7,6 +7,14 @@ public class HotbarManager : MonoBehaviour
     [Header("Hotbar Array")]
     public HotbarSlot[] quickSlots = new HotbarSlot[3];
 
+    [Header("Stamina Bar")]
+    public UnityEngine.UI.Slider staminaBar;
+    public UnityEngine.UI.Image staminaFill;
+    public PlayerController playerController; // Manually assign if auto-find fails
+
+    [Header("Stamina Color Thresholds")]
+    [Range(0f, 1f)] public float yellowThreshold = 0.5f;
+
     private int currentEquippedIndex = -1; // -1 means hands are empty
 
     void Awake()
@@ -21,6 +29,21 @@ public class HotbarManager : MonoBehaviour
         {
             slot.ClearSlot();
         }
+
+        // Try to find PlayerController if not manually assigned
+        if (playerController == null)
+        {
+            playerController = FindFirstObjectByType<PlayerController>();
+            Debug.Log($"Searching for PlayerController: {(playerController != null ? "FOUND" : "NOT FOUND")}");
+        }
+
+        if (staminaBar != null && staminaFill == null && staminaBar.fillRect != null)
+        {
+            staminaFill = staminaBar.fillRect.GetComponent<UnityEngine.UI.Image>();
+        }
+
+        // Debug logging
+        Debug.Log($"HotbarManager Start - staminaBar: {staminaBar}, playerController: {playerController}, staminaFill: {staminaFill}");
     }
 
     void Update()
@@ -28,6 +51,27 @@ public class HotbarManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha1)) EquipSlot(1);
         if (Input.GetKeyDown(KeyCode.Alpha2)) EquipSlot(2);
         if (Input.GetKeyDown(KeyCode.Alpha3)) EquipSlot(3);
+
+        // Update stamina bar
+        if (staminaBar != null && playerController != null)
+        {
+            float normalized = playerController.SprintMeter / playerController.SprintMeterThreshold;
+            staminaBar.value = Mathf.Clamp01(normalized);
+
+            Debug.Log($"Stamina Update - Meter: {playerController.SprintMeter:F2}, Threshold: {playerController.SprintMeterThreshold:F2}, Normalized: {normalized:F2}, Slider Value: {staminaBar.value:F2}");
+
+            if (staminaFill != null)
+            {
+                if (normalized < yellowThreshold)
+                    staminaFill.color = Color.Lerp(Color.green, Color.yellow, normalized / yellowThreshold);
+                else
+                    staminaFill.color = Color.Lerp(Color.yellow, Color.red, (normalized - yellowThreshold) / (1 - yellowThreshold));
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"Stamina bar not updating - staminaBar: {staminaBar}, playerController: {playerController}");
+        }
     }
 
     public void EquipSlot(int slotNumber)

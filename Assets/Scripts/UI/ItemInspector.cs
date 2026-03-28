@@ -27,10 +27,8 @@ public class ItemInspector : MonoBehaviour
         titleText.text = item.itemName;
         descriptionText.text = item.itemDescription;
 
-        // Show size regardless of current rotation state
-        int originalX = item.isRotated ? item.sizeY : item.sizeX;
-        int originalY = item.isRotated ? item.sizeX : item.sizeY;
-        sizeText.text = $"Footprint: {originalX}x{originalY} Grid";
+        // Show size as WxH
+        sizeText.text = $"{item.sizeX}×{item.sizeY}";
 
         inspectorPanel.SetActive(true);
     }

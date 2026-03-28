@@ -9,6 +9,11 @@ public class InventoryGrid : MonoBehaviour
     public int gridHeight = 10;
     public int activeHeight = 10;
 
+    [Header("Grid Visuals")]
+    public float cellSize = 80f;
+    public float slotSize = 75f;
+    public float cellPadding = 40f;
+
     [Header("Active Memory")]
     public List<InventoryItem> activeItems = new List<InventoryItem>();
 
@@ -21,10 +26,10 @@ public class InventoryGrid : MonoBehaviour
         // 2. Force perfectly centered pivots
         RectTransform rect = GetComponent<RectTransform>();
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(gridWidth * 80f, gridHeight * 80f);
+        rect.sizeDelta = new Vector2(gridWidth * cellSize, gridHeight * cellSize);
 
-        float startX = -(gridWidth * 80f) / 2f + 40f;
-        float startY = -(gridHeight * 80f) / 2f + 40f;
+        float startX = -(gridWidth * cellSize) / 2f + cellPadding;
+        float startY = -(gridHeight * cellSize) / 2f + cellPadding;
 
         // 3. Manually place slots with pure math
         for (int x = 0; x < gridWidth; x++)
@@ -35,8 +40,8 @@ public class InventoryGrid : MonoBehaviour
                 RectTransform slotRect = newSlot.GetComponent<RectTransform>();
 
                 slotRect.pivot = new Vector2(0.5f, 0.5f);
-                slotRect.sizeDelta = new Vector2(75f, 75f);
-                slotRect.localPosition = new Vector2(startX + (x * 80f), startY + (y * 80f));
+                slotRect.sizeDelta = new Vector2(slotSize, slotSize);
+                slotRect.localPosition = new Vector2(startX + (x * cellSize), startY + (y * cellSize));
 
                 InventorySlot slotLogic = newSlot.GetComponent<InventorySlot>();
                 if (slotLogic != null) slotLogic.slotCoordinate = new Vector2Int(x, y);
@@ -71,14 +76,14 @@ public class InventoryGrid : MonoBehaviour
 
     public Vector2 GetSnapPosition(Vector2Int anchorCoord, int sizeX, int sizeY)
     {
-        float gridBottomLeftX = -(gridWidth * 80f) / 2f;
-        float gridBottomLeftY = -(gridHeight * 80f) / 2f;
+        float gridBottomLeftX = -(gridWidth * cellSize) / 2f;
+        float gridBottomLeftY = -(gridHeight * cellSize) / 2f;
 
-        float itemBottomLeftX = gridBottomLeftX + (anchorCoord.x * 80f);
-        float itemBottomLeftY = gridBottomLeftY + (anchorCoord.y * 80f);
+        float itemBottomLeftX = gridBottomLeftX + (anchorCoord.x * cellSize);
+        float itemBottomLeftY = gridBottomLeftY + (anchorCoord.y * cellSize);
 
-        float centerX = itemBottomLeftX + (sizeX * 80f) / 2f;
-        float centerY = itemBottomLeftY + (sizeY * 80f) / 2f;
+        float centerX = itemBottomLeftX + (sizeX * cellSize) / 2f;
+        float centerY = itemBottomLeftY + (sizeY * cellSize) / 2f;
 
         return new Vector2(centerX, centerY);
     }
@@ -118,6 +123,8 @@ public class InventoryGrid : MonoBehaviour
         newData.size = new Vector2Int(cellsX, cellsY);
         newData.isRotated = isRotated;
         newData.uiObject = uiItem;
+        DraggableItem draggable = uiItem.GetComponent<DraggableItem>();
+        if (draggable != null) newData.itemData = draggable.itemData;
         activeItems.Add(newData);
     }
 

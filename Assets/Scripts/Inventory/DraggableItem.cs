@@ -5,6 +5,9 @@ using UnityEngine.UI;
 [RequireComponent(typeof(CanvasGroup))]
 public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
 {
+    [Header("Item Data")]
+    public ItemData itemData;
+
     [Header("Item Details")]
     public string itemName = "Unknown Object";
     [TextArea] public string itemDescription = "A strange item with unknown properties.";
@@ -14,10 +17,14 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     public int sizeY = 2;
     public bool isRotated = false;
 
+    [Header("Layout")]
+    public float cellSize = 80f;
+
     private bool isDragging = false;
     private CanvasGroup canvasGroup;
     private RectTransform rectTransform;
     private Canvas canvas;
+    private InventoryManager inventoryManager;
 
     // --- RESTORED LIVE MEMORY (Accessible by the Manager) ---
     public static DraggableItem itemBeingDragged;
@@ -31,6 +38,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private int originalSizeX;
     private int originalSizeY;
     private Quaternion originalRotation;
+    private bool fromHotbar = false;
+    private HotbarSlot originalHotbarSlot;
 
     void Awake()
     {
@@ -38,8 +47,16 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         rectTransform = GetComponent<RectTransform>();
         canvas = GetComponentInParent<Canvas>().rootCanvas;
 
+        if (itemData != null)
+        {
+            itemName = itemData.itemName;
+            itemDescription = itemData.itemDescription;
+            sizeX = itemData.size.x;
+            sizeY = itemData.size.y;
+        }
+
         rectTransform.pivot = new Vector2(0.5f, 0.5f);
-        rectTransform.sizeDelta = new Vector2(sizeX * 80f, sizeY * 80f);
+        rectTransform.sizeDelta = new Vector2(sizeX * cellSize, sizeY * cellSize);
 
         LayoutElement le = GetComponent<LayoutElement>();
         if (le == null) le = gameObject.AddComponent<LayoutElement>();
@@ -81,6 +98,16 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             }
             originalGrid.RemoveItem(gameObject);
         }
+        else
+        {
+            // Check if from hotbar
+            HotbarSlot slot = GetComponentInParent<HotbarSlot>();
+            if (slot != null)
+            {
+                fromHotbar = true;
+                originalHotbarSlot = slot;
+            }
+        }
 
         originalParent = transform.parent;
         originalIsRotated = isRotated;
@@ -114,9 +141,15 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             HotbarSlot hotbarSlot = droppedOn.GetComponentInParent<HotbarSlot>();
             if (hotbarSlot != null)
             {
+                // Move the item to hotbar
+                if (originalGrid != null) originalGrid.RemoveItem(gameObject);
                 hotbarSlot.AssignShortcut(this);
-                ReturnToOrigin();
-                itemBeingDragged = null; // Restored
+                transform.SetParent(hotbarSlot.transform, true);
+                rectTransform.localPosition = Vector2.zero;
+                canvasGroup.alpha = 0f; // Hide the draggable item
+                itemBeingDragged = null;
+                fromHotbar = false;
+                originalHotbarSlot = null;
                 return;
             }
         }
@@ -137,14 +170,14 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         {
             Vector2 localPos = bestGrid.transform.InverseTransformPoint(rectTransform.position);
 
-            float gridBottomLeftX = -(bestGrid.gridWidth * 80f) / 2f;
-            float gridBottomLeftY = -(bestGrid.gridHeight * 80f) / 2f;
+            float gridBottomLeftX = -(bestGrid.gridWidth * bestGrid.cellSize) / 2f;
+            float gridBottomLeftY = -(bestGrid.gridHeight * bestGrid.cellSize) / 2f;
 
-            float itemBottomLeftX = localPos.x - (sizeX * 80f) / 2f;
-            float itemBottomLeftY = localPos.y - (sizeY * 80f) / 2f;
+            float itemBottomLeftX = localPos.x - (sizeX * bestGrid.cellSize) / 2f;
+            float itemBottomLeftY = localPos.y - (sizeY * bestGrid.cellSize) / 2f;
 
-            int anchorX = Mathf.RoundToInt((itemBottomLeftX - gridBottomLeftX) / 80f);
-            int anchorY = Mathf.RoundToInt((itemBottomLeftY - gridBottomLeftY) / 80f);
+            int anchorX = Mathf.RoundToInt((itemBottomLeftX - gridBottomLeftX) / bestGrid.cellSize);
+            int anchorY = Mathf.RoundToInt((itemBottomLeftY - gridBottomLeftY) / bestGrid.cellSize);
 
             if (anchorX < 0) anchorX = 0;
             if (anchorX + sizeX > bestGrid.gridWidth) anchorX = bestGrid.gridWidth - sizeX;
@@ -166,10 +199,15 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
                 bestGrid.RegisterItem(gameObject, bestAnchor, sizeX, sizeY, isRotated);
 
-                InventoryManager mgr = FindFirstObjectByType<InventoryManager>();
-                if (originalGrid != null && originalGrid == mgr.externalStorageGrid && originalGrid != bestGrid && originalGrid.activeItems.Count == 0)
+                if (inventoryManager != null && originalGrid != null && originalGrid == inventoryManager.externalStorageGrid && originalGrid != bestGrid && originalGrid.activeItems.Count == 0)
                 {
                     originalGrid.gameObject.SetActive(false);
+                }
+
+                if (fromHotbar)
+                {
+                    originalHotbarSlot.ClearSlot();
+                    canvasGroup.alpha = 1f; // Make visible again
                 }
 
                 itemBeingDragged = null; // Restored
@@ -180,6 +218,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         ReturnToOrigin();
         itemBeingDragged = null; // Restored
+        fromHotbar = false;
+        originalHotbarSlot = null;
     }
 
     private void RotateItem()
@@ -196,8 +236,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         // Restored check for rig ejection
         if (ejectedFromRig)
         {
-            InventoryManager mgr = FindFirstObjectByType<InventoryManager>();
-            if (mgr != null) mgr.DiscardItemToWorld(gameObject);
+            if (inventoryManager != null) inventoryManager.DiscardItemToWorld(gameObject);
             return;
         }
 
@@ -215,6 +254,13 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
             originalGrid.RegisterItem(gameObject, originalAnchorCoord, sizeX, sizeY, isRotated);
             rectTransform.localPosition = originalLocalPosition;
+        }
+        else if (fromHotbar)
+        {
+            // Return to hotbar
+            transform.SetParent(originalHotbarSlot.transform, true);
+            rectTransform.localPosition = Vector2.zero;
+            canvasGroup.alpha = 0f; // Hide again
         }
 
         Vector3 lp = rectTransform.localPosition; lp.z = 0; rectTransform.localPosition = lp;
