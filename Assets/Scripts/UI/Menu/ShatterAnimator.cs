@@ -5,7 +5,6 @@ public class ShatterAnimator : MonoBehaviour
 {
     [Header("Connections")]
     public Transform glassParent; 
-    public CanvasGroup uiGroup;   
 
     [Header("Cinematic Settings")]
     public float animationDuration = 0.5f; 
@@ -122,8 +121,6 @@ public class ShatterAnimator : MonoBehaviour
                 
                 _shards[i].localScale = Vector3.Lerp(_originalScales[i], _originalScales[i] * shardShrinkScale, ease);
             }
-
-            if (uiGroup != null) uiGroup.alpha = ease;
             
             yield return null;
         }

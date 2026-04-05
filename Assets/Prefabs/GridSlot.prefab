@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8114487796008852576}
   - component: {fileID: 8413710496011743220}
   - component: {fileID: 6796869546726812129}
-  - component: {fileID: -1443381674397887586}
+  - component: {fileID: 6935135868414513151}
   m_Layer: 5
   m_Name: GridSlot
   m_TagString: Untagged
@@ -76,7 +76,7 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &-1443381674397887586
+--- !u!114 &6935135868414513151
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -88,3 +88,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6f8ad2b238fbb44d9fad4fbf2dd3589, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventorySlot
+  slotCoordinate: {x: 0, y: 0}

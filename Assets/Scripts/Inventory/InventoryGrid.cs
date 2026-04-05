@@ -19,11 +19,11 @@ public class InventoryGrid : MonoBehaviour
 
     public void InitializeGridVisuals(GameObject slotPrefab)
     {
-        // 1. NUKE THE LAYOUT GROUP SO IT NEVER INTERFERES AGAIN!
+        // 1. NUKE THE LAYOUT GROUP
         GridLayoutGroup glg = GetComponent<GridLayoutGroup>();
         if (glg != null) DestroyImmediate(glg);
 
-        // 2. Force perfectly centered pivots
+        // 2. Force centered pivots
         RectTransform rect = GetComponent<RectTransform>();
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.sizeDelta = new Vector2(gridWidth * cellSize, gridHeight * cellSize);
@@ -31,7 +31,7 @@ public class InventoryGrid : MonoBehaviour
         float startX = -(gridWidth * cellSize) / 2f + cellPadding;
         float startY = -(gridHeight * cellSize) / 2f + cellPadding;
 
-        // 3. Manually place slots with pure math
+        // 3. Manually place slots
         for (int x = 0; x < gridWidth; x++)
         {
             for (int y = 0; y < gridHeight; y++)
@@ -52,8 +52,6 @@ public class InventoryGrid : MonoBehaviour
     public void SetMode(int height, bool showGrids)
     {
         activeHeight = height;
-
-        // Hide the main background so it doesn't stretch 10 rows down
         Image bg = GetComponent<Image>();
         if (bg != null) bg.enabled = false;
 
@@ -67,7 +65,6 @@ public class InventoryGrid : MonoBehaviour
             if (img != null)
             {
                 img.enabled = true;
-                // Solid black for Buffer mode, Transparent grids for Locker mode
                 if (!showGrids) img.color = isActive ? new Color(0.05f, 0.05f, 0.05f, 1f) : Color.clear;
                 else img.color = isActive ? new Color(0, 0, 0, 0.4f) : Color.clear;
             }
@@ -78,13 +75,10 @@ public class InventoryGrid : MonoBehaviour
     {
         float gridBottomLeftX = -(gridWidth * cellSize) / 2f;
         float gridBottomLeftY = -(gridHeight * cellSize) / 2f;
-
         float itemBottomLeftX = gridBottomLeftX + (anchorCoord.x * cellSize);
         float itemBottomLeftY = gridBottomLeftY + (anchorCoord.y * cellSize);
-
         float centerX = itemBottomLeftX + (sizeX * cellSize) / 2f;
         float centerY = itemBottomLeftY + (sizeY * cellSize) / 2f;
-
         return new Vector2(centerX, centerY);
     }
 
@@ -95,7 +89,6 @@ public class InventoryGrid : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 Vector2Int targetCell = new Vector2Int(anchor.x + x, anchor.y + y);
-
                 if (targetCell.x < 0 || targetCell.x >= gridWidth ||
                     targetCell.y < 0 || targetCell.y >= gridHeight ||
                     targetCell.y < (gridHeight - activeHeight))
@@ -131,5 +124,22 @@ public class InventoryGrid : MonoBehaviour
     public void RemoveItem(GameObject uiItem)
     {
         activeItems.RemoveAll(item => item.uiObject == uiItem);
+    }
+
+    // --- NEW METHOD FOR PAUSE MENU BIOMETRICS ---
+    public int GetTotalCorruptedSlots()
+    {
+        int count = 0;
+        if (activeItems == null) return 0;
+
+        foreach (var item in activeItems)
+        {
+            // We multiply width * height in case you have multi-slot corruption later
+            if (item.isCorruption)
+            {
+                count += (item.size.x * item.size.y);
+            }
+        }
+        return count;
     }
 }

@@ -58,8 +58,6 @@ public class HotbarManager : MonoBehaviour
             float normalized = playerController.SprintMeter / playerController.SprintMeterThreshold;
             staminaBar.value = Mathf.Clamp01(normalized);
 
-            Debug.Log($"Stamina Update - Meter: {playerController.SprintMeter:F2}, Threshold: {playerController.SprintMeterThreshold:F2}, Normalized: {normalized:F2}, Slider Value: {staminaBar.value:F2}");
-
             if (staminaFill != null)
             {
                 if (normalized < yellowThreshold)

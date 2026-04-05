@@ -4,8 +4,8 @@ using UnityEngine.EventSystems;
 using TMPro;
 using System.Collections;
 
-// Added IPointerClickHandler to detect and play the click sound
-public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
+// Added ISelectHandler and IDeselectHandler for Gamepad/Keyboard support
+public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler, ISelectHandler, IDeselectHandler
 {
     [Header("Text Components")]
     public TMP_Text mainText;
@@ -14,7 +14,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
     public TMP_Text errorCodeFlash;
 
     [Header("Audio SFX")]
-    [Tooltip("The AudioSource on this button or a central one")]
     public AudioSource audioSource;
     public AudioClip SND_UI_Button_Hover;
     public AudioClip SND_UI_Button_Click;
@@ -28,7 +27,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
     private Image[] _lineSegments;
 
     [Header("White Border Glitch")]
-    [Tooltip("Drag the MAIN BUTTON'S Image component here")]
     public Image borderImage; 
     public float maxBorderAlpha = 1.0f;
     public float idleBorderAlpha = 0.2f;
@@ -52,6 +50,9 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
         "0x00F77_CRITICAL", "TERMINATION_PENDING", "NULL_REF"
     };
 
+    [Header("Phase 4: Biometric Link")]
+    [Range(0, 1)] public float corruptionPercent = 0f; // 0 = Clean, 1 = Full 10x10 Corruption
+
     private Coroutine _glitchRoutine;
     private Coroutine _errorRoutine;
     private Vector3 _originalMainPos;
@@ -62,7 +63,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
 
     private void Start()
     {
-        // Auto-assign AudioSource if not set
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
         if (audioSource != null) audioSource.playOnAwake = false;
 
@@ -86,10 +86,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
             Image img = segObj.AddComponent<Image>();
             img.color = normalLineColor;
             img.raycastTarget = false;
-            RectTransform rt = img.rectTransform;
-            rt.anchorMin = new Vector2(0.5f, 0.5f);
-            rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
             _lineSegments[i] = img;
         }
     }
@@ -112,64 +108,77 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
             float edgeTaper = Mathf.Sin(t * Mathf.PI); 
             float currentY = 0f;
 
-            if (!_isHovering) currentY = Mathf.Sin((t * 12f) - (Time.unscaledTime * 4f)) * 6f * edgeTaper;
-            else currentY = (Mathf.PerlinNoise(t * 25f, Time.unscaledTime * 30f) - 0.5f) * 60f * edgeTaper;
+            if (!_isHovering) 
+            {
+                // --- BIOMETRIC UPDATE: Idle line gets "heart palpitations" (Noise) as corruption grows ---
+                float idleSine = Mathf.Sin((t * 12f) - (Time.unscaledTime * 4f)) * 6f;
+                float corruptionNoise = (Mathf.PerlinNoise(t * 10f, Time.unscaledTime) - 0.5f) * (40f * corruptionPercent);
+                currentY = (idleSine + corruptionNoise) * edgeTaper;
+            }
+            else 
+            {
+                // Hover spike gets more violent with corruption
+                float hoverIntensity = 60f + (40f * corruptionPercent);
+                currentY = (Mathf.PerlinNoise(t * 25f, Time.unscaledTime * 30f) - 0.5f) * hoverIntensity * edgeTaper;
+            }
 
             points[i] = new Vector2(startX + (t * width), currentY);
         }
 
         for (int i = 0; i < segmentResolution; i++)
         {
+            // ... (keep the drawing math the same as Phase 3) ...
             Vector2 p1 = points[i];
             Vector2 p2 = points[i + 1];
             Vector2 dir = p2 - p1;
-            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            float distance = dir.magnitude;
-
             RectTransform rt = _lineSegments[i].rectTransform;
             rt.anchoredPosition = p1 + dir / 2f;
-            rt.sizeDelta = new Vector2(distance, lineWidth);
-            rt.localRotation = Quaternion.Euler(0, 0, angle);
-            _lineSegments[i].color = _isHovering ? spikeLineColor : normalLineColor;
+            rt.sizeDelta = new Vector2(dir.magnitude, lineWidth);
+            rt.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg);
+            
+            // --- BIOMETRIC UPDATE: Line color bleeds to red even when idle if corruption is high ---
+            _lineSegments[i].color = Color.Lerp(normalLineColor, spikeLineColor, _isHovering ? 1.0f : corruptionPercent);
         }
     }
+
+    // --- INTERACTION HANDLERS ---
 
     public void OnPointerEnter(PointerEventData eventData) 
     {
         if (_isHovering) return;
         _isHovering = true;
-
-        // Play Hover SFX
         if (audioSource && SND_UI_Button_Hover) audioSource.PlayOneShot(SND_UI_Button_Hover);
-
         _glitchRoutine = StartCoroutine(GlitchLoopRealtime());
         _errorRoutine = StartCoroutine(ErrorFlashLoopRealtime());
     }
 
+    public void OnPointerExit(PointerEventData eventData) => ResetGlitchState();
+    
     public void OnPointerClick(PointerEventData eventData)
     {
-        // Play Click SFX
         if (audioSource && SND_UI_Button_Click) audioSource.PlayOneShot(SND_UI_Button_Click);
     }
 
-    public void OnPointerExit(PointerEventData eventData)
-    {
-        if (!_isHovering) return;
-        _isHovering = false;
-        if (_glitchRoutine != null) StopCoroutine(_glitchRoutine);
-        if (_errorRoutine != null) StopCoroutine(_errorRoutine);
-        ResetGlitchState();
-    }
+    // Gamepad/Keyboard Support
+    public void OnSelect(BaseEventData eventData) => OnPointerEnter(null);
+    public void OnDeselect(BaseEventData eventData) => ResetGlitchState();
 
     private void ResetGlitchState()
     {
         _isHovering = false;
-        
-        if (mainText) mainText.transform.localPosition = _originalMainPos;
+        if (_glitchRoutine != null) StopCoroutine(_glitchRoutine);
+        if (_errorRoutine != null) StopCoroutine(_errorRoutine);
+
+        // BUG FIX: Always ensure text is visible when resetting
+        if (mainText) 
+        {
+            mainText.gameObject.SetActive(true);
+            mainText.transform.localPosition = _originalMainPos;
+        }
+
         if (ghostCyan) { ghostCyan.transform.localPosition = _originalCyanPos; ghostCyan.gameObject.SetActive(false); }
         if (ghostRed) { ghostRed.transform.localPosition = _originalRedPos; ghostRed.gameObject.SetActive(false); }
         if (errorCodeFlash) errorCodeFlash.gameObject.SetActive(false);
-        
         if (borderImage) borderImage.color = new Color(1f, 1f, 1f, idleBorderAlpha);
     }
 
@@ -180,39 +189,31 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
 
         while (_isHovering)
         {
-            Vector3 randomVibrate = new Vector3(
-                Random.Range(-vibrationIntensity, vibrationIntensity),
-                Random.Range(-vibrationIntensity, vibrationIntensity),
-                0f
-            );
+            // --- BIOMETRIC UPDATE: Vibration and Chromatic Offset increase with corruption ---
+            float currentVibration = vibrationIntensity + (vibrationIntensity * corruptionPercent * 2f);
+            float currentChromatic = chromaticOffset + (chromaticOffset * corruptionPercent * 3f);
+
+            Vector3 randomVibrate = new Vector3(Random.Range(-currentVibration, currentVibration), Random.Range(-currentVibration, currentVibration), 0f);
             mainText.transform.localPosition = _originalMainPos + randomVibrate;
 
-            if (ghostCyan) ghostCyan.transform.localPosition = _originalCyanPos + randomVibrate + (Vector3.left * chromaticOffset);
-            if (ghostRed) ghostRed.transform.localPosition = _originalRedPos + randomVibrate + (Vector3.right * chromaticOffset);
+            if (ghostCyan) ghostCyan.transform.localPosition = _originalCyanPos + randomVibrate + (Vector3.left * currentChromatic);
+            if (ghostRed) ghostRed.transform.localPosition = _originalRedPos + randomVibrate + (Vector3.right * currentChromatic);
 
-            if (Random.value < 0.1f)
-            {
-                mainText.gameObject.SetActive(!mainText.gameObject.activeSelf);
-                if (ghostCyan) ghostCyan.gameObject.SetActive(!ghostCyan.gameObject.activeSelf);
-            }
-            else
-            {
-                mainText.gameObject.SetActive(true);
-                if (ghostCyan) ghostCyan.gameObject.SetActive(true);
-            }
+            // Flicker more often if corrupted
+            if (Random.value < (0.1f + (corruptionPercent * 0.2f))) mainText.gameObject.SetActive(!mainText.gameObject.activeSelf);
+            else mainText.gameObject.SetActive(true);
 
-            // --- BORDER BLINK LOGIC ---
+            // Speed up the pulse based on corruption
             if (borderImage)
             {
-                float pulse = Mathf.Sin(Time.unscaledTime * borderBlinkSpeed);
-                float currentAlpha = pulse > 0 ? maxBorderAlpha : idleBorderAlpha;
-                borderImage.color = new Color(1f, 1f, 1f, currentAlpha);
+                float pulse = Mathf.Sin(Time.unscaledTime * (borderBlinkSpeed + (corruptionPercent * 10f)));
+                borderImage.color = new Color(1f, 1f, 1f, pulse > 0 ? maxBorderAlpha : idleBorderAlpha);
             }
 
             yield return new WaitForSecondsRealtime(vibrationSpeed);
         }
     }
-
+    
     private IEnumerator ErrorFlashLoopRealtime()
     {
         if (errorCodeFlash == null || errorCodesPool.Length == 0) yield break;
