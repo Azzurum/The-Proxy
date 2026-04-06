@@ -19,8 +19,9 @@ public class InventoryManager : MonoBehaviour
     public GameObject corruptionPrefab;
 
     [Header("MOTHER-v4 System Shock")]
-    public float shockInterval = 10f;
+    public float shockInterval = 30f;
     private float shockTimer;
+    private MetRigManager metRigManager;
 
     [Header("Grid Constants")]
     public float cellSize = 80f;
@@ -61,12 +62,15 @@ public class InventoryManager : MonoBehaviour
             extRect.anchoredPosition = new Vector2(externalGridOffsetX, 0f);
         }
 
+        metRigManager = FindFirstObjectByType<MetRigManager>();
+        shockInterval = 30f; // Enforce 30 seconds at runtime
         shockTimer = shockInterval;
+        Debug.Log($"Inventory auto-corruption interval set to {shockInterval} seconds.");
     }
 
     void Update()
     {
-        if (isSystemActive)
+        if (isSystemActive && metRigManager != null && metRigManager.isRigOpen)
         {
             shockTimer -= Time.deltaTime;
             if (systemShockProgressBar != null) systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
@@ -76,6 +80,10 @@ public class InventoryManager : MonoBehaviour
                 ResolveCorruptionTick();
                 shockTimer = shockInterval;
             }
+        }
+        else if (systemShockProgressBar != null)
+        {
+            systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
         }
 
         // Manage crush penalties
@@ -140,6 +148,7 @@ public class InventoryManager : MonoBehaviour
             }
         }
         SpawnCorruptionAtRowZero();
+        CheckForGameOver();
     }
 
     private void EscalateCrushPenaltyTimer()
@@ -209,6 +218,30 @@ public class InventoryManager : MonoBehaviour
 
             mainRigGrid.RegisterItem(newBlock, spawnCoord, 1, 1, false);
             mainRigGrid.activeItems[mainRigGrid.activeItems.Count - 1].isCorruption = true;
+        }
+    }
+
+    private bool IsInventoryFullyCorrupted()
+    {
+        if (mainRigGrid == null) return false;
+        int corruptedSlots = mainRigGrid.GetTotalCorruptedSlots();
+        int totalSlots = mainRigGrid.gridWidth * mainRigGrid.gridHeight;
+        return corruptedSlots >= totalSlots;
+    }
+
+    private void CheckForGameOver()
+    {
+        if (!IsInventoryFullyCorrupted()) return;
+
+        Debug.LogError("SYSTEM FAILURE: Inventory fully corrupted. GAME OVER.");
+        GameOverManager gameOver = FindFirstObjectByType<GameOverManager>();
+        if (gameOver != null)
+        {
+            gameOver.TriggerGameOver();
+        }
+        else
+        {
+            Time.timeScale = 0f;
         }
     }
 
@@ -316,6 +349,7 @@ public class InventoryManager : MonoBehaviour
         }
 
         SpawnCorruptionAtRowZero();
+        CheckForGameOver();
     }
 
     public int CrushTier => crushTier;

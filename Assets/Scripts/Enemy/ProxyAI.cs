@@ -18,13 +18,18 @@ public class ProxyAI : MonoBehaviour
     private Vector3 previousPlayerPos; // Used to check if Kaelen is moving
 
     [Header("Movement Stats")]
-    public float baseSpeed = 0.5f; // Very slow creeping speed
-    public float sprintSpeed = 3.5f; // Terrifying sprint speed
+    public float baseSpeed = 2.0f; // Normal patrol speed
+    public float sprintSpeed = 6.0f; // Fast hunt speed
 
     private float currentSpeed;
     private SpriteRenderer spriteRenderer;
+    private Rigidbody2D rb;
     private MetRigManager metRigManager;
     private GameOverManager gameOverManager;
+
+    private Vector2 moveTarget;
+    private bool hasMoveTarget = false;
+    private float rotationSpeed = 720f; // Degrees per second
 
     [Header("Stun Resistance")]
     private bool isStunned = false;
@@ -41,15 +46,32 @@ public class ProxyAI : MonoBehaviour
     [Header("Knockback")]
     [SerializeField] private float knockbackSpeed = 25f; // Very fast, violent shove
 
+    [Header("Attack Behavior")]
+    public float attackWindup = 1.0f;
+    public float attackRecovery = 1.5f;
+    public float attackRange = 1.5f;
+
     [Header("Repulsor State")]
     private bool isKnockedBack = false;
+    private bool isPlayerInMeleeRange = false;
+    private bool canAttack = true;
+    private bool isAttacking = false;
 
     private Coroutine delayedHuntCoroutine;
+    private InventoryManager inventoryManager;
 
     void Start()
     {
         currentSpeed = baseSpeed;
         spriteRenderer = GetComponent<SpriteRenderer>();
+        rb = GetComponent<Rigidbody2D>();
+        if (rb == null)
+        {
+            rb = gameObject.AddComponent<Rigidbody2D>();
+        }
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.simulated = true;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
         // Auto-find player if not assigned
         if (targetPlayer == null)
@@ -61,6 +83,7 @@ public class ProxyAI : MonoBehaviour
         // Cache global managers to avoid repeated searches
         metRigManager = FindFirstObjectByType<MetRigManager>();
         gameOverManager = FindFirstObjectByType<GameOverManager>();
+        inventoryManager = FindFirstObjectByType<InventoryManager>();
 
         // Initialize position tracking
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
@@ -98,9 +121,15 @@ public class ProxyAI : MonoBehaviour
         }
 
         // 3. Only hunt if not stunned AND not flying backward!
-        if (!isStunned && !isKnockedBack)
+        if (!isStunned && !isKnockedBack && !isAttacking)
         {
             HuntPlayer();
+        }
+
+        // 4. If Kaelen is within melee reach, begin a committed attack rather than an instant kill.
+        if (isPlayerInMeleeRange && canAttack && !isStunned && !isKnockedBack && !isAttacking)
+        {
+            StartCoroutine(AttackRoutine());
         }
     }
 
@@ -116,7 +145,7 @@ public class ProxyAI : MonoBehaviour
             hasLastKnownPosition = true;
             isWandering = false; // Snap out of wander mode!
 
-            MoveTowardsTarget(targetPlayer.position, currentSpeed);
+            SetMoveTarget(targetPlayer.position, currentSpeed);
         }
         // SCENARIO B: Stealth Mode (Rig closed). Rely on hearing and memory.
         else if (hasLastKnownPosition)
@@ -124,9 +153,9 @@ public class ProxyAI : MonoBehaviour
             // Step 1: Creep to the exact spot it last heard/saw a signal
             if (!isWandering)
             {
-                if (Vector2.Distance(transform.position, lastKnownPosition) > 0.1f)
+                if (Vector2.Distance(rb != null ? rb.position : (Vector2)transform.position, lastKnownPosition) > 0.1f)
                 {
-                    MoveTowardsTarget(lastKnownPosition, baseSpeed);
+                    SetMoveTarget(lastKnownPosition, baseSpeed);
                 }
                 else
                 {
@@ -138,10 +167,10 @@ public class ProxyAI : MonoBehaviour
             // Step 2: Actively sweep the area
             else
             {
-                if (Vector2.Distance(transform.position, wanderTarget) > 0.1f)
+                if (Vector2.Distance(rb != null ? rb.position : (Vector2)transform.position, wanderTarget) > 0.1f)
                 {
                     // Walk to the random search point
-                    MoveTowardsTarget(wanderTarget, baseSpeed);
+                    SetMoveTarget(wanderTarget, baseSpeed);
                 }
                 else
                 {
@@ -215,13 +244,75 @@ public class ProxyAI : MonoBehaviour
         Debug.Log("PROXY: Delayed hunt activated!");
     }
 
-    // This built-in Unity function fires the exact frame the Proxy touches another collider
-    private void OnTriggerEnter2D(Collider2D collision)
+    private System.Collections.IEnumerator AttackRoutine()
     {
-        // Did we hit the player?
-        if (collision.CompareTag("Player"))
+        canAttack = false;
+        isAttacking = true;
+        float previousSpeed = currentSpeed;
+        currentSpeed = 0f;
+
+        if (spriteRenderer != null) spriteRenderer.color = Color.black;
+        Debug.Log("PROXY: Committing attack...");
+
+        float elapsed = 0f;
+        while (elapsed < attackWindup)
         {
-            KillPlayer();
+            if (!isPlayerInMeleeRange)
+            {
+                Debug.Log("PROXY: Attack broken as Kaelen escaped!");
+                currentSpeed = previousSpeed;
+                isAttacking = false;
+                yield return new WaitForSeconds(attackRecovery);
+                canAttack = true;
+                yield break;
+            }
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        if (isPlayerInMeleeRange)
+        {
+            ExecuteAttack();
+        }
+        else
+        {
+            Debug.Log("PROXY: Attack failed to connect.");
+        }
+
+        currentSpeed = previousSpeed;
+        isAttacking = false;
+        yield return new WaitForSeconds(attackRecovery);
+        canAttack = true;
+    }
+
+    private void ExecuteAttack()
+    {
+        Debug.Log("PROXY: Attack landed. Inventory corruption injected.");
+        if (inventoryManager != null)
+        {
+            inventoryManager.AddCorruptionRow();
+        }
+        else
+        {
+            Debug.LogWarning("PROXY: Unable to apply corruption because InventoryManager is missing.");
+        }
+    }
+
+    // This built-in Unity function fires when the Proxy physically contacts the player
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            isPlayerInMeleeRange = true;
+        }
+    }
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            isPlayerInMeleeRange = false;
         }
     }
 
@@ -298,7 +389,7 @@ public class ProxyAI : MonoBehaviour
         isKnockedBack = true;
 
         // 1. Force math into 2D so it doesn't accidentally shoot into the Z-axis floor
-        Vector2 myPos2D = new Vector2(transform.position.x, transform.position.y);
+        Vector2 myPos2D = rb != null ? rb.position : new Vector2(transform.position.x, transform.position.y);
         Vector2 playerPos2D = new Vector2(playerPosition.x, playerPosition.y);
 
         // 2. Calculate the exact direction AWAY from Kaelen
@@ -310,8 +401,14 @@ public class ProxyAI : MonoBehaviour
         {
             myPos2D = Vector2.MoveTowards(myPos2D, targetPosition, knockbackSpeed * Time.deltaTime);
 
-            // Re-apply to the actual transform, keeping original Z
-            transform.position = new Vector3(myPos2D.x, myPos2D.y, transform.position.z);
+            if (rb != null)
+            {
+                rb.MovePosition(myPos2D);
+            }
+            else
+            {
+                transform.position = new Vector3(myPos2D.x, myPos2D.y, transform.position.z);
+            }
 
             yield return null; // Wait for the next frame
         }
@@ -319,17 +416,47 @@ public class ProxyAI : MonoBehaviour
         isKnockedBack = false;
     }
 
-    // Helper method to handle the physical sliding and rotating
-    private void MoveTowardsTarget(Vector2 target, float speed)
+    private void FixedUpdate()
     {
-        transform.position = Vector2.MoveTowards(transform.position, target, speed * Time.deltaTime);
+        if (!hasMoveTarget || isStunned || isKnockedBack || isAttacking) return;
 
-        Vector2 direction = target - (Vector2)transform.position;
-        if (direction != Vector2.zero) // Prevent errors if it's exactly on the spot
+        Vector2 currentPosition = rb != null ? rb.position : (Vector2)transform.position;
+        Vector2 newPosition = Vector2.MoveTowards(currentPosition, moveTarget, currentSpeed * Time.fixedDeltaTime);
+
+        if (rb != null)
         {
-            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            transform.rotation = Quaternion.Euler(0, 0, angle - 90f);
+            rb.MovePosition(newPosition);
         }
+        else
+        {
+            transform.position = new Vector3(newPosition.x, newPosition.y, transform.position.z);
+        }
+
+        if (Vector2.Distance(currentPosition, moveTarget) <= 0.05f)
+        {
+            hasMoveTarget = false;
+        }
+
+        RotateTowardsTarget(moveTarget);
+    }
+
+    private void SetMoveTarget(Vector2 target, float speed)
+    {
+        moveTarget = target;
+        hasMoveTarget = true;
+        currentSpeed = speed;
+        RotateTowardsTarget(target);
+    }
+
+    private void RotateTowardsTarget(Vector2 target)
+    {
+        Vector2 currentPosition = rb != null ? rb.position : (Vector2)transform.position;
+        Vector2 direction = target - currentPosition;
+        if (direction == Vector2.zero) return;
+
+        float targetAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        Quaternion desiredRotation = Quaternion.Euler(0, 0, targetAngle - 90f);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, desiredRotation, rotationSpeed * Time.deltaTime);
     }
 
     // Helper method to pick a random spot to search
