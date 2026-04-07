@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class MetRigManager : MonoBehaviour
 {
@@ -79,6 +80,16 @@ public class MetRigManager : MonoBehaviour
             bool signalLeaked = isRigOpen && !inFaradayZone;
             float distance = signalLeaked ? Vector2.Distance(transform.position, proxyAI.transform.position) : -1f;
             proxyAI.OnSignalSpike(signalLeaked && !isSignalMasked, distance);
+        }
+
+        if (isRigOpen)
+        {
+            InventoryManager inventoryManager = FindFirstObjectByType<InventoryManager>();
+            if (inventoryManager != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                inventoryManager.RefreshAllGrids();
+            }
         }
 
         // Console Warnings based on where you are standing

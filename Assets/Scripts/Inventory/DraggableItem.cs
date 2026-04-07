@@ -1,268 +1,395 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(CanvasGroup))]
+[RequireComponent(typeof(LayoutElement))]
 public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
 {
     [Header("Item Data")]
     public ItemData itemData;
-
-    [Header("Item Details")]
     public string itemName = "Unknown Object";
     [TextArea] public string itemDescription = "A strange item with unknown properties.";
 
     [Header("Item Footprint")]
-    public int sizeX = 1;
-    public int sizeY = 2;
+    public ItemFootprint footprint;
     public bool isRotated = false;
 
     [Header("Layout")]
     public float cellSize = 80f;
 
-    private bool isDragging = false;
+    [HideInInspector] public Transform parentAfterDrag;
+    [HideInInspector] public static DraggableItem itemBeingDragged;
+    public bool ejectedFromRig = false;
+
+    [HideInInspector] public Transform originalParent;
+    [HideInInspector] public Vector3 originalLocalPosition;
+    [HideInInspector] public bool dropAccepted = false;
+    private Vector3 initialCanvasPosition;
+
     private CanvasGroup canvasGroup;
     private RectTransform rectTransform;
     private Canvas canvas;
-    private InventoryManager inventoryManager;
-
-    // --- RESTORED LIVE MEMORY (Accessible by the Manager) ---
-    public static DraggableItem itemBeingDragged;
-    public bool ejectedFromRig = false;
-    public InventoryGrid originalGrid;
-    public Vector2 originalLocalPosition;
-    public Vector2Int originalAnchorCoord;
-
-    private Transform originalParent;
-    private bool originalIsRotated;
-    private int originalSizeX;
-    private int originalSizeY;
-    private Quaternion originalRotation;
-    private bool fromHotbar = false;
-    private HotbarSlot originalHotbarSlot;
+    private LayoutElement layoutElement;
+    private Coroutine animateCoroutine;
+    private UIItem uiItem;
+    private Text rotationHintText;
+    public bool showRotationHint = true;
+    public string rotationHintLabel = "R";
 
     void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
         rectTransform = GetComponent<RectTransform>();
-        canvas = GetComponentInParent<Canvas>().rootCanvas;
+        canvas = GetComponentInParent<Canvas>()?.rootCanvas;
+        layoutElement = GetComponent<LayoutElement>();
+        uiItem = GetComponent<UIItem>();
+        
+        if (layoutElement != null)
+        {
+            layoutElement.ignoreLayout = true;
+        }
 
+        // Dynamically steal the exact cell size from the grid as soon as the object is created
+        GridLayoutGroup grid = GetComponentInParent<GridLayoutGroup>();
+        if (grid != null) cellSize = grid.cellSize.x;
+
+        CreateRotationHint();
+    }
+
+    void Start()
+    {
         if (itemData != null)
         {
             itemName = itemData.itemName;
             itemDescription = itemData.itemDescription;
-            sizeX = itemData.size.x;
-            sizeY = itemData.size.y;
         }
 
-        rectTransform.pivot = new Vector2(0.5f, 0.5f);
-        rectTransform.sizeDelta = new Vector2(sizeX * cellSize, sizeY * cellSize);
-
-        LayoutElement le = GetComponent<LayoutElement>();
-        if (le == null) le = gameObject.AddComponent<LayoutElement>();
-        le.ignoreLayout = true;
+        UpdateVisualSize();
     }
 
     void Update()
     {
-        if (isDragging && Input.GetKeyDown(KeyCode.R)) RotateItem();
+        if (itemBeingDragged == this && Input.GetKeyDown(KeyCode.R)) RotateItem();
     }
 
-    // --- INSPECTION CLICK ---
-    public void OnPointerClick(PointerEventData eventData)
+    public void SetFootprint(ItemFootprint newFootprint)
     {
-        if (!isDragging && ItemInspector.Instance != null)
-        {
-            ItemInspector.Instance.InspectItem(this);
-        }
+        footprint = newFootprint;
+        UpdateVisualSize();
     }
 
-    public void OnBeginDrag(PointerEventData eventData)
+    public void SetCellSize(float newCellSize)
     {
-        isDragging = true;
-        itemBeingDragged = this; // Restored
-        ejectedFromRig = false;  // Restored
-
-        originalLocalPosition = rectTransform.localPosition;
-
-        originalGrid = GetComponentInParent<InventoryGrid>();
-        if (originalGrid != null)
-        {
-            foreach (var item in originalGrid.activeItems)
-            {
-                if (item.uiObject == gameObject)
-                {
-                    originalAnchorCoord = item.position;
-                    break;
-                }
-            }
-            originalGrid.RemoveItem(gameObject);
-        }
-        else
-        {
-            // Check if from hotbar
-            HotbarSlot slot = GetComponentInParent<HotbarSlot>();
-            if (slot != null)
-            {
-                fromHotbar = true;
-                originalHotbarSlot = slot;
-            }
-        }
-
-        originalParent = transform.parent;
-        originalIsRotated = isRotated;
-        originalSizeX = sizeX;
-        originalSizeY = sizeY;
-        originalRotation = rectTransform.rotation;
-
-        transform.SetParent(canvas.transform, true);
-        transform.SetAsLastSibling();
-
-        Vector3 lp = rectTransform.localPosition; lp.z = 0; rectTransform.localPosition = lp;
-        canvasGroup.blocksRaycasts = false;
-        canvasGroup.alpha = 0.7f;
+        cellSize = newCellSize;
+        UpdateVisualSize();
     }
 
-    public void OnDrag(PointerEventData eventData)
+    public void UpdateVisualSize()
     {
-        rectTransform.anchoredPosition += eventData.delta / canvas.scaleFactor;
-    }
-
-    public void OnEndDrag(PointerEventData eventData)
-    {
-        isDragging = false;
-        canvasGroup.blocksRaycasts = true;
-        canvasGroup.alpha = 1f;
-
-        // --- HOTBAR SHORTCUT CHECK ---
-        GameObject droppedOn = eventData.pointerCurrentRaycast.gameObject;
-        if (droppedOn != null)
+        if (footprint == null)
         {
-            HotbarSlot hotbarSlot = droppedOn.GetComponentInParent<HotbarSlot>();
-            if (hotbarSlot != null)
-            {
-                // Move the item to hotbar
-                if (originalGrid != null) originalGrid.RemoveItem(gameObject);
-                hotbarSlot.AssignShortcut(this);
-                transform.SetParent(hotbarSlot.transform, true);
-                rectTransform.localPosition = Vector2.zero;
-                canvasGroup.alpha = 0f; // Hide the draggable item
-                itemBeingDragged = null;
-                fromHotbar = false;
-                originalHotbarSlot = null;
-                return;
-            }
+            footprint = new ItemFootprint(1, 1);
         }
 
-        InventoryGrid[] allGrids = FindObjectsByType<InventoryGrid>(FindObjectsSortMode.None);
-        InventoryGrid bestGrid = null;
-
-        foreach (var grid in allGrids)
+        if (rectTransform == null)
         {
-            if (grid.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(grid.GetComponent<RectTransform>(), Input.mousePosition, eventData.pressEventCamera))
-            {
-                bestGrid = grid;
-                break;
-            }
+            rectTransform = GetComponent<RectTransform>();
+            if (rectTransform == null) return;
         }
 
-        if (bestGrid != null)
-        {
-            Vector2 localPos = bestGrid.transform.InverseTransformPoint(rectTransform.position);
+        rectTransform.localScale = Vector3.one;
+        rectTransform.localRotation = Quaternion.identity;
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.sizeDelta = new Vector2(footprint.width * cellSize, footprint.height * cellSize);
 
-            float gridBottomLeftX = -(bestGrid.gridWidth * bestGrid.cellSize) / 2f;
-            float gridBottomLeftY = -(bestGrid.gridHeight * bestGrid.cellSize) / 2f;
-
-            float itemBottomLeftX = localPos.x - (sizeX * bestGrid.cellSize) / 2f;
-            float itemBottomLeftY = localPos.y - (sizeY * bestGrid.cellSize) / 2f;
-
-            int anchorX = Mathf.RoundToInt((itemBottomLeftX - gridBottomLeftX) / bestGrid.cellSize);
-            int anchorY = Mathf.RoundToInt((itemBottomLeftY - gridBottomLeftY) / bestGrid.cellSize);
-
-            if (anchorX < 0) anchorX = 0;
-            if (anchorX + sizeX > bestGrid.gridWidth) anchorX = bestGrid.gridWidth - sizeX;
-            int bottomActiveRow = bestGrid.gridHeight - bestGrid.activeHeight;
-            if (anchorY < bottomActiveRow) anchorY = bottomActiveRow;
-            if (anchorY + sizeY > bestGrid.gridHeight) anchorY = bestGrid.gridHeight - sizeY;
-
-            Vector2Int bestAnchor = new Vector2Int(anchorX, anchorY);
-
-            if (bestGrid.IsSpaceFree(bestAnchor, sizeX, sizeY, gameObject))
-            {
-                foreach (var g in allGrids) g.RemoveItem(gameObject);
-
-                transform.SetParent(bestGrid.transform, true);
-                rectTransform.localPosition = bestGrid.GetSnapPosition(bestAnchor, sizeX, sizeY);
-
-                rectTransform.localScale = Vector3.one;
-                Vector3 lp = rectTransform.localPosition; lp.z = 0; rectTransform.localPosition = lp;
-
-                bestGrid.RegisterItem(gameObject, bestAnchor, sizeX, sizeY, isRotated);
-
-                if (inventoryManager != null && originalGrid != null && originalGrid == inventoryManager.externalStorageGrid && originalGrid != bestGrid && originalGrid.activeItems.Count == 0)
-                {
-                    originalGrid.gameObject.SetActive(false);
-                }
-
-                if (fromHotbar)
-                {
-                    originalHotbarSlot.ClearSlot();
-                    canvasGroup.alpha = 1f; // Make visible again
-                }
-
-                itemBeingDragged = null; // Restored
-                return;
-            }
-            else Debug.LogWarning("Drop Rejected: Space is occupied!");
-        }
-
-        ReturnToOrigin();
-        itemBeingDragged = null; // Restored
-        fromHotbar = false;
-        originalHotbarSlot = null;
+        ApplyRotationVisual();
     }
 
     private void RotateItem()
     {
         isRotated = !isRotated;
-        int tempSize = sizeX;
-        sizeX = sizeY;
-        sizeY = tempSize;
-        rectTransform.Rotate(0, 0, -90f);
+        footprint = footprint.GetRotated();
+        UpdateVisualSize();
     }
 
-    public void ReturnToOrigin()
+    private void ApplyRotationVisual()
     {
-        // Restored check for rig ejection
+        if (uiItem != null && uiItem.displayImage != null)
+        {
+            uiItem.displayImage.rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? 90f : 0f);
+        }
+    }
+
+    public void OnPointerClick(PointerEventData eventData) {}
+
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        if (itemData != null && itemData.itemID == "CRPT") return; // Block corruption drag
+
+        itemBeingDragged = this;
+        ejectedFromRig = false;
+        dropAccepted = false;
+        parentAfterDrag = transform.parent;
+        originalParent = transform.parent;
+        originalLocalPosition = rectTransform.localPosition;
+        initialCanvasPosition = canvas.transform.position;
+
+        transform.SetParent(canvas.transform, true);
+        transform.SetAsLastSibling();
+
+        // Update data after parenting so original slot is empty
+        InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+        if (manager != null) manager.SyncDataFromUI();
+
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+
+        canvasGroup.blocksRaycasts = false;
+        canvasGroup.alpha = 0.8f;
+
+        SetRotationHintVisible(true);
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+        if (itemData != null && itemData.itemID == "CRPT") return;
+
+        // With pivot at center, position directly at mouse, adjusted for canvas movement
+        rectTransform.position = Input.mousePosition + (canvas.transform.position - initialCanvasPosition);
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (itemData != null && itemData.itemID == "CRPT") return;
+
+        itemBeingDragged = null;
+        canvasGroup.blocksRaycasts = true;
+        canvasGroup.alpha = 1f;
+
+        ClearAllSlotHighlights();
+        SetRotationHintVisible(false);
+
         if (ejectedFromRig)
         {
-            if (inventoryManager != null) inventoryManager.DiscardItemToWorld(gameObject);
+            InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+            if (manager != null) manager.DiscardItemToWorld(gameObject);
             return;
         }
 
-        isRotated = originalIsRotated;
-        sizeX = originalSizeX;
-        sizeY = originalSizeY;
-        rectTransform.rotation = originalRotation;
-
-        if (originalGrid != null)
+        if (dropAccepted && parentAfterDrag != null)
         {
-            originalGrid.gameObject.SetActive(true);
-            transform.SetParent(originalGrid.transform, true);
-            rectTransform.localScale = Vector3.one;
-            transform.SetAsLastSibling();
-
-            originalGrid.RegisterItem(gameObject, originalAnchorCoord, sizeX, sizeY, isRotated);
-            rectTransform.localPosition = originalLocalPosition;
+            StartSmoothPlacement(parentAfterDrag);
         }
-        else if (fromHotbar)
+        else
         {
-            // Return to hotbar
-            transform.SetParent(originalHotbarSlot.transform, true);
-            rectTransform.localPosition = Vector2.zero;
-            canvasGroup.alpha = 0f; // Hide again
+            StartRejectedReturn();
+        }
+    }
+
+    private Vector3 GetTargetLocalPositionForParent(Transform targetParent)
+    {
+        float halfCell = cellSize / 2f;
+        return new Vector3((footprint.width - 1) * halfCell, -(footprint.height - 1) * halfCell, 0f);
+    }
+
+    private void StartSmoothPlacement(Transform targetParent)
+    {
+        if (animateCoroutine != null) StopCoroutine(animateCoroutine);
+        animateCoroutine = StartCoroutine(SmoothMoveToParent(targetParent, GetTargetLocalPositionForParent(targetParent), 0.18f));
+    }
+
+    private void StartSmoothReturn()
+    {
+        if (originalParent == null)
+        {
+            originalParent = transform.parent;
+        }
+        if (animateCoroutine != null) StopCoroutine(animateCoroutine);
+        animateCoroutine = StartCoroutine(SmoothMoveToParent(originalParent, originalLocalPosition, 0.18f));
+    }
+
+    private void StartRejectedReturn()
+    {
+        if (originalParent == null)
+        {
+            originalParent = transform.parent;
+        }
+        if (animateCoroutine != null) StopCoroutine(animateCoroutine);
+        animateCoroutine = StartCoroutine(RejectedReturnCoroutine(originalParent, originalLocalPosition, 0.22f));
+    }
+
+    private System.Collections.IEnumerator RejectedReturnCoroutine(Transform targetParent, Vector3 targetLocalPosition, float duration)
+    {
+        if (rectTransform == null)
+        {
+            rectTransform = GetComponent<RectTransform>();
+            if (rectTransform == null) yield break;
         }
 
-        Vector3 lp = rectTransform.localPosition; lp.z = 0; rectTransform.localPosition = lp;
+        Vector3 startWorld = rectTransform.position;
+        transform.SetParent(targetParent, true);
+        rectTransform.position = startWorld;
+
+        Vector3 startLocal = rectTransform.localPosition;
+        Color originalColor = Color.white;
+        if (uiItem != null && uiItem.backgroundImage != null)
+        {
+            originalColor = uiItem.backgroundImage.color;
+        }
+
+        float shakeMagnitude = cellSize * 0.08f;
+        float timer = 0f;
+
+        while (timer < duration)
+        {
+            timer += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, timer / duration);
+            float shake = Mathf.Sin(timer * 40f) * shakeMagnitude * (1f - t);
+            rectTransform.localPosition = Vector3.Lerp(startLocal, targetLocalPosition, t) + new Vector3(shake, Mathf.Abs(shake) * 0.5f, 0f);
+
+            if (uiItem != null && uiItem.backgroundImage != null)
+            {
+                float pulse = Mathf.Sin(timer * 20f) * 0.5f + 0.5f;
+                uiItem.backgroundImage.color = Color.Lerp(originalColor, Color.red, pulse * 0.5f);
+            }
+
+            yield return null;
+        }
+
+        rectTransform.localPosition = targetLocalPosition;
+        if (uiItem != null && uiItem.backgroundImage != null)
+        {
+            uiItem.backgroundImage.color = originalColor;
+        }
+
+        animateCoroutine = null;
+
+        InventoryManager inventoryManager = FindFirstObjectByType<InventoryManager>();
+        if (inventoryManager != null)
+        {
+            inventoryManager.SyncDataFromUI();
+        }
+    }
+
+    private System.Collections.IEnumerator SmoothMoveToParent(Transform targetParent, Vector3 targetLocalPosition, float duration)
+    {
+        if (rectTransform == null)
+        {
+            rectTransform = GetComponent<RectTransform>();
+            if (rectTransform == null) yield break;
+        }
+
+        Vector3 startWorld = rectTransform.position;
+        transform.SetParent(targetParent, true);
+        rectTransform.position = startWorld;
+
+        Vector3 startLocal = rectTransform.localPosition;
+        float timer = 0f;
+
+        while (timer < duration)
+        {
+            timer += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, timer / duration);
+            rectTransform.localPosition = Vector3.Lerp(startLocal, targetLocalPosition, t);
+            yield return null;
+        }
+
+        rectTransform.localPosition = targetLocalPosition;
+        animateCoroutine = null;
+
+        InventoryManager inventoryManager = FindFirstObjectByType<InventoryManager>();
+        if (inventoryManager != null)
+        {
+            inventoryManager.SyncDataFromUI();
+        }
+    }
+
+    /// <summary>
+    /// Returns the list of grid cells occupied by this item at a given position
+    /// </summary>
+    public List<Vector2Int> GetOccupiedCells(Vector2Int gridPosition)
+    {
+        List<Vector2Int> occupied = new List<Vector2Int>();
+        List<Vector2Int> footprintCells = footprint.GetOccupiedCells();
+        
+        foreach (Vector2Int cell in footprintCells)
+        {
+            occupied.Add(gridPosition + cell);
+        }
+        
+        return occupied;
+    }
+
+    private void CreateRotationHint()
+    {
+        if (!showRotationHint) return;
+        if (rotationHintText != null) return;
+
+        Transform existing = transform.Find("RotationHint");
+        if (existing != null)
+        {
+            rotationHintText = existing.GetComponent<Text>();
+        }
+
+        if (rotationHintText == null)
+        {
+            GameObject hintObject = new GameObject("RotationHint", typeof(RectTransform));
+            hintObject.transform.SetParent(transform, false);
+            RectTransform hintRect = hintObject.GetComponent<RectTransform>();
+            hintRect.anchorMin = new Vector2(1f, 0f);
+            hintRect.anchorMax = new Vector2(1f, 0f);
+            hintRect.pivot = new Vector2(1f, 0f);
+            hintRect.anchoredPosition = new Vector2(-6f, 6f);
+            hintRect.sizeDelta = new Vector2(32f, 24f);
+
+            rotationHintText = hintObject.AddComponent<Text>();
+            rotationHintText.raycastTarget = false;
+            rotationHintText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            rotationHintText.fontSize = 18;
+            rotationHintText.fontStyle = FontStyle.Bold;
+            rotationHintText.alignment = TextAnchor.LowerRight;
+            rotationHintText.color = new Color(1f, 1f, 1f, 0.92f);
+            rotationHintText.text = rotationHintLabel;
+            rotationHintText.enabled = false;
+        }
+    }
+
+    private void SetRotationHintVisible(bool visible)
+    {
+        if (rotationHintText == null)
+        {
+            CreateRotationHint();
+        }
+        if (rotationHintText != null)
+        {
+            rotationHintText.enabled = visible;
+        }
+    }
+
+    private void ClearAllSlotHighlights()
+    {
+        InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+        if (manager == null) return;
+
+        // Clear highlights on all grids
+        ClearGridHighlights(manager.gridLeft);
+        ClearGridHighlights(manager.gridRight);
+        if (manager.gridExt != null) ClearGridHighlights(manager.gridExt);
+    }
+
+    private void ClearGridHighlights(Transform grid)
+    {
+        if (grid == null) return;
+        foreach (Transform slot in grid)
+        {
+            ItemSlot itemSlot = slot.GetComponent<ItemSlot>();
+            if (itemSlot != null)
+            {
+                itemSlot.ClearHighlight();
+            }
+        }
     }
 }

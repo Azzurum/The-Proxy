@@ -27,8 +27,15 @@ public class ItemInspector : MonoBehaviour
         titleText.text = item.itemName;
         descriptionText.text = item.itemDescription;
 
-        // Show size as WxH
-        sizeText.text = $"{item.sizeX}×{item.sizeY}";
+        // Show footprint dimensions
+        if (item.footprint != null)
+        {
+            sizeText.text = $"{item.footprint.width}×{item.footprint.height}";
+        }
+        else
+        {
+            sizeText.text = "N/A";
+        }
 
         inspectorPanel.SetActive(true);
     }

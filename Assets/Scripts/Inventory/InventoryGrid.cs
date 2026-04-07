@@ -84,27 +84,41 @@ public class InventoryGrid : MonoBehaviour
 
     public bool IsSpaceFree(Vector2Int anchor, int width, int height, GameObject itemBeingMoved)
     {
-        for (int x = 0; x < width; x++)
+        ItemFootprint footprint = null;
+        if (itemBeingMoved != null)
         {
-            for (int y = 0; y < height; y++)
+            DraggableItem dragged = itemBeingMoved.GetComponent<DraggableItem>();
+            if (dragged != null && dragged.footprint != null)
             {
-                Vector2Int targetCell = new Vector2Int(anchor.x + x, anchor.y + y);
-                if (targetCell.x < 0 || targetCell.x >= gridWidth ||
-                    targetCell.y < 0 || targetCell.y >= gridHeight ||
-                    targetCell.y < (gridHeight - activeHeight))
-                {
-                    return false;
-                }
+                footprint = dragged.footprint;
+            }
+        }
 
-                foreach (var item in activeItems)
+        if (footprint == null)
+        {
+            footprint = new ItemFootprint(width, height);
+        }
+
+        foreach (Vector2Int cell in footprint.GetOccupiedCells())
+        {
+            Vector2Int targetCell = new Vector2Int(anchor.x + cell.x, anchor.y + cell.y);
+            if (targetCell.x < 0 || targetCell.x >= gridWidth ||
+                targetCell.y < 0 || targetCell.y >= gridHeight ||
+                targetCell.y < (gridHeight - activeHeight))
+            {
+                return false;
+            }
+
+            foreach (var item in activeItems)
+            {
+                if (item.uiObject == itemBeingMoved) continue;
+                foreach (Vector2Int occupied in GetOccupiedCells(item))
                 {
-                    if (item.uiObject == itemBeingMoved) continue;
-                    bool overlapsX = targetCell.x >= item.position.x && targetCell.x < (item.position.x + item.size.x);
-                    bool overlapsY = targetCell.y >= item.position.y && targetCell.y < (item.position.y + item.size.y);
-                    if (overlapsX && overlapsY) return false;
+                    if (occupied == targetCell) return false;
                 }
             }
         }
+
         return true;
     }
 
@@ -117,8 +131,38 @@ public class InventoryGrid : MonoBehaviour
         newData.isRotated = isRotated;
         newData.uiObject = uiItem;
         DraggableItem draggable = uiItem.GetComponent<DraggableItem>();
-        if (draggable != null) newData.itemData = draggable.itemData;
+        if (draggable != null)
+        {
+            newData.itemData = draggable.itemData;
+            newData.size = new Vector2Int(draggable.footprint.width, draggable.footprint.height);
+        }
         activeItems.Add(newData);
+    }
+
+    private List<Vector2Int> GetOccupiedCells(InventoryItem item)
+    {
+        ItemFootprint footprint = null;
+        if (item.itemData != null)
+        {
+            footprint = item.itemData.GetFootprint();
+            if (item.isRotated)
+            {
+                footprint = footprint.GetRotated();
+            }
+        }
+
+        if (footprint == null)
+        {
+            footprint = new ItemFootprint(item.size.x > 0 ? item.size.x : 1, item.size.y > 0 ? item.size.y : 1);
+        }
+
+        List<Vector2Int> cells = new List<Vector2Int>();
+        foreach (Vector2Int cell in footprint.GetOccupiedCells())
+        {
+            cells.Add(item.position + cell);
+        }
+
+        return cells;
     }
 
     public void RemoveItem(GameObject uiItem)
