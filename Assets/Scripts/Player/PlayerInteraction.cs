@@ -55,7 +55,7 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         // 2. Find the monster and check the distance
-        ProxyAI proxy = FindFirstObjectByType<ProxyAI>();
+        ProxyAI proxy = FindAnyObjectByType<ProxyAI>();
         if (proxy != null)
         {
             Debug.Log("<color=green>K-80 REPULSOR FIRED!</color> Massive pneumatic blast emitted.");
@@ -84,7 +84,7 @@ public class PlayerInteraction : MonoBehaviour
 
         foreach (var obj in nearbyObjects)
         {
-            InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+            InventoryManager manager = FindAnyObjectByType<InventoryManager>();
             if (manager == null) return;
 
             // SCENARIO A: Pick up a Battery (Size: 1x2)
@@ -127,7 +127,7 @@ public class PlayerInteraction : MonoBehaviour
         if (victoryScreen == null)
         {
             // Fallback search if the canvas is turned off
-            victoryScreen = FindFirstObjectByType<Canvas>(FindObjectsInactive.Include)
+            victoryScreen = FindAnyObjectByType<Canvas>(FindObjectsInactive.Include)
                             .gameObject.transform.Find("Canvas_Victory")?.gameObject;
         }
 
@@ -141,7 +141,7 @@ public class PlayerInteraction : MonoBehaviour
 
     private void FireStunner()
     {
-        InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
         if (manager == null) return;
 
         // 1. Consume 1 battery to power the weapon
@@ -150,7 +150,7 @@ public class PlayerInteraction : MonoBehaviour
             Debug.Log("ARC-PULSE FIRED! 1 Battery consumed.");
 
             // 2. Check if the Proxy is close enough
-            ProxyAI proxy = FindFirstObjectByType<ProxyAI>();
+            ProxyAI proxy = FindAnyObjectByType<ProxyAI>();
             if (proxy != null)
             {
                 // COMBAT AWARENESS: The shot reveals Kaelen's location!

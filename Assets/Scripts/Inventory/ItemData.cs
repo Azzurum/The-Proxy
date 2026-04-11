@@ -7,7 +7,9 @@ public class ItemFootprint
     public int width = 1;
     public int height = 1;
     public bool[] cells; // Flattened 1D array: index = y * width + x
-
+    
+    // Note: I removed the redundant isRotated from here since the Data handles it!
+    
     public ItemFootprint()
     {
         cells = new bool[1] { true }; // Default 1x1
@@ -86,8 +88,15 @@ public class ItemData : ScriptableObject
     [Header("Custom Footprint Matrix")]
     public ItemFootprint footprint; // Define complex shapes here
     
+    [Header("Runtime Memory")]
+    public bool isRotated = false; // THE FIX: Stores rotation state across inventory opens
+    
     void OnEnable()
     {
+        // SAFETY FIX: ScriptableObjects save their state even after Play Mode ends.
+        // This forces the item to return to its default unrotated state whenever you start the game.
+        isRotated = false;
+
         if (footprint == null || footprint.cells == null || footprint.cells.Length == 0)
         {
             footprint = new ItemFootprint(1, 1);

@@ -39,8 +39,8 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
-        inventoryManager = FindFirstObjectByType<InventoryManager>();
-        screenEffect = FindFirstObjectByType<ScreenEffectManager>();
+        inventoryManager = FindAnyObjectByType<InventoryManager>();
+        screenEffect = FindAnyObjectByType<ScreenEffectManager>();
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
         currentThreshold = sprintMeterThreshold;

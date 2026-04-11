@@ -33,7 +33,7 @@ public class HotbarManager : MonoBehaviour
         // Try to find PlayerController if not manually assigned
         if (playerController == null)
         {
-            playerController = FindFirstObjectByType<PlayerController>();
+            playerController = FindAnyObjectByType<PlayerController>();
             Debug.Log($"Searching for PlayerController: {(playerController != null ? "FOUND" : "NOT FOUND")}");
         }
 

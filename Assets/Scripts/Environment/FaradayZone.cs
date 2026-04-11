@@ -7,7 +7,7 @@ public class FaradayZone : MonoBehaviour
         // When Kaelen steps INTO the safe room
         if (collision.CompareTag("Player"))
         {
-            MetRigManager manager = FindFirstObjectByType<MetRigManager>();
+            MetRigManager manager = FindAnyObjectByType<MetRigManager>();
             if (manager != null) manager.inFaradayZone = true;
             Debug.Log("<color=cyan>ENTERED FARADAY ZONE:</color> Magnetic dampeners active.");
         }
@@ -18,7 +18,7 @@ public class FaradayZone : MonoBehaviour
         // When Kaelen steps OUT of the safe room
         if (collision.CompareTag("Player"))
         {
-            MetRigManager manager = FindFirstObjectByType<MetRigManager>();
+            MetRigManager manager = FindAnyObjectByType<MetRigManager>();
             if (manager != null) manager.inFaradayZone = false;
             Debug.Log("<color=yellow>LEFT FARADAY ZONE:</color> Rig exposed to local network.");
         }

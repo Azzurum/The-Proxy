@@ -1,10 +1,10 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Rendering.RenderGraphModule; // CRUCIAL: The new Unity 6 API
 
 public class PauseScreenCaptureFeature : ScriptableRendererFeature
 {
-    // The actual Render Pass that executes on the GPU
     class CapturePass : ScriptableRenderPass
     {
         private RTHandle _destinationHandle;
@@ -12,7 +12,6 @@ public class PauseScreenCaptureFeature : ScriptableRendererFeature
 
         public CapturePass()
         {
-            // We grab the frame right after the 3D world and 2D sprites are drawn.
             renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
         }
 
@@ -22,21 +21,42 @@ public class PauseScreenCaptureFeature : ScriptableRendererFeature
             _shouldCapture = true;
         }
 
-        public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
+        // Data container for the Render Graph
+        private class PassData
+        {
+            public TextureHandle sourceTexture;
+        }
+
+        // =================================================================
+        // UNITY 6 RENDER GRAPH API (Replaces the obsolete Execute method)
+        // =================================================================
+        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
             if (!_shouldCapture || _destinationHandle == null) return;
 
-            // Get a command buffer from the pool
-            CommandBuffer cmd = CommandBufferPool.Get("PauseScreenCapture");
-            
-            // Unity 6 Modern Blitter API (Do not use legacy cmd.Blit)
-            RTHandle cameraTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
-            Blitter.BlitCameraTexture(cmd, cameraTarget, _destinationHandle);
-            
-            context.ExecuteCommandBuffer(cmd);
-            CommandBufferPool.Release(cmd);
+            // 1. Get the camera's current screen texture natively
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            TextureHandle cameraColor = resourceData.activeColorTexture;
 
-            // Toggle off so it only captures exactly one frame
+            // 2. Import your Pause Menu's texture into the Render Graph
+            TextureHandle destinationHandle = renderGraph.ImportTexture(_destinationHandle);
+
+            // 3. Create a Raster Render Pass
+            using (var builder = renderGraph.AddRasterRenderPass<PassData>("PauseScreenCapture", out var passData))
+            {
+                passData.sourceTexture = cameraColor;
+                
+                // Read from the camera, Write to our pause menu texture
+                builder.UseTexture(passData.sourceTexture);
+                builder.SetRenderAttachment(destinationHandle, 0);
+
+                // 4. Execute the copy!
+                builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
+                {
+                    Blitter.BlitTexture(context.cmd, data.sourceTexture, new Vector4(1, 1, 0, 0), 0.0f, false);
+                });
+            }
+
             _shouldCapture = false; 
         }
     }
@@ -52,14 +72,12 @@ public class PauseScreenCaptureFeature : ScriptableRendererFeature
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        // Only run this on the main game camera
         if (renderingData.cameraData.cameraType == CameraType.Game)
         {
             renderer.EnqueuePass(_capturePass);
         }
     }
 
-    // Global static helper so our PauseManager can easily request a frame
     public static void CaptureScreen(RTHandle destination)
     {
         if (_instance != null && _instance._capturePass != null)

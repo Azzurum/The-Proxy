@@ -81,9 +81,9 @@ public class ProxyAI : MonoBehaviour
         }
 
         // Cache global managers to avoid repeated searches
-        metRigManager = FindFirstObjectByType<MetRigManager>();
-        gameOverManager = FindFirstObjectByType<GameOverManager>();
-        inventoryManager = FindFirstObjectByType<InventoryManager>();
+        metRigManager = FindAnyObjectByType<MetRigManager>();
+        gameOverManager = FindAnyObjectByType<GameOverManager>();
+        inventoryManager = FindAnyObjectByType<InventoryManager>();
 
         // Initialize position tracking
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
@@ -323,7 +323,7 @@ public class ProxyAI : MonoBehaviour
         if (spriteRenderer != null) spriteRenderer.color = Color.black;
 
         // 1. Find the new Game Over Manager
-        GameOverManager manager = FindFirstObjectByType<GameOverManager>();
+        GameOverManager manager = FindAnyObjectByType<GameOverManager>();
 
         // 2. Tell it to trigger the screen and freeze time!
         if (manager != null)

@@ -10,7 +10,7 @@ public class TrashSlot : MonoBehaviour, IDropHandler
             GameObject droppedItem = eventData.pointerDrag;
 
             // Find the master manager and tell it to discard this item
-            InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+            InventoryManager manager = FindAnyObjectByType<InventoryManager>();
             if (manager != null)
             {
                 manager.DiscardItemToWorld(droppedItem);

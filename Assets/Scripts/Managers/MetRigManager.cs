@@ -31,7 +31,7 @@ public class MetRigManager : MonoBehaviour
             terminalOverlayUI.SetActive(false);
         }
 
-        proxyAI = FindFirstObjectByType<ProxyAI>();
+        proxyAI = FindAnyObjectByType<ProxyAI>();
     }
 
     void Update()
@@ -84,7 +84,7 @@ public class MetRigManager : MonoBehaviour
 
         if (isRigOpen)
         {
-            InventoryManager inventoryManager = FindFirstObjectByType<InventoryManager>();
+            InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
             if (inventoryManager != null)
             {
                 Canvas.ForceUpdateCanvases();
@@ -110,7 +110,7 @@ public class MetRigManager : MonoBehaviour
     // MOTHER Abilities
     public void UseOverride()
     {
-        InventoryManager mgr = FindFirstObjectByType<InventoryManager>();
+        InventoryManager mgr = FindAnyObjectByType<InventoryManager>();
         if (mgr != null)
         {
             mgr.AddCorruptionRow();
@@ -121,7 +121,7 @@ public class MetRigManager : MonoBehaviour
 
     public void UseSonar()
     {
-        InventoryManager mgr = FindFirstObjectByType<InventoryManager>();
+        InventoryManager mgr = FindAnyObjectByType<InventoryManager>();
         if (mgr != null)
         {
             mgr.AddCorruptionRow();
@@ -134,7 +134,7 @@ public class MetRigManager : MonoBehaviour
 
     public void UseSignalMask()
     {
-        InventoryManager mgr = FindFirstObjectByType<InventoryManager>();
+        InventoryManager mgr = FindAnyObjectByType<InventoryManager>();
         if (mgr != null)
         {
             mgr.AddCorruptionRow();

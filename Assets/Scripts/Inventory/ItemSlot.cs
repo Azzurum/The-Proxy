@@ -27,7 +27,7 @@ public class ItemSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPoin
         if (draggableItem == null) return;
 
         InventorySlot slot = GetComponent<InventorySlot>();
-        InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
 
         // Only accept a drop into an empty slot
         if (transform.childCount > 0)
@@ -59,7 +59,7 @@ public class ItemSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPoin
         if (dragged == null || slotImage == null) return;
 
         InventorySlot slot = GetComponent<InventorySlot>();
-        InventoryManager manager = FindFirstObjectByType<InventoryManager>();
+        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
         if (manager == null || slot == null) return;
 
         ItemFootprint footprint = dragged.footprint;
@@ -67,27 +67,38 @@ public class ItemSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPoin
 
         bool canDrop = manager.CanDropToSlot(slot, dragged);
 
-        // Highlight the footprint
         Transform grid = transform.parent;
         int columns = 5; // Assume 5 columns for all grids
+
+        // FIX: Calculate the exact same center offset so the green boxes shift up and left!
+        int offsetX = -Mathf.FloorToInt(footprint.width / 2f);
+        int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
+
+        // Highlight the footprint
         for (int y = 0; y < footprint.height; y++)
         {
             for (int x = 0; x < footprint.width; x++)
             {
-                int checkX = slot.slotCoordinate.x + x;
-                int checkY = slot.slotCoordinate.y + y;
-                int slotIndex = checkY * columns + checkX;
-                if (slotIndex >= 0 && slotIndex < grid.childCount)
+                int checkX = slot.slotCoordinate.x + offsetX + x;
+                int checkY = slot.slotCoordinate.y + offsetY + y;
+
+                // FIX: Add boundary checks so the green boxes don't wrap to the next line 
+                // if you hover halfway off the left or right edges of the grid.
+                if (checkX >= 0 && checkX < columns && checkY >= 0)
                 {
-                    Transform childSlot = grid.GetChild(slotIndex);
-                    Image img = childSlot.GetComponent<Image>();
-                    if (img != null)
+                    int slotIndex = checkY * columns + checkX;
+                    if (slotIndex >= 0 && slotIndex < grid.childCount)
                     {
-                        if (!highlightedOriginalColors.ContainsKey(img))
+                        Transform childSlot = grid.GetChild(slotIndex);
+                        Image img = childSlot.GetComponent<Image>();
+                        if (img != null)
                         {
-                            highlightedOriginalColors[img] = img.color;
+                            if (!highlightedOriginalColors.ContainsKey(img))
+                            {
+                                highlightedOriginalColors[img] = img.color;
+                            }
+                            img.color = canDrop ? Color.green : Color.red;
                         }
-                        img.color = canDrop ? Color.green : Color.red;
                     }
                 }
             }

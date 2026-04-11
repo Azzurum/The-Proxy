@@ -12,7 +12,7 @@ public class ThreatUIManager : MonoBehaviour
 
     void Start()
     {
-        proxyAI = FindFirstObjectByType<ProxyAI>();
+        proxyAI = FindAnyObjectByType<ProxyAI>();
     }
 
     void Update()

@@ -18,4 +18,7 @@ MonoBehaviour:
   status: Encrypted
   itemDescription: Quantum-encrypted physical master key for lower decks.
   icon: {fileID: -1570072599388670678, guid: 3515e41c6582b05489774addf1a81a4c, type: 3}
-  size: {x: 1, y: 1}
+  footprint:
+    width: 3
+    height: 3
+    cells: 000100010101000100
