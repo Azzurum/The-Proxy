@@ -25,6 +25,9 @@ public class PlayerController : MonoBehaviour
     [Header("System State")]
     public bool isRooted = false; // Locks Kaelen in place when M.E.T. Rig is open
 
+    [Header("Animations")]
+    public Animator animator; // Drag your Player object here in the Inspector
+
     private Rigidbody2D rb;
     private Vector2 movementInput;
     private InventoryManager inventoryManager;
@@ -48,22 +51,34 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        // 1. THE LOCKDOWN: If boots are clamped, kill momentum and skip input!
+        // 1. ALWAYS read input first
+        movementInput.x = Input.GetAxisRaw("Horizontal");
+        movementInput.y = Input.GetAxisRaw("Vertical");
+        movementInput = movementInput.normalized;
+
+        // 2. IMMEDIATELY send this to the animator (before locks!)
+        if (animator != null)
+        {
+            // ONLY update Horizontal and Vertical if we are actually moving
+            // This prevents the values from resetting to 0 when we let go of keys
+            if (movementInput != Vector2.zero)
+            {
+                animator.SetFloat("Horizontal", movementInput.x);
+                animator.SetFloat("Vertical", movementInput.y);
+            }
+
+            // ALWAYS update Speed so the animator knows to switch between Idle and Walk
+            animator.SetFloat("Speed", movementInput.sqrMagnitude);
+        }
+
+        // 3. NOW apply your gameplay locks
         if (isRooted)
         {
             movementInput = Vector2.zero;
-            rb.linearVelocity = Vector2.zero; // Force stop any physics sliding
+            rb.linearVelocity = Vector2.zero;
             return;
         }
 
-        // 2. Read standard WASD or Arrow Key inputs
-        movementInput.x = Input.GetAxisRaw("Horizontal");
-        movementInput.y = Input.GetAxisRaw("Vertical");
-
-        // 3. Normalize prevents moving twice as fast diagonally
-        movementInput = movementInput.normalized;
-
-        // Lock movement if stamina penalty is active
         if (isMovementLocked)
         {
             movementInput = Vector2.zero;
@@ -107,6 +122,29 @@ public class PlayerController : MonoBehaviour
         if (nearThreshold && !audioSource.isPlaying && breathingClip != null)
         {
             audioSource.PlayOneShot(breathingClip);
+        }
+
+    }
+
+    // Move the flipping logic out of Update and into this new function
+    void LateUpdate()
+    {
+        float myScale = 2f; // Your desired size
+
+        if (movementInput.x > 0)
+        {
+            transform.localScale = new Vector3(myScale, myScale, 1);
+        }
+        else if (movementInput.x < 0)
+        {
+            transform.localScale = new Vector3(-myScale, myScale, 1);
+        }
+        else if (movementInput == Vector2.zero)
+        {
+            // Optional: Ensure the scale stays correct even when idling
+            // We check the 'x' of the localScale to see which way we were last facing
+            float lastDir = transform.localScale.x > 0 ? myScale : -myScale;
+            transform.localScale = new Vector3(lastDir, myScale, 1);
         }
     }
 
