@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
+using System;
 
 public class InventoryManager : MonoBehaviour
 {
@@ -33,6 +34,9 @@ public class InventoryManager : MonoBehaviour
     [Header("Signal Broadcasting")]
     public UnityEvent onItemDropped; 
 
+    // --- Health Event System ---
+    public event Action<float> OnHealthStateChanged; // The broadcast megaphone for UI
+
     [Header("System Constants")]
     public bool isSystemActive = true;
     public Slider systemShockProgressBar;
@@ -41,6 +45,10 @@ public class InventoryManager : MonoBehaviour
     private int crushTier = 0;
     private float crushTimer = 0f;
     private float[] crushDurations = { 5f, 10f }; 
+
+    [Header("Game Over State")]
+    private bool isGameOverSequenceStarted = false;
+
 
     void Start()
     {
@@ -53,6 +61,7 @@ public class InventoryManager : MonoBehaviour
         shockTimer = shockInterval;
         
         RefreshAllGrids(); 
+        BroadcastHealthState(); // Ensure UI gets the initial health on boot
     }
 
     void Update()
@@ -112,6 +121,7 @@ public class InventoryManager : MonoBehaviour
 
         CheckForGameOver();
         RefreshAllGrids(); 
+        BroadcastHealthState(); // Update health after taking damage
     }
 
     public void ExecuteCleanProtocol()
@@ -138,7 +148,27 @@ public class InventoryManager : MonoBehaviour
                 inventoryState.mainGridSlots[i + 50] = null;
             }
             RefreshAllGrids();
+            BroadcastHealthState(); // Update health after healing/purging
         }
+    }
+
+    // Mathematically calculate health and broadcast it to the Face and EKG
+    public void BroadcastHealthState()
+    {
+        if (inventoryState == null || corruptionData == null) return;
+
+        int corruptionCount = 0;
+        int maxSlots = 100;
+
+        foreach (ItemData item in inventoryState.mainGridSlots)
+        {
+            if (item == corruptionData) corruptionCount++;
+        }
+
+        float corruptionPercentage = (float)corruptionCount / maxSlots;
+        float currentHealthPercentage = Mathf.Clamp01(1f - corruptionPercentage);
+
+        OnHealthStateChanged?.Invoke(currentHealthPercentage);
     }
 
     private void EjectItemIfValid(ItemData itemData)
@@ -233,8 +263,6 @@ public class InventoryManager : MonoBehaviour
                 {
                     itemRect.localScale = Vector3.one;
                     itemRect.localRotation = Quaternion.identity;
-                    // Removed the 1x1 squash constraints here! 
-                    // DraggableItem now calculates the true width/height and offsets.
                 }
 
                 Canvas itemCanvas = itemObj.GetComponent<Canvas>();
@@ -266,10 +294,38 @@ public class InventoryManager : MonoBehaviour
 
     private void CheckForGameOver()
     {
-        if (!IsInventoryFullyCorrupted()) return;
+        // If it's not fully corrupted, OR we are already dying, do nothing.
+        if (!IsInventoryFullyCorrupted() || isGameOverSequenceStarted) return;
+        
+        // Lock the sequence so it doesn't trigger again!
+        isGameOverSequenceStarted = true;
+        
+        // Start the dramatic timed sequence
+        StartCoroutine(GameOverSequenceRoutine());
+    }
+
+    private System.Collections.IEnumerator GameOverSequenceRoutine()
+    {
+        // 1. Is the player currently looking at the M.E.T. Rig?
+        if (metRigManager != null && metRigManager.isRigOpen)
+        {
+            // Force them to stare at the fully corrupted inventory and flatline for 1.5 seconds
+            yield return new WaitForSeconds(1.5f);
+
+            // Forcefully close the inventory using the new method we just added!
+            metRigManager.CloseRig(); 
+        }
+
+        // 2. Now trigger the actual Game Over animation/screen
         GameOverManager gameOver = FindAnyObjectByType<GameOverManager>();
-        if (gameOver != null) gameOver.TriggerGameOver();
-        else Time.timeScale = 0f;
+        if (gameOver != null) 
+        {
+            gameOver.TriggerGameOver();
+        }
+        else 
+        {
+            Time.timeScale = 0f;
+        }
     }
 
     private void EscalateCrushPenaltyTimer()
@@ -290,7 +346,6 @@ public class InventoryManager : MonoBehaviour
 
     private bool IsSpaceFreeForFootprint(InventorySlot anchorSlot, ItemFootprint footprint)
     {
-        // FIX: Apply the center offset so the validator checks the true physical bounds
         int offsetX = -Mathf.FloorToInt(footprint.width / 2f);
         int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
 
@@ -323,20 +378,20 @@ public class InventoryManager : MonoBehaviour
 
     public void AddCorruptionRow() { ResolveCorruptionTick(); }
 
-    public void DiscardItemToWorld(GameObject uiItemObj)
+    public void DiscardItemToWorld(GameObject itemUI)
     {
-        UIItem uiItem = uiItemObj.GetComponent<UIItem>();
-        if (uiItem != null && uiItem.myData != null)
+        DraggableItem dragItem = itemUI.GetComponent<DraggableItem>();
+        
+        if (dragItem != null && dragItem.itemData != null && dragItem.itemData.worldPrefab != null)
         {
-            if (physicalBatteryPrefab != null && playerTransform != null) Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
+            Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+            Vector3 spawnPos = player != null ? player.position + (Vector3.right * 2f) : Vector3.zero;
             
-            for (int i = 0; i < inventoryState.mainGridSlots.Count; i++)
-                if (inventoryState.mainGridSlots[i] == uiItem.myData) inventoryState.mainGridSlots[i] = null; 
-            for (int i = 0; i < inventoryState.extGridSlots.Count; i++)
-                if (inventoryState.extGridSlots[i] == uiItem.myData) inventoryState.extGridSlots[i] = null; 
-            RefreshAllGrids();
+            Instantiate(dragItem.itemData.worldPrefab, spawnPos, Quaternion.identity);
         }
-        if (uiItemObj != null) Destroy(uiItemObj);
+
+        Destroy(itemUI);
+        SyncDataFromUI();
     }
 
     public Transform externalStorageGrid => gridExt;
@@ -388,6 +443,9 @@ public class InventoryManager : MonoBehaviour
         ScrapeGrid(gridLeft, inventoryState.mainGridSlots, 0, 5, 10);
         ScrapeGrid(gridRight, inventoryState.mainGridSlots, 50, 5, 10);
         if (gridExt != null) ScrapeGrid(gridExt, inventoryState.extGridSlots, 0, 5, 5);
+
+        // Calculate and broadcast health one final time just in case manual dragging caused corruption changes
+        BroadcastHealthState();
     }
 
     private void ScrapeGrid(Transform gridTransform, List<ItemData> targetList, int dataOffset, int cols, int rows)
@@ -429,8 +487,6 @@ public class InventoryManager : MonoBehaviour
                 }
                 else
                 {
-                    // FIX: If it is occupying a slot but lacks the scripts, it MUST be Corruption!
-                    // This prevents the animated blocks from being erased from memory.
                     int startX = i % cols;
                     int startY = i / cols;
                     int index = dataOffset + (startY * cols) + startX;

@@ -149,4 +149,13 @@ public class MetRigManager : MonoBehaviour
     {
         Debug.Log("SIGNAL SPIKE: Massive electromagnetic flare emitted! The Proxy is listening...");
     }
+
+    public void CloseRig()
+    {
+        // If the rig is currently open, toggle it closed.
+        if (isRigOpen)
+        {
+            ToggleRig();
+        }
+    }
 }

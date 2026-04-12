@@ -47,7 +47,7 @@ public class UIItem : MonoBehaviour
         {
             drag.itemData = data;
             drag.itemName = data.itemName;
-            drag.itemDescription = data.itemDescription;
+            drag.itemDescription = data.description;
 
             drag.SetCellSize(cellSize);
             

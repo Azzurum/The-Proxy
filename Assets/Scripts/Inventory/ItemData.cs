@@ -8,8 +8,6 @@ public class ItemFootprint
     public int height = 1;
     public bool[] cells; // Flattened 1D array: index = y * width + x
     
-    // Note: I removed the redundant isRotated from here since the Data handles it!
-    
     public ItemFootprint()
     {
         cells = new bool[1] { true }; // Default 1x1
@@ -71,30 +69,37 @@ public class ItemFootprint
 [CreateAssetMenu(fileName = "NewItem", menuName = "Inventory/ItemData")]
 public class ItemData : ScriptableObject
 {
-    [Header("Identification")]
+    [Header("Core Identification")]
     public string itemID; // Unique identifier (e.g., "BATT", "KEY")
-    public string itemName;
-    
+    public string itemName = "UNKNOWN DATA"; // Single definition for Title
+
     [Header("Properties")]
     public float mass; // In kg (e.g., 1.2f)
     public string status; // e.g., "Volatile", "Sterile", "Corrupted"
+    public string substats = "VOL: -- // WGT: --"; // For Inspector Substats
     
-    [Header("Description")]
-    [TextArea] public string itemDescription;
-    
-    [Header("Visuals")]
+    [Header("Visuals & World")]
     public Sprite icon; // UI sprite
-    
+    public GameObject worldPrefab; // Physical item to drop
+
+    [Header("Inspector UI Content")]
+    [TextArea(3, 6)] 
+    public string description = "Awaiting I/O..."; // The main body text
+
+    [Header("Log Console Content")]
+    public string logLabel = "SYSTEM LOG"; // The label above the log
+    [TextArea(3, 6)] 
+    public string logContent = "No log data found."; // The main log text
+
     [Header("Custom Footprint Matrix")]
     public ItemFootprint footprint; // Define complex shapes here
     
     [Header("Runtime Memory")]
-    public bool isRotated = false; // THE FIX: Stores rotation state across inventory opens
-    
+    public bool isRotated = false; // Stores rotation state across inventory opens
+
     void OnEnable()
     {
-        // SAFETY FIX: ScriptableObjects save their state even after Play Mode ends.
-        // This forces the item to return to its default unrotated state whenever you start the game.
+        // SAFETY FIX: Prevents items from staying rotated when the game restarts
         isRotated = false;
 
         if (footprint == null || footprint.cells == null || footprint.cells.Length == 0)

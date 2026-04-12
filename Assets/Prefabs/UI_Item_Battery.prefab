@@ -102,17 +102,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20029924ef84f6b4e87343211d2f0fa4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DraggableItem
-  itemData: {fileID: 0}
+  itemData: {fileID: 11400000, guid: e849e54ee2d9cae4e9a6cc7964739320, type: 2}
   itemName: Battery
   itemDescription: A strange item with unknown properties.
-  sizeX: 1
-  sizeY: 2
+  footprint:
+    width: 1
+    height: 1
+    cells: 01
   isRotated: 0
   cellSize: 80
+  parentAfterDrag: {fileID: 0}
   ejectedFromRig: 0
-  originalGrid: {fileID: 0}
-  originalLocalPosition: {x: 0, y: 0}
-  originalAnchorCoord: {x: 0, y: 0}
+  originalParent: {fileID: 0}
+  originalAnchoredPosition: {x: 0, y: 0}
+  dropAccepted: 0
+  showRotationHint: 1
+  rotationHintLabel: R
 --- !u!114 &-4274690672093639935
 MonoBehaviour:
   m_ObjectHideFlags: 0

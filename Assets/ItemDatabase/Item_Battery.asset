@@ -13,12 +13,21 @@ MonoBehaviour:
   m_Name: Item_Battery
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   itemID: BATT
-  itemName: Aether-Core
+  itemName: AETHER-CORE BATTERY
   mass: 1.2
   status: Volatile
-  itemDescription: Unstable corporate power supply. Radiation leaking from casin
+  substats: 'VOL: 02 // WGT: 14.5 KG'
   icon: {fileID: -3017979480325208809, guid: 9dad12c85322fa240a3cc5a1958d2c03, type: 3}
+  worldPrefab: {fileID: 5983462781545589802, guid: 0b054944f13a14c46bf515979f79a9b3, type: 3}
+  description: A military-grade, hyper-dense energy cell. Originally designed to
+    power the Wayfarer's industrial containment rings, it utilizes suspended aetheric
+    plasma to deliver near-infinite decentralized power.
+  logLabel: SYSTEM LOG // DIAGNOSTIC
+  logContent: 'WARNING: Aetheric housing micro-fractures detected. Output remains
+    stable, but prolonged physical exposure may result in localized cellular degradation.
+    Do not allow contact with organic corruption. Handle with extreme caution.'
   footprint:
     width: 1
     height: 2
     cells: 0101
+  isRotated: 0

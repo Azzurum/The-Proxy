@@ -13,12 +13,21 @@ MonoBehaviour:
   m_Name: Item_MasterKey
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   itemID: KEY
-  itemName: Sec-Pass V4
+  itemName: EXECUTIVE SEC-PASS KEY
   mass: 0.1
   status: Encrypted
-  itemDescription: Quantum-encrypted physical master key for lower decks.
+  substats: 'VOL: 01 // WGT: 0.2 KG'
   icon: {fileID: -1570072599388670678, guid: 3515e41c6582b05489774addf1a81a4c, type: 3}
+  worldPrefab: {fileID: 5743754570442823939, guid: ff0f28d632bac8c40a83183bfb1e93bf, type: 3}
+  description: A Level-4 Executive Security Cipher. Forged from biometric-locked
+    polymer, this master bypass drive is authorized to override standard lockdown
+    protocols across all Habitation and Spine sectors.
+  logLabel: SYSTEM LOG // ACCESS HISTORY
+  logContent: 'ERR // LOG CORRUPTED. Last known access: 0400 HOURS. Containment Deck
+    04 lockdown was overridden manually from the inside. Whoever holds this cipher
+    has complete control over the ship''s automated bulkheads. '
   footprint:
     width: 3
     height: 3
     cells: 000100010101000100
+  isRotated: 0

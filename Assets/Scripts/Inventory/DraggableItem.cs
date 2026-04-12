@@ -56,7 +56,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null)
         {
             itemName = itemData.itemName;
-            itemDescription = itemData.itemDescription;
+            itemDescription = itemData.description; // 'description' is the new unified name
             isRotated = itemData.isRotated; 
         }
         UpdateVisualSize();
@@ -116,7 +116,28 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         }
     }
 
-    public void OnPointerClick(PointerEventData eventData) {}
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        Debug.Log("<color=cyan>MOUSE CLICK DETECTED ON:</color> " + gameObject.name);
+
+        if (eventData.button == PointerEventData.InputButton.Left)
+        {
+            if (UIInspectorManager.Instance == null)
+            {
+                Debug.LogError("Click worked, but UIInspectorManager.Instance is NULL! Is the script in the scene?");
+                return;
+            }
+
+            if (itemData == null)
+            {
+                Debug.LogError("Click worked, but this item has no ItemData assigned to it!");
+                return;
+            }
+
+            Debug.Log($"Sending Data for [{itemData.itemName}] to the Inspector...");
+            UIInspectorManager.Instance.InspectItem(itemData);
+        }
+    }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
