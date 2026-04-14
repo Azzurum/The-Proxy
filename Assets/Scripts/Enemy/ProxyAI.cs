@@ -257,7 +257,10 @@ public class ProxyAI : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < attackWindup)
         {
-            if (!isPlayerInMeleeRange)
+            // THE FIX: Use distance instead of the jittery physics collision!
+            float distanceToPlayer = Vector2.Distance(transform.position, targetPlayer.position);
+
+            if (distanceToPlayer > attackRange)
             {
                 Debug.Log("PROXY: Attack broken as Kaelen escaped!");
                 currentSpeed = previousSpeed;
@@ -271,7 +274,8 @@ public class ProxyAI : MonoBehaviour
             yield return null;
         }
 
-        if (isPlayerInMeleeRange)
+        // Final check to see if Kaelen is still within the 1.5f range when the windup finishes
+        if (Vector2.Distance(transform.position, targetPlayer.position) <= attackRange)
         {
             ExecuteAttack();
         }

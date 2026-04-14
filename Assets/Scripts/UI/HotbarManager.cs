@@ -7,14 +7,6 @@ public class HotbarManager : MonoBehaviour
     [Header("Hotbar Array")]
     public HotbarSlot[] quickSlots = new HotbarSlot[3];
 
-    [Header("Stamina Bar")]
-    public UnityEngine.UI.Slider staminaBar;
-    public UnityEngine.UI.Image staminaFill;
-    public PlayerController playerController; // Manually assign if auto-find fails
-
-    [Header("Stamina Color Thresholds")]
-    [Range(0f, 1f)] public float yellowThreshold = 0.5f;
-
     private int currentEquippedIndex = -1; // -1 means hands are empty
 
     void Awake()
@@ -25,76 +17,59 @@ public class HotbarManager : MonoBehaviour
 
     void Start()
     {
+        // Safely clear all slots when the game boots
         foreach (var slot in quickSlots)
         {
-            slot.ClearSlot();
+            if (slot != null) slot.ClearSlot();
         }
-
-        // Try to find PlayerController if not manually assigned
-        if (playerController == null)
-        {
-            playerController = FindAnyObjectByType<PlayerController>();
-            Debug.Log($"Searching for PlayerController: {(playerController != null ? "FOUND" : "NOT FOUND")}");
-        }
-
-        if (staminaBar != null && staminaFill == null && staminaBar.fillRect != null)
-        {
-            staminaFill = staminaBar.fillRect.GetComponent<UnityEngine.UI.Image>();
-        }
-
-        // Debug logging
-        Debug.Log($"HotbarManager Start - staminaBar: {staminaBar}, playerController: {playerController}, staminaFill: {staminaFill}");
     }
 
     void Update()
     {
+        // Listen for hotbar shortcut keys
         if (Input.GetKeyDown(KeyCode.Alpha1)) EquipSlot(1);
         if (Input.GetKeyDown(KeyCode.Alpha2)) EquipSlot(2);
         if (Input.GetKeyDown(KeyCode.Alpha3)) EquipSlot(3);
-
-        // Update stamina bar
-        if (staminaBar != null && playerController != null)
-        {
-            float normalized = playerController.SprintMeter / playerController.SprintMeterThreshold;
-            staminaBar.value = Mathf.Clamp01(normalized);
-
-            if (staminaFill != null)
-            {
-                if (normalized < yellowThreshold)
-                    staminaFill.color = Color.Lerp(Color.green, Color.yellow, normalized / yellowThreshold);
-                else
-                    staminaFill.color = Color.Lerp(Color.yellow, Color.red, (normalized - yellowThreshold) / (1 - yellowThreshold));
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"Stamina bar not updating - staminaBar: {staminaBar}, playerController: {playerController}");
-        }
     }
 
     public void EquipSlot(int slotNumber)
     {
         int arrayIndex = slotNumber - 1;
 
-        // Failsafe: Make sure the slot isn't empty, and the item hasn't been destroyed by corruption
-        if (quickSlots[arrayIndex].assignedItem == null)
+        if (arrayIndex < 0 || arrayIndex >= quickSlots.Length) return;
+        if (quickSlots[arrayIndex] == null) return;
+
+        // Check if the physical hotbar slot is actually holding an item
+        if (quickSlots[arrayIndex].containedItem == null)
         {
-            Debug.Log($"Slot {slotNumber} is empty or item was destroyed.");
+            // If the slot is empty, but we were holding it, unequip Kaelen's hands
+            if (currentEquippedIndex == arrayIndex)
+            {
+                currentEquippedIndex = -1; 
+                UpdateHighlights();
+                Debug.Log("<color=gray>UNEQUIPPED:</color> Hands are empty.");
+            }
             return;
         }
 
+        // Equip the new item
         currentEquippedIndex = arrayIndex;
+        UpdateHighlights();
 
-        // Update Visual Highlights
+        ItemData equippedItem = quickSlots[arrayIndex].containedItem.itemData;
+        Debug.Log($"<color=green>EQUIPPED:</color> {equippedItem.itemName}");
+    }
+
+    // Helper method to keep your UI frames synced up perfectly
+    private void UpdateHighlights()
+    {
         for (int i = 0; i < quickSlots.Length; i++)
         {
-            quickSlots[i].SetHighlight(i == currentEquippedIndex);
+            if (quickSlots[i] != null)
+            {
+                // Only turn on the glowing highlight if it matches the currently equipped index
+                quickSlots[i].SetHighlight(i == currentEquippedIndex);
+            }
         }
-
-        // Get the real item data to send to your player controller!
-        DraggableItem equippedItem = quickSlots[arrayIndex].assignedItem;
-        Debug.Log($"<color=green>EQUIPPED:</color> {equippedItem.itemName}");
-
-        // Example: PlayerController.EquipWeapon(equippedItem.itemName);
     }
 }

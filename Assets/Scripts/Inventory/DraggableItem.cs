@@ -56,7 +56,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null)
         {
             itemName = itemData.itemName;
-            itemDescription = itemData.description; // 'description' is the new unified name
+            itemDescription = itemData.description; // Uses unified description
             isRotated = itemData.isRotated; 
         }
         UpdateVisualSize();
@@ -85,14 +85,40 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (rectTransform == null) { rectTransform = GetComponent<RectTransform>(); if (rectTransform == null) return; }
 
         rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        footprint = isRotated ? baseFp.GetRotated() : baseFp;
+
+        // --- HOTBAR AWARENESS ---
+        bool inHotbar = false;
+        if (transform.parent != null && transform.parent.GetComponent<HotbarSlot>() != null) inHotbar = true;
+        if (itemBeingDragged == this && parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null) inHotbar = true;
+
+        if (inHotbar)
+        {
+            // 1. Shrink to a 1x1 square
+            rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
+            rectTransform.localEulerAngles = Vector3.zero; // Force straight up
+            
+            // 2. Hide the Tetris grid background so only the picture remains!
+            if (uiItem != null && uiItem.backgroundImage != null) uiItem.backgroundImage.enabled = false;
+
+            if (itemBeingDragged != this)
+            {
+                rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+                rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                rectTransform.anchoredPosition = Vector2.zero;
+                rectTransform.localScale = Vector3.one;
+            }
+            return; // Exit here so we don't run the Grid math below!
+        }
+
+        // --- GRID AWARENESS ---
+        if (uiItem != null && uiItem.backgroundImage != null) uiItem.backgroundImage.enabled = true; // Turn shape back on
+
         rectTransform.sizeDelta = new Vector2(baseFp.width * cellSize, baseFp.height * cellSize);
         rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? -90f : 0f);
 
-        footprint = isRotated ? baseFp.GetRotated() : baseFp;
-
         if (itemBeingDragged != this)
         {
-            // Lock strict scale and Top-Left grid anchors ONLY when resting
             rectTransform.localScale = Vector3.one;
             rectTransform.anchorMin = new Vector2(0f, 1f);
             rectTransform.anchorMax = new Vector2(0f, 1f);
@@ -118,24 +144,12 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        Debug.Log("<color=cyan>MOUSE CLICK DETECTED ON:</color> " + gameObject.name);
-
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (UIInspectorManager.Instance == null)
+            if (UIInspectorManager.Instance != null && itemData != null)
             {
-                Debug.LogError("Click worked, but UIInspectorManager.Instance is NULL! Is the script in the scene?");
-                return;
+                UIInspectorManager.Instance.InspectItem(itemData);
             }
-
-            if (itemData == null)
-            {
-                Debug.LogError("Click worked, but this item has no ItemData assigned to it!");
-                return;
-            }
-
-            Debug.Log($"Sending Data for [{itemData.itemName}] to the Inspector...");
-            UIInspectorManager.Instance.InspectItem(itemData);
         }
     }
 
@@ -150,11 +164,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         originalParent = transform.parent;
         originalAnchoredPosition = rectTransform.anchoredPosition; 
 
-        // 1. Reparent using TRUE so Unity automatically adjusts localScale to prevent the giant "Balloon" effect
         transform.SetParent(canvas.transform, true);
         transform.SetAsLastSibling();
         
-        // 2. FIX: Temporarily swap anchors to Center (0.5) so the Canvas Mouse Math perfectly aligns without teleporting!
         rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
         rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
 
@@ -162,6 +174,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         cleanPos.z = 0f; 
         rectTransform.localPosition = cleanPos;
         
+        // Immediately expand the item to its full size as soon as we rip it out of the hotbar
+        UpdateVisualSize();
         UpdateDragPosition(eventData); 
 
         InventoryManager manager = FindAnyObjectByType<InventoryManager>();
@@ -188,8 +202,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Vector2 pointerPos = eventData != null ? eventData.position : (Vector2)Input.mousePosition;
 
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            (RectTransform)canvas.transform,
-            pointerPos,
+            (RectTransform)canvas.transform, pointerPos,
             canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
             out Vector2 localPoint))
         {
@@ -242,6 +255,12 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     private Vector2 GetTargetAnchoredPosition() 
     { 
+        // HOTBAR AWARENESS: Glide perfectly to the center!
+        if (parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null)
+        {
+            return Vector2.zero; 
+        }
+
         float visualWidth = footprint.width * cellSize;
         float visualHeight = footprint.height * cellSize;
         return new Vector2(visualWidth / 2f, -(visualHeight / 2f)); 
@@ -271,12 +290,19 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     {
         if (rectTransform == null) yield break;
 
-        // Reparent using TRUE so it doesn't visually jump
         transform.SetParent(targetParent, true); 
         
-        // Restore strict Top-Left grid anchors BEFORE reading coordinates
-        rectTransform.anchorMin = new Vector2(0f, 1f);
-        rectTransform.anchorMax = new Vector2(0f, 1f);
+        // HOTBAR AWARENESS: Use correct anchors for the return trip
+        if (targetParent.GetComponent<HotbarSlot>() != null)
+        {
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        }
+        else
+        {
+            rectTransform.anchorMin = new Vector2(0f, 1f);
+            rectTransform.anchorMax = new Vector2(0f, 1f);
+        }
 
         Vector2 startAnchored = rectTransform.anchoredPosition; 
         Vector3 startScale = rectTransform.localScale; 
@@ -298,8 +324,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             float shake = Mathf.Sin(timer * 40f) * shakeMagnitude * (1f - t);
             
             rectTransform.anchoredPosition = Vector2.Lerp(startAnchored, targetAnchoredPosition, t) + new Vector2(shake, Mathf.Abs(shake) * 0.5f);
-            
-            // Gently snap scale back to exactly 1 over the animation
             rectTransform.localScale = Vector3.Lerp(startScale, Vector3.one, t);
 
             if (uiItem != null && uiItem.backgroundImage != null)
@@ -329,12 +353,19 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     {
         if (rectTransform == null) yield break;
 
-        // Reparent using TRUE so it doesn't visually jump
         transform.SetParent(targetParent, true);
         
-        // Restore strict Top-Left grid anchors BEFORE reading coordinates
-        rectTransform.anchorMin = new Vector2(0f, 1f);
-        rectTransform.anchorMax = new Vector2(0f, 1f);
+        // HOTBAR AWARENESS: Set anchors depending on destination
+        if (targetParent.GetComponent<HotbarSlot>() != null)
+        {
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        }
+        else
+        {
+            rectTransform.anchorMin = new Vector2(0f, 1f);
+            rectTransform.anchorMax = new Vector2(0f, 1f);
+        }
 
         Vector2 startAnchored = rectTransform.anchoredPosition;
         Vector3 startScale = rectTransform.localScale;
@@ -351,8 +382,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             float t = Mathf.SmoothStep(0f, 1f, timer / duration);
             
             rectTransform.anchoredPosition = Vector2.Lerp(startAnchored, targetAnchoredPosition, t);
-            
-            // Gently snap scale back to exactly 1 over the animation
             rectTransform.localScale = Vector3.Lerp(startScale, Vector3.one, t);
             
             yield return null;
