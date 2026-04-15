@@ -12,6 +12,9 @@ public class UITrashZone : MonoBehaviour, IDropHandler, IPointerEnterHandler, IP
 
     public void OnPointerEnter(PointerEventData eventData)
     {
+        // ADD THIS LINE TO PROVE THE MOUSE IS TOUCHING IT:
+        Debug.Log("<color=cyan>TRASH CAN: I feel the mouse!</color>"); 
+
         // Light up the trash can if we are holding an item over it
         if (DraggableItem.itemBeingDragged != null && background != null)
             background.color = highlightColor;

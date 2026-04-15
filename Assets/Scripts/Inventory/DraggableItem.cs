@@ -146,9 +146,19 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     {
         if (eventData.button == PointerEventData.InputButton.Left)
         {
+            // 1. Trigger your existing Inspector Manager
             if (UIInspectorManager.Instance != null && itemData != null)
             {
                 UIInspectorManager.Instance.InspectItem(itemData);
+            }
+
+            // 2. Trigger the new M.E.T. Rig Screen Update
+            InventoryManager manager = FindAnyObjectByType<InventoryManager>();
+
+            if (manager != null && itemData != null)
+            {
+                // Grabbing the picture directly from the ItemData script!
+                manager.SetInspectionIcon(itemData.icon); 
             }
         }
     }

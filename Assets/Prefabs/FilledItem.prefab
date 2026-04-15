@@ -153,7 +153,7 @@ MonoBehaviour:
   parentAfterDrag: {fileID: 0}
   ejectedFromRig: 0
   originalParent: {fileID: 0}
-  originalLocalPosition: {x: 0, y: 0, z: 0}
+  originalAnchoredPosition: {x: 0, y: 0}
   dropAccepted: 0
   showRotationHint: 1
   rotationHintLabel: R
@@ -175,6 +175,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 0
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0

@@ -14,9 +14,9 @@ public class PlayerInteraction : MonoBehaviour
     public float repulsorCooldown = 10f;
     private float currentRepulsorCooldown = 0f;
 
-    [Header("Inventory Prefabs")]
-    public GameObject uiBatteryPrefab;
-    public GameObject uiMasterKeyPrefab;
+    [Header("Inventory Data")]
+    public ItemData batteryData;   // NEW: We pass the raw data now!
+    public ItemData masterKeyData; // NEW: We pass the raw data now!
 
     void Update()
     {
@@ -87,21 +87,22 @@ public class PlayerInteraction : MonoBehaviour
             InventoryManager manager = FindAnyObjectByType<InventoryManager>();
             if (manager == null) return;
 
-            // SCENARIO A: Pick up a Battery (Size: 1x2)
+            // SCENARIO A: Pick up a Battery
             if (obj.CompareTag("Interactable"))
             {
-                if (manager.TryPickupItem(uiBatteryPrefab, 1, 2, false))
+                // We just pass the raw data! The Manager figures out the size and shape automatically.
+                if (manager.TryPickupItem(batteryData))
                 {
                     Destroy(obj.gameObject);
                     return;
                 }
             }
-            // SCENARIO B: Pick up a Master Key (Size: 3x3)
+            // SCENARIO B: Pick up a Master Key
             else if (obj.CompareTag("MasterKey"))
             {
-                if (manager.TryPickupItem(uiMasterKeyPrefab, 3, 3, true))
+                if (manager.TryPickupItem(masterKeyData))
                 {
-                    Debug.Log("<color=magenta>MASTER KEY ACQUIRED:</color> 9 slots consumed.");
+                    Debug.Log("<color=magenta>MASTER KEY ACQUIRED:</color> Fits perfectly.");
                     Destroy(obj.gameObject);
                     return;
                 }

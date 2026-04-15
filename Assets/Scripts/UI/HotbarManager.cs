@@ -1,11 +1,16 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class HotbarManager : MonoBehaviour
 {
     public static HotbarManager Instance;
 
-    [Header("Hotbar Array")]
+    [Header("Physical Inventory Slots")]
     public HotbarSlot[] quickSlots = new HotbarSlot[3];
+
+    [Header("HUD Sync References")]
+    public Image[] hudIcons = new Image[3];        // The images inside your HUD slots
+    public Outline[] hudOutlines = new Outline[3]; // The Outlines on the HUD slots
 
     private int currentEquippedIndex = -1; // -1 means hands are empty
 
@@ -17,11 +22,14 @@ public class HotbarManager : MonoBehaviour
 
     void Start()
     {
-        // Safely clear all slots when the game boots
+        // Safely clear all physical slots when the game boots
         foreach (var slot in quickSlots)
         {
             if (slot != null) slot.ClearSlot();
         }
+        
+        // Ensure outlines start turned off
+        UpdateHighlights();
     }
 
     void Update()
@@ -30,6 +38,9 @@ public class HotbarManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha1)) EquipSlot(1);
         if (Input.GetKeyDown(KeyCode.Alpha2)) EquipSlot(2);
         if (Input.GetKeyDown(KeyCode.Alpha3)) EquipSlot(3);
+
+        // Continuously project the physical inventory state onto the HUD!
+        SyncHUD();
     }
 
     public void EquipSlot(int slotNumber)
@@ -39,16 +50,24 @@ public class HotbarManager : MonoBehaviour
         if (arrayIndex < 0 || arrayIndex >= quickSlots.Length) return;
         if (quickSlots[arrayIndex] == null) return;
 
-        // Check if the physical hotbar slot is actually holding an item
+        // If the physical slot is empty
         if (quickSlots[arrayIndex].containedItem == null)
         {
-            // If the slot is empty, but we were holding it, unequip Kaelen's hands
             if (currentEquippedIndex == arrayIndex)
             {
                 currentEquippedIndex = -1; 
                 UpdateHighlights();
                 Debug.Log("<color=gray>UNEQUIPPED:</color> Hands are empty.");
             }
+            return;
+        }
+
+        // Toggle unequip if pressing the exact same key
+        if (currentEquippedIndex == arrayIndex)
+        {
+            currentEquippedIndex = -1; 
+            UpdateHighlights();
+            Debug.Log("<color=gray>UNEQUIPPED:</color> Hands are empty.");
             return;
         }
 
@@ -60,15 +79,66 @@ public class HotbarManager : MonoBehaviour
         Debug.Log($"<color=green>EQUIPPED:</color> {equippedItem.itemName}");
     }
 
+    private void SyncHUD()
+    {
+        for (int i = 0; i < quickSlots.Length; i++)
+        {
+            if (i >= hudIcons.Length || hudIcons[i] == null) continue;
+
+            // If the physical inventory slot actually contains a dragged item...
+            if (quickSlots[i] != null && quickSlots[i].containedItem != null && quickSlots[i].containedItem.itemData != null)
+            {
+                Sprite assignedIcon = quickSlots[i].containedItem.itemData.icon;
+
+                if (assignedIcon != null)
+                {
+                    // Item has a valid picture! Show it.
+                    hudIcons[i].sprite = assignedIcon;
+                    hudIcons[i].color = Color.white; // Remove transparency
+                    hudIcons[i].enabled = true;
+                }
+                else
+                {
+                    // The item data exists, but you forgot to assign a picture to it in the Inspector!
+                    hudIcons[i].sprite = null;
+                    hudIcons[i].color = Color.clear; // Force it to be completely invisible
+                    hudIcons[i].enabled = false;
+                }
+            }
+            else
+            {
+                // The physical slot is totally empty. Hide everything.
+                hudIcons[i].sprite = null;
+                hudIcons[i].color = Color.clear; // Force it to be completely invisible
+                hudIcons[i].enabled = false;
+
+                // SAFETY: If you were holding this item, but dragged it out, unequip it!
+                if (currentEquippedIndex == i)
+                {
+                    currentEquippedIndex = -1;
+                    UpdateHighlights();
+                    Debug.Log("<color=gray>UNEQUIPPED:</color> Item removed from hotbar.");
+                }
+            }
+        }
+    }
     // Helper method to keep your UI frames synced up perfectly
     private void UpdateHighlights()
     {
         for (int i = 0; i < quickSlots.Length; i++)
         {
+            bool isEquipped = (i == currentEquippedIndex);
+
+            // 1. Highlight the physical inventory slot
             if (quickSlots[i] != null)
             {
-                // Only turn on the glowing highlight if it matches the currently equipped index
-                quickSlots[i].SetHighlight(i == currentEquippedIndex);
+                quickSlots[i].SetHighlight(isEquipped);
+            }
+
+            // 2. Highlight the HUD slot by turning the Outline component ON or OFF
+            if (i < hudOutlines.Length && hudOutlines[i] != null)
+            {
+                hudOutlines[i].enabled = isEquipped;
             }
         }
     }
