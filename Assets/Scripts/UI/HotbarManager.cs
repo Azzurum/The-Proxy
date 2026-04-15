@@ -1,19 +1,16 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class HotbarManager : MonoBehaviour
 {
     public static HotbarManager Instance;
 
-    [Header("Hotbar Array")]
+    [Header("Physical Inventory Slots")]
     public HotbarSlot[] quickSlots = new HotbarSlot[3];
 
-    [Header("Stamina Bar")]
-    public UnityEngine.UI.Slider staminaBar;
-    public UnityEngine.UI.Image staminaFill;
-    public PlayerController playerController; // Manually assign if auto-find fails
-
-    [Header("Stamina Color Thresholds")]
-    [Range(0f, 1f)] public float yellowThreshold = 0.5f;
+    [Header("HUD Sync References")]
+    public Image[] hudIcons = new Image[3];        // The images inside your HUD slots
+    public Outline[] hudOutlines = new Outline[3]; // The Outlines on the HUD slots
 
     private int currentEquippedIndex = -1; // -1 means hands are empty
 
@@ -25,76 +22,124 @@ public class HotbarManager : MonoBehaviour
 
     void Start()
     {
+        // Safely clear all physical slots when the game boots
         foreach (var slot in quickSlots)
         {
-            slot.ClearSlot();
+            if (slot != null) slot.ClearSlot();
         }
-
-        // Try to find PlayerController if not manually assigned
-        if (playerController == null)
-        {
-            playerController = FindAnyObjectByType<PlayerController>();
-            Debug.Log($"Searching for PlayerController: {(playerController != null ? "FOUND" : "NOT FOUND")}");
-        }
-
-        if (staminaBar != null && staminaFill == null && staminaBar.fillRect != null)
-        {
-            staminaFill = staminaBar.fillRect.GetComponent<UnityEngine.UI.Image>();
-        }
-
-        // Debug logging
-        Debug.Log($"HotbarManager Start - staminaBar: {staminaBar}, playerController: {playerController}, staminaFill: {staminaFill}");
+        
+        // Ensure outlines start turned off
+        UpdateHighlights();
     }
 
     void Update()
     {
+        // Listen for hotbar shortcut keys
         if (Input.GetKeyDown(KeyCode.Alpha1)) EquipSlot(1);
         if (Input.GetKeyDown(KeyCode.Alpha2)) EquipSlot(2);
         if (Input.GetKeyDown(KeyCode.Alpha3)) EquipSlot(3);
 
-        // Update stamina bar
-        if (staminaBar != null && playerController != null)
-        {
-            float normalized = playerController.SprintMeter / playerController.SprintMeterThreshold;
-            staminaBar.value = Mathf.Clamp01(normalized);
-
-            if (staminaFill != null)
-            {
-                if (normalized < yellowThreshold)
-                    staminaFill.color = Color.Lerp(Color.green, Color.yellow, normalized / yellowThreshold);
-                else
-                    staminaFill.color = Color.Lerp(Color.yellow, Color.red, (normalized - yellowThreshold) / (1 - yellowThreshold));
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"Stamina bar not updating - staminaBar: {staminaBar}, playerController: {playerController}");
-        }
+        // Continuously project the physical inventory state onto the HUD!
+        SyncHUD();
     }
 
     public void EquipSlot(int slotNumber)
     {
         int arrayIndex = slotNumber - 1;
 
-        // Failsafe: Make sure the slot isn't empty, and the item hasn't been destroyed by corruption
-        if (quickSlots[arrayIndex].assignedItem == null)
+        if (arrayIndex < 0 || arrayIndex >= quickSlots.Length) return;
+        if (quickSlots[arrayIndex] == null) return;
+
+        // If the physical slot is empty
+        if (quickSlots[arrayIndex].containedItem == null)
         {
-            Debug.Log($"Slot {slotNumber} is empty or item was destroyed.");
+            if (currentEquippedIndex == arrayIndex)
+            {
+                currentEquippedIndex = -1; 
+                UpdateHighlights();
+                Debug.Log("<color=gray>UNEQUIPPED:</color> Hands are empty.");
+            }
             return;
         }
 
-        currentEquippedIndex = arrayIndex;
-
-        // Update Visual Highlights
-        for (int i = 0; i < quickSlots.Length; i++)
+        // Toggle unequip if pressing the exact same key
+        if (currentEquippedIndex == arrayIndex)
         {
-            quickSlots[i].SetHighlight(i == currentEquippedIndex);
+            currentEquippedIndex = -1; 
+            UpdateHighlights();
+            Debug.Log("<color=gray>UNEQUIPPED:</color> Hands are empty.");
+            return;
         }
 
-        // Get the real item data to send to your player controller!
-        DraggableItem equippedItem = quickSlots[arrayIndex].assignedItem;
-        Debug.Log($"<color=green>EQUIPPED:</color> {equippedItem.itemName}");
+        // Equip the new item
+        currentEquippedIndex = arrayIndex;
+        UpdateHighlights();
 
-        // Example: PlayerController.EquipWeapon(equippedItem.itemName);
+        ItemData equippedItem = quickSlots[arrayIndex].containedItem.itemData;
+        Debug.Log($"<color=green>EQUIPPED:</color> {equippedItem.itemName}");
+    }
+
+    private void SyncHUD()
+    {
+        for (int i = 0; i < quickSlots.Length; i++)
+        {
+            if (i >= hudIcons.Length || hudIcons[i] == null) continue;
+
+            // If the physical inventory slot actually contains a dragged item...
+            if (quickSlots[i] != null && quickSlots[i].containedItem != null && quickSlots[i].containedItem.itemData != null)
+            {
+                Sprite assignedIcon = quickSlots[i].containedItem.itemData.icon;
+
+                if (assignedIcon != null)
+                {
+                    // Item has a valid picture! Show it.
+                    hudIcons[i].sprite = assignedIcon;
+                    hudIcons[i].color = Color.white; // Remove transparency
+                    hudIcons[i].enabled = true;
+                }
+                else
+                {
+                    // The item data exists, but you forgot to assign a picture to it in the Inspector!
+                    hudIcons[i].sprite = null;
+                    hudIcons[i].color = Color.clear; // Force it to be completely invisible
+                    hudIcons[i].enabled = false;
+                }
+            }
+            else
+            {
+                // The physical slot is totally empty. Hide everything.
+                hudIcons[i].sprite = null;
+                hudIcons[i].color = Color.clear; // Force it to be completely invisible
+                hudIcons[i].enabled = false;
+
+                // SAFETY: If you were holding this item, but dragged it out, unequip it!
+                if (currentEquippedIndex == i)
+                {
+                    currentEquippedIndex = -1;
+                    UpdateHighlights();
+                    Debug.Log("<color=gray>UNEQUIPPED:</color> Item removed from hotbar.");
+                }
+            }
+        }
+    }
+    // Helper method to keep your UI frames synced up perfectly
+    private void UpdateHighlights()
+    {
+        for (int i = 0; i < quickSlots.Length; i++)
+        {
+            bool isEquipped = (i == currentEquippedIndex);
+
+            // 1. Highlight the physical inventory slot
+            if (quickSlots[i] != null)
+            {
+                quickSlots[i].SetHighlight(isEquipped);
+            }
+
+            // 2. Highlight the HUD slot by turning the Outline component ON or OFF
+            if (i < hudOutlines.Length && hudOutlines[i] != null)
+            {
+                hudOutlines[i].enabled = isEquipped;
+            }
+        }
     }
 }

@@ -86,11 +86,6 @@ public class ItemData : ScriptableObject
     [TextArea(3, 6)] 
     public string description = "Awaiting I/O..."; // The main body text
 
-    [Header("Log Console Content")]
-    public string logLabel = "SYSTEM LOG"; // The label above the log
-    [TextArea(3, 6)] 
-    public string logContent = "No log data found."; // The main log text
-
     [Header("Custom Footprint Matrix")]
     public ItemFootprint footprint; // Define complex shapes here
     

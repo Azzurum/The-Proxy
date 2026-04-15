@@ -69,8 +69,12 @@ public class UIBioFace : MonoBehaviour
         // 1. Did we just take damage? Trigger the Shake and Flash!
         if (healthPercentage < previousHealth)
         {
-            if (shakeCoroutine != null) StopCoroutine(shakeCoroutine);
-            shakeCoroutine = StartCoroutine(DamageJuiceRoutine());
+            // THE FIX: Only try to shake the face if the UI is actually open and visible!
+            if (gameObject.activeInHierarchy) 
+            {
+                if (shakeCoroutine != null) StopCoroutine(shakeCoroutine);
+                shakeCoroutine = StartCoroutine(DamageJuiceRoutine());
+            }
         }
         previousHealth = healthPercentage;
 

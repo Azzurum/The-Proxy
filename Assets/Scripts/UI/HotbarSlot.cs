@@ -1,41 +1,75 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class HotbarSlot : MonoBehaviour
+public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("Slot Setup")]
     public int slotNumber;
-    public Image itemIcon; // The visual sprite
-    public Image highlightFrame; // To show if it's currently equipped
+    public Image highlightFrame;
 
-    [Header("Assigned Data")]
-    public DraggableItem assignedItem;
+    [Header("Physical Item")]
+    public DraggableItem containedItem;
 
-    public void AssignShortcut(DraggableItem item)
+    private Image backgroundImage;
+    private Color normalColor;
+    private Color hoverColor = new Color(0f, 1f, 0.8f, 0.3f);
+
+    void Awake()
     {
-        assignedItem = item;
+        backgroundImage = GetComponent<Image>();
+        if (backgroundImage != null) normalColor = backgroundImage.color;
+    }
 
-        // Copy the visual from the physical item
-        Image sourceImage = item.GetComponent<Image>();
-        if (sourceImage != null && itemIcon != null)
+    void Update()
+    {
+        // Automatically clear the slot if the item is dragged out of the hotbar!
+        if (containedItem != null && containedItem.transform.parent != this.transform)
         {
-            itemIcon.sprite = sourceImage.sprite;
-            itemIcon.color = sourceImage.color;
-            itemIcon.enabled = true;
+            ClearSlot();
         }
+    }
 
-        // Auto-equip if this is slot 1
-        if (slotNumber == 1)
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (DraggableItem.itemBeingDragged != null && containedItem == null)
+            if (backgroundImage != null) backgroundImage.color = hoverColor;
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (backgroundImage != null) backgroundImage.color = normalColor;
+    }
+
+    public void OnDrop(PointerEventData eventData)
+    {
+        if (backgroundImage != null) backgroundImage.color = normalColor;
+
+        DraggableItem draggedItem = DraggableItem.itemBeingDragged;
+
+        // Only accept the drop if we are currently empty
+        if (draggedItem != null && containedItem == null)
         {
-            HotbarManager.Instance.EquipSlot(1);
+            draggedItem.dropAccepted = true;
+            draggedItem.parentAfterDrag = this.transform; // Make this slot the parent!
+            containedItem = draggedItem;
+
+            if (slotNumber == 1 && HotbarManager.Instance != null)
+            {
+                HotbarManager.Instance.EquipSlot(1);
+            }
         }
     }
 
     public void ClearSlot()
     {
-        assignedItem = null;
-        if (itemIcon != null) itemIcon.enabled = false;
+        containedItem = null;
         SetHighlight(false);
+
+        if (HotbarManager.Instance != null)
+        {
+            HotbarManager.Instance.EquipSlot(slotNumber);
+        }
     }
 
     public void SetHighlight(bool isActive)

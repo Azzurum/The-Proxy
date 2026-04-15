@@ -27,12 +27,15 @@ public class InventoryManager : MonoBehaviour
     public ItemData corruptionData;
 
     [Header("MOTHER-v4 System Shock")]
-    public float shockInterval = 30f;
+    public float shockInterval = 60f; // UPDATED TO 60 SECONDS
     private float shockTimer;
     private MetRigManager metRigManager;
 
     [Header("Signal Broadcasting")]
     public UnityEvent onItemDropped; 
+
+    [Header("Inspection UI")]
+    public UnityEngine.UI.Image uiInspectIcon; // The visual square on the left
 
     // --- Health Event System ---
     public event Action<float> OnHealthStateChanged; // The broadcast megaphone for UI
@@ -49,7 +52,6 @@ public class InventoryManager : MonoBehaviour
     [Header("Game Over State")]
     private bool isGameOverSequenceStarted = false;
 
-
     void Start()
     {
         while (inventoryState.mainGridSlots.Count < 100) inventoryState.mainGridSlots.Add(null);
@@ -57,19 +59,25 @@ public class InventoryManager : MonoBehaviour
         while (inventoryState.hotbarSlots.Count < 3) inventoryState.hotbarSlots.Add(null);
 
         metRigManager = FindAnyObjectByType<MetRigManager>();
-        shockInterval = 30f; 
+        shockInterval = 60f; // UPDATED TO 60 SECONDS
         shockTimer = shockInterval;
         
-        RefreshAllGrids(); 
+        RefreshAllGrids();
         BroadcastHealthState(); // Ensure UI gets the initial health on boot
+        ClearInspectionScreen(); // NEW: Clear the screen on boot
     }
 
     void Update()
     {
-        if (isSystemActive && metRigManager != null && metRigManager.isRigOpen)
+        // FIXED: Removed 'metRigManager.isRigOpen' so this timer runs everywhere, constantly!
+        if (isSystemActive)
         {
             shockTimer -= Time.deltaTime;
-            if (systemShockProgressBar != null) systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
+
+            if (systemShockProgressBar != null) 
+            {
+                systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
+            }
 
             if (shockTimer <= 0f)
             {
@@ -77,17 +85,15 @@ public class InventoryManager : MonoBehaviour
                 shockTimer = shockInterval;
             }
         }
-        else if (systemShockProgressBar != null)
-        {
-            systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
-        }
 
         if (crushTimer > 0)
         {
             crushTimer -= Time.deltaTime;
+
             if (crushTimer <= 0)
             {
                 crushTier = Mathf.Max(0, crushTier - 1);
+
                 if (crushTier > 0) crushTimer = crushDurations[Mathf.Min(crushTier - 1, crushDurations.Length - 1)];
             }
         }
@@ -103,13 +109,13 @@ public class InventoryManager : MonoBehaviour
 
         for (int i = 0; i < columns; i++)
         {
-            EjectItemIfValid(inventoryState.mainGridSlots[i]);          
+            EjectItemIfValid(inventoryState.mainGridSlots[i]);
             EjectItemIfValid(inventoryState.mainGridSlots[i + 50]);     
         }
 
         for (int i = 0; i < 45; i++)
         {
-            inventoryState.mainGridSlots[i] = inventoryState.mainGridSlots[i + columns]; 
+            inventoryState.mainGridSlots[i] = inventoryState.mainGridSlots[i + columns];
             inventoryState.mainGridSlots[i + 50] = inventoryState.mainGridSlots[i + 50 + columns]; 
         }
 
@@ -169,6 +175,11 @@ public class InventoryManager : MonoBehaviour
         float currentHealthPercentage = Mathf.Clamp01(1f - corruptionPercentage);
 
         OnHealthStateChanged?.Invoke(currentHealthPercentage);
+
+        if (UI_ParasiteOverride.Instance != null)
+        {
+            UI_ParasiteOverride.Instance.SetExactStacks(corruptionCount);
+        }
     }
 
     private void EjectItemIfValid(ItemData itemData)
@@ -196,7 +207,7 @@ public class InventoryManager : MonoBehaviour
         foreach (Transform child in gridRight) Destroy(child.gameObject);
         if(gridExt != null) foreach (Transform child in gridExt) Destroy(child.gameObject);
 
-        RefreshGrid(gridLeft, inventoryState.mainGridSlots, 5, 10, 0); 
+        RefreshGrid(gridLeft, inventoryState.mainGridSlots, 5, 10, 0);
         RefreshGrid(gridRight, inventoryState.mainGridSlots, 5, 10, 50); 
         if (gridExt != null) RefreshGrid(gridExt, inventoryState.extGridSlots, 5, 5, 0);
     }
@@ -216,7 +227,7 @@ public class InventoryManager : MonoBehaviour
     void RefreshGrid(Transform gridTransform, List<ItemData> dataList, int columns, int rows, int dataOffset)
     {
         float currentCellSize = 75f;
-        
+
         GridLayoutGroup layout = gridTransform.GetComponent<GridLayoutGroup>();
         if (layout != null) currentCellSize = layout.cellSize.x;
         else if (cellSizeOverride > 0f) currentCellSize = cellSizeOverride;
@@ -230,6 +241,7 @@ public class InventoryManager : MonoBehaviour
 
             GameObject slotObj = Instantiate(emptySlotPrefab, gridTransform);
             RectTransform slotRect = slotObj.GetComponent<RectTransform>();
+
             if (slotRect != null)
             {
                 slotRect.localScale = Vector3.one;
@@ -238,15 +250,18 @@ public class InventoryManager : MonoBehaviour
             }
 
             InventorySlot slotLogic = slotObj.GetComponent<InventorySlot>();
+
             if (slotLogic != null)
             {
                 slotLogic.slotCoordinate = new Vector2Int(x, y);
+
                 if (gridTransform == gridLeft) slotLogic.gridRegion = InventorySlot.GridRegion.MainLeft;
                 else if (gridTransform == gridRight) slotLogic.gridRegion = InventorySlot.GridRegion.MainRight;
                 else if (gridTransform == gridExt) slotLogic.gridRegion = InventorySlot.GridRegion.External;
             }
 
             ItemData data = dataList[i + dataOffset];
+
             if (data != null)
             {
                 if (data != corruptionData)
@@ -255,10 +270,11 @@ public class InventoryManager : MonoBehaviour
                     spawnedUniqueItems.Add(data);
                 }
 
-                GameObject prefabToSpawn = (data == corruptionData && uiCorruptionPrefab != null) ? uiCorruptionPrefab : filledItemPrefab;
+                GameObject prefabToSpawn = (data == corruptionData && uiCorruptionPrefab != null) ?
+                    uiCorruptionPrefab : filledItemPrefab;
                 GameObject itemObj = Instantiate(prefabToSpawn, slotObj.transform);
                 RectTransform itemRect = itemObj.GetComponent<RectTransform>();
-                
+
                 if (itemRect != null)
                 {
                     itemRect.localScale = Vector3.one;
@@ -266,6 +282,7 @@ public class InventoryManager : MonoBehaviour
                 }
 
                 Canvas itemCanvas = itemObj.GetComponent<Canvas>();
+
                 if (itemCanvas != null)
                 {
                     itemCanvas.overrideSorting = true;
@@ -273,9 +290,11 @@ public class InventoryManager : MonoBehaviour
                 }
 
                 UIItem uiItem = itemObj.GetComponent<UIItem>();
+
                 if (uiItem != null) uiItem.Initialize(data, currentCellSize);
                 
                 DraggableItem dragItem = itemObj.GetComponent<DraggableItem>();
+
                 if (dragItem != null) {
                     dragItem.cellSize = currentCellSize;
                     dragItem.UpdateVisualSize();
@@ -299,7 +318,7 @@ public class InventoryManager : MonoBehaviour
         
         // Lock the sequence so it doesn't trigger again!
         isGameOverSequenceStarted = true;
-        
+
         // Start the dramatic timed sequence
         StartCoroutine(GameOverSequenceRoutine());
     }
@@ -311,13 +330,14 @@ public class InventoryManager : MonoBehaviour
         {
             // Force them to stare at the fully corrupted inventory and flatline for 1.5 seconds
             yield return new WaitForSeconds(1.5f);
-
+            
             // Forcefully close the inventory using the new method we just added!
-            metRigManager.CloseRig(); 
+            metRigManager.CloseRig();
         }
 
         // 2. Now trigger the actual Game Over animation/screen
         GameOverManager gameOver = FindAnyObjectByType<GameOverManager>();
+
         if (gameOver != null) 
         {
             gameOver.TriggerGameOver();
@@ -339,6 +359,7 @@ public class InventoryManager : MonoBehaviour
     public bool CanDropToSlot(InventorySlot slot, DraggableItem draggedItem)
     {
         if (slot == null || draggedItem == null || draggedItem.itemData == null) return false;
+        
         ItemFootprint footprint = draggedItem.footprint;
         if (footprint == null) footprint = new ItemFootprint(1, 1);
         return IsSpaceFreeForFootprint(slot, footprint);
@@ -354,11 +375,12 @@ public class InventoryManager : MonoBehaviour
         
         int w = footprint != null ? footprint.width : 1;
         int h = footprint != null ? footprint.height : 1;
+        
         int maxCols = 5;
         int maxRows = anchorSlot.gridRegion == InventorySlot.GridRegion.External ? 5 : 10;
         int offset = anchorSlot.gridRegion == InventorySlot.GridRegion.MainRight ? 50 : 0;
         List<ItemData> targetGrid = anchorSlot.gridRegion == InventorySlot.GridRegion.External ? inventoryState.extGridSlots : inventoryState.mainGridSlots;
-
+        
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
@@ -366,8 +388,8 @@ public class InventoryManager : MonoBehaviour
                 int cx = startX + x;
                 int cy = startY + y;
 
-                if (cx < 0 || cx >= maxCols || cy < 0 || cy >= maxRows) return false; 
-                if (targetGrid[offset + (cy * maxCols) + cx] != null) return false; 
+                if (cx < 0 || cx >= maxCols || cy < 0 || cy >= maxRows) return false;
+                if (targetGrid[offset + (cy * maxCols) + cx] != null) return false;
             }
         }
         return true;
@@ -375,7 +397,6 @@ public class InventoryManager : MonoBehaviour
 
     public int CrushTier => crushTier;
     public bool HasHallucinations => crushTier >= 2;
-
     public void AddCorruptionRow() { ResolveCorruptionTick(); }
 
     public void DiscardItemToWorld(GameObject itemUI)
@@ -385,7 +406,12 @@ public class InventoryManager : MonoBehaviour
         if (dragItem != null && dragItem.itemData != null && dragItem.itemData.worldPrefab != null)
         {
             Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
-            Vector3 spawnPos = player != null ? player.position + (Vector3.right * 2f) : Vector3.zero;
+            
+            // Start the drop exactly at Kaelen's feet
+            Vector3 basePos = player != null ? player.position : Vector3.zero;
+            
+            // Ask the scatter math to find a clean, empty patch of floor
+            Vector3 spawnPos = GetScatterPosition(basePos);
             
             Instantiate(dragItem.itemData.worldPrefab, spawnPos, Quaternion.identity);
         }
@@ -394,19 +420,103 @@ public class InventoryManager : MonoBehaviour
         SyncDataFromUI();
     }
 
-    public Transform externalStorageGrid => gridExt;
-
-    public bool TryPickupItem(GameObject uiPrefabToSpawn, int sizeX, int sizeY, bool isQuestItem = false)
+    private Vector3 GetScatterPosition(Vector3 center)
     {
-        for(int i = 0; i < inventoryState.extGridSlots.Count; i++)
+        float dropRadius = 1.2f; // How far away from Kaelen's feet it can bounce
+        float itemSize = 0.3f;   // The physical space the item needs to not overlap
+
+        // Try 15 different random spots around Kaelen's feet
+        for (int i = 0; i < 15; i++)
         {
-            if(inventoryState.extGridSlots[i] == null)
+            Vector2 randomOffset = UnityEngine.Random.insideUnitCircle * dropRadius;
+            Vector3 testPos = center + (Vector3)randomOffset;
+            
+            // Scan the area for colliders
+            Collider2D[] hits = Physics2D.OverlapCircleAll(testPos, itemSize);
+            bool isSpaceFree = true;
+
+            // Check if any of the things we hit are other items
+            foreach (var hit in hits)
             {
-                ItemData tempItem = ScriptableObject.CreateInstance<ItemData>();
-                tempItem.itemID = "NEW";
-                inventoryState.extGridSlots[i] = tempItem;
-                RefreshAllGrids();
-                return true;
+                if (hit.CompareTag("Interactable") || hit.CompareTag("MasterKey"))
+                {
+                    isSpaceFree = false; // Spot taken!
+                    break;
+                }
+            }
+
+            // If the coast is clear, drop it here!
+            if (isSpaceFree)
+            {
+                return testPos;
+            }
+        }
+        
+        // Failsafe: If Kaelen drops 50 items and the floor is 100% covered, 
+        // just drop it at his feet with a tiny jitter so they don't perfectly overlap.
+        return center + (Vector3)(UnityEngine.Random.insideUnitCircle * 0.2f);
+    }
+
+    public Transform externalStorageGrid => gridExt;
+    
+    public bool TryPickupItem(ItemData itemToPickup)
+    {
+        if (itemToPickup == null) return false;
+
+        ItemFootprint fp = itemToPickup.GetFootprint();
+        int w = fp != null ? fp.width : 1;
+        int h = fp != null ? fp.height : 1;
+
+        // Scan ONLY the External Storage (which is a 5x5 grid, offset 0)
+        if (AttemptPlacement(itemToPickup, w, h, inventoryState.extGridSlots, 5, 5, 0)) 
+        {
+            return true;
+        }
+
+        // If the 5x5 external tray is full, reject the pickup!
+        Debug.Log("<color=red>External Tray Full! No space for " + itemToPickup.itemName + "</color>");
+        return false;
+    }
+
+    // The mathematical scanner to find empty space
+    private bool AttemptPlacement(ItemData item, int w, int h, List<ItemData> targetGrid, int maxCols, int maxRows, int gridOffset)
+    {
+        // Scan every possible starting cell in this specific grid
+        for (int y = 0; y <= maxRows - h; y++)
+        {
+            for (int x = 0; x <= maxCols - w; x++)
+            {
+                bool spaceFree = true;
+
+                // Check if the specific footprint shape is clear
+                for (int cy = 0; cy < h; cy++)
+                {
+                    for (int cx = 0; cx < w; cx++)
+                    {
+                        int index = gridOffset + ((y + cy) * maxCols) + (x + cx);
+                        if (targetGrid[index] != null)
+                        {
+                            spaceFree = false;
+                            break;
+                        }
+                    }
+                    if (!spaceFree) break;
+                }
+
+                // If we found a perfect fit, lock it in!
+                if (spaceFree)
+                {
+                    for (int cy = 0; cy < h; cy++)
+                    {
+                        for (int cx = 0; cx < w; cx++)
+                        {
+                            int index = gridOffset + ((y + cy) * maxCols) + (x + cx);
+                            targetGrid[index] = item;
+                        }
+                    }
+                    RefreshAllGrids();
+                    return true;
+                }
             }
         }
         return false;
@@ -415,8 +525,8 @@ public class InventoryManager : MonoBehaviour
     public bool TryConsumeBatteries(int amountRequired)
     {
         int count = 0;
-        foreach (var item in inventoryState.mainGridSlots) if (item != null && item.itemID == "BATT") count++; 
-
+        foreach (var item in inventoryState.mainGridSlots) if (item != null && item.itemID == "BATT") count++;
+        
         if (count >= amountRequired)
         {
             int removed = 0;
@@ -437,13 +547,17 @@ public class InventoryManager : MonoBehaviour
 
     public void SyncDataFromUI()
     {
+        // THE FIX: If the grid graphics are hidden and out of date, do NOT scrape them!
+        // This protects your true background data from being overwritten.
+        if (gridRefreshPending) return;
+
         for (int i = 0; i < 100; i++) inventoryState.mainGridSlots[i] = null;
         if (gridExt != null) for (int i = 0; i < 25; i++) inventoryState.extGridSlots[i] = null;
 
         ScrapeGrid(gridLeft, inventoryState.mainGridSlots, 0, 5, 10);
         ScrapeGrid(gridRight, inventoryState.mainGridSlots, 50, 5, 10);
         if (gridExt != null) ScrapeGrid(gridExt, inventoryState.extGridSlots, 0, 5, 5);
-
+        
         // Calculate and broadcast health one final time just in case manual dragging caused corruption changes
         BroadcastHealthState();
     }
@@ -470,7 +584,7 @@ public class InventoryManager : MonoBehaviour
                     int h = dragItem.footprint != null ? dragItem.footprint.height : dragItem.sizeY;
                     w = Mathf.Max(1, w);
                     h = Mathf.Max(1, h);
-
+                    
                     for (int y = 0; y < h; y++)
                     {
                         for (int x = 0; x < w; x++)
@@ -496,6 +610,30 @@ public class InventoryManager : MonoBehaviour
                     }
                 }
             }
+        }
+    }
+
+    // ==========================================
+    // NEW INSPECTION METHODS 
+    // ==========================================
+
+    // Call this from DraggableItem.cs or UIItem.cs when an item is clicked
+    public void SetInspectionIcon(Sprite itemSprite)
+    {
+        if (uiInspectIcon != null && itemSprite != null)
+        {
+            uiInspectIcon.sprite = itemSprite;
+            uiInspectIcon.color = Color.white; 
+        }
+    }
+
+    // This is called automatically in Start() so it boots up blank
+    public void ClearInspectionScreen()
+    {
+        if (uiInspectIcon != null)
+        {
+            uiInspectIcon.sprite = null;
+            uiInspectIcon.color = new Color(0, 0, 0, 0); 
         }
     }
 }
