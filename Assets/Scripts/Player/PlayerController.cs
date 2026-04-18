@@ -163,4 +163,17 @@ public class PlayerController : MonoBehaviour
 
     public float SprintMeter => sprintMeter;
     public float SprintMeterThreshold => currentThreshold;
+
+    // ==========================================
+    // SAVE SYSTEM INTEGRATION
+    // ==========================================
+    public void LoadStaminaState(float savedMeter, float savedThreshold)
+    {
+        sprintMeter = savedMeter;
+        currentThreshold = savedThreshold;
+        
+        // Reset any physical locks so the player doesn't spawn frozen!
+        isMovementLocked = false;
+        corruptionAddedThisCycle = false;
+    }
 }

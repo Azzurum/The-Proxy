@@ -15,6 +15,9 @@ public class InventoryManager : MonoBehaviour
     public GameObject filledItemPrefab;
     public GameObject uiCorruptionPrefab;
 
+    [Tooltip("Drag all your ItemData ScriptableObjects here so the game can load them by ID")]
+    public List<ItemData> itemDatabase = new List<ItemData>();
+
     [Header("Grid Sizing")]
     public float cellSizeOverride = 0f; 
     private bool gridRefreshPending = false;
@@ -547,6 +550,8 @@ public class InventoryManager : MonoBehaviour
 
     public void SyncDataFromUI()
     {
+        // CRITICAL FIX: If the UI is closed, do not wipe the memory! The 1D array is already safe.
+        if (!IsGridVisible()) return;
         // THE FIX: If the grid graphics are hidden and out of date, do NOT scrape them!
         // This protects your true background data from being overwritten.
         if (gridRefreshPending) return;
@@ -635,5 +640,203 @@ public class InventoryManager : MonoBehaviour
             uiInspectIcon.sprite = null;
             uiInspectIcon.color = new Color(0, 0, 0, 0); 
         }
+    }
+
+    // ==========================================
+    // SAVE SYSTEM EXPORT & IMPORT LOGIC
+    // ==========================================
+
+    public float GetCorruptionPercentage()
+    {
+        int count = 0;
+        foreach (ItemData item in inventoryState.mainGridSlots)
+        {
+            if (item == corruptionData) count++;
+        }
+        return Mathf.Clamp01(count / 100f);
+    }
+
+    public List<SavedGridItem> ExportInventoryForSave()
+    {
+        List<SavedGridItem> savedItems = new List<SavedGridItem>();
+        
+        // Create a mathematical mask of the entire inventory (Left, Right, and Ext)
+        bool[,] memoryMask = new bool[15, 10];
+
+        // Helper function to safely read any grid coordinate mathematically
+        ItemData GetItemAtGlobal(int x, int y)
+        {
+            if (x < 0 || y < 0 || y >= 10 || x >= 15) return null;
+            if (x < 5) return inventoryState.mainGridSlots[(y * 5) + x];
+            if (x < 10) return inventoryState.mainGridSlots[50 + (y * 5) + (x - 5)];
+            if (x < 15 && y < 5 && inventoryState.extGridSlots != null) return inventoryState.extGridSlots[(y * 5) + (x - 10)];
+            return null;
+        }
+
+        // Loop through every single possible coordinate in the 1D Arrays
+        for (int gy = 0; gy < 10; gy++)
+        {
+            for (int gx = 0; gx < 15; gx++)
+            {
+                // Skip if we already mapped this coordinate as part of a larger item's footprint
+                if (memoryMask[gx, gy]) continue;
+
+                ItemData item = GetItemAtGlobal(gx, gy);
+                if (item == null || item == corruptionData) continue;
+                if (string.IsNullOrEmpty(item.itemID)) continue;
+
+                // WE FOUND A NEW ITEM!
+                ItemFootprint fp = item.GetFootprint();
+                bool isRotated = false;
+
+                // Intelligent Rotation Inference: Since the 1D array loses rotation, we check the neighboring cells to see which way the item is facing!
+                if (fp != null)
+                {
+                    if (fp.width == 1 && fp.height > 1) 
+                    {
+                        ItemData rightItem = GetItemAtGlobal(gx + 1, gy);
+                        if (rightItem == item) isRotated = true; // It's lying on its side!
+                    }
+                    else if (fp.width > 1 && fp.height == 1)
+                    {
+                        ItemData bottomItem = GetItemAtGlobal(gx, gy + 1);
+                        if (bottomItem == item) isRotated = true; // It's standing up!
+                    }
+                }
+
+                // Secure the item
+                savedItems.Add(new SavedGridItem(item.itemID, gx, gy, isRotated));
+
+                // Mask out the item's physical footprint so we don't accidentally save duplicates of it
+                int w = fp != null ? fp.width : 1;
+                int h = fp != null ? fp.height : 1;
+                
+                if (isRotated) { int temp = w; w = h; h = temp; } // Swap dimensions if rotated
+
+                for (int fy = 0; fy < h; fy++)
+                {
+                    for (int fx = 0; fx < w; fx++)
+                    {
+                        if (gx + fx < 15 && gy + fy < 10) memoryMask[gx + fx, gy + fy] = true;
+                    }
+                }
+            }
+        }
+
+        return savedItems;
+    }
+
+    public void LoadInventoryFromSave(List<SavedGridItem> savedItems, float savedCorruptionPct)
+    {
+        float currentCellSize = 75f;
+        if (cellSizeOverride > 0f) currentCellSize = cellSizeOverride;
+
+        // 1. FORCE BUILD PRISTINE GRIDS (Bypassing visibility constraints)
+        void BuildGrid(Transform grid, int cols, int rows, InventorySlot.GridRegion region)
+        {
+            if (grid == null) return;
+            
+            // Instantly rip out any existing ghost slots to prevent bleed-over
+            for (int i = grid.childCount - 1; i >= 0; i--) 
+            {
+                Transform child = grid.GetChild(i);
+                child.SetParent(null); 
+                Destroy(child.gameObject);
+            }
+            
+            // Force generate perfect empty slots
+            for (int i = 0; i < cols * rows; i++)
+            {
+                GameObject slotObj = Instantiate(emptySlotPrefab, grid);
+                
+                RectTransform slotRect = slotObj.GetComponent<RectTransform>();
+                if (slotRect != null) { slotRect.localScale = Vector3.one; slotRect.localRotation = Quaternion.identity; slotRect.pivot = new Vector2(0f, 1f); }
+
+                InventorySlot slotLogic = slotObj.GetComponent<InventorySlot>();
+                if (slotLogic != null)
+                {
+                    slotLogic.slotCoordinate = new Vector2Int(i % cols, i / cols);
+                    slotLogic.gridRegion = region;
+                }
+            }
+        }
+
+        BuildGrid(gridLeft, 5, 10, InventorySlot.GridRegion.MainLeft);
+        BuildGrid(gridRight, 5, 10, InventorySlot.GridRegion.MainRight);
+        if (gridExt != null) BuildGrid(gridExt, 5, 5, InventorySlot.GridRegion.External);
+
+        // 2. SPAWN SAVED ITEMS DIRECTLY INTO THEIR EXACT SLOTS
+        foreach (SavedGridItem savedItem in savedItems)
+        {
+            ItemData foundData = itemDatabase.Find(x => x.itemID == savedItem.itemID);
+            if (foundData != null)
+            {
+                Transform targetSlot = null;
+                if (savedItem.gridPosX < 5) targetSlot = gridLeft.GetChild((savedItem.gridPosY * 5) + savedItem.gridPosX);
+                else if (savedItem.gridPosX < 10) targetSlot = gridRight.GetChild((savedItem.gridPosY * 5) + (savedItem.gridPosX - 5));
+                else if (gridExt != null && savedItem.gridPosX < 15) targetSlot = gridExt.GetChild((savedItem.gridPosY * 5) + (savedItem.gridPosX - 10));
+
+                if (targetSlot != null)
+                {
+                    GameObject newObj = Instantiate(filledItemPrefab, targetSlot);
+                    
+                    RectTransform itemRect = newObj.GetComponent<RectTransform>();
+                    if (itemRect != null) { itemRect.localScale = Vector3.one; itemRect.localRotation = Quaternion.identity; }
+                    
+                    Canvas itemCanvas = newObj.GetComponent<Canvas>();
+                    if (itemCanvas != null) { itemCanvas.overrideSorting = true; itemCanvas.sortingOrder = (targetSlot.parent == gridExt) ? 1 : 5; }
+
+                    UIItem uiItem = newObj.GetComponent<UIItem>();
+                    if (uiItem != null) 
+                    {
+                        foundData.isRotated = savedItem.isRotated; 
+                        uiItem.Initialize(foundData, currentCellSize); 
+                    }
+
+                    DraggableItem dragItem = newObj.GetComponent<DraggableItem>();
+                    if (dragItem != null) {
+                        dragItem.cellSize = currentCellSize;
+                        dragItem.UpdateVisualSize();
+                    }
+                }
+            }
+            else Debug.LogWarning($"<color=red>LOAD ERROR:</color> Item ID {savedItem.itemID} missing from Database!");
+        }
+
+        // 3. RESTORE CORRUPTION BLOCKS PHYSICALLY (From the Bottom-Up)
+        int corruptionBlocksToSpawn = Mathf.FloorToInt(savedCorruptionPct * 100f);
+        int spawned = 0;
+        
+        for (int row = 9; row >= 0 && spawned < corruptionBlocksToSpawn; row--)
+        {
+            // Fill Left Side
+            for (int col = 0; col < 5 && spawned < corruptionBlocksToSpawn; col++)
+            {
+                Transform slot = gridLeft.GetChild((row * 5) + col);
+                if (slot.childCount == 0) // Only spawn if an item isn't already here!
+                {
+                    GameObject crptObj = Instantiate(uiCorruptionPrefab != null ? uiCorruptionPrefab : filledItemPrefab, slot);
+                    UIItem uiItem = crptObj.GetComponent<UIItem>();
+                    if (uiItem != null) uiItem.Initialize(corruptionData, currentCellSize);
+                    spawned++;
+                }
+            }
+            // Fill Right Side
+            for (int col = 0; col < 5 && spawned < corruptionBlocksToSpawn; col++)
+            {
+                Transform slot = gridRight.GetChild((row * 5) + col);
+                if (slot.childCount == 0)
+                {
+                    GameObject crptObj = Instantiate(uiCorruptionPrefab != null ? uiCorruptionPrefab : filledItemPrefab, slot);
+                    UIItem uiItem = crptObj.GetComponent<UIItem>();
+                    if (uiItem != null) uiItem.Initialize(corruptionData, currentCellSize);
+                    spawned++;
+                }
+            }
+        }
+
+        // 4. SYNCHRONIZE BACKEND AND LOCK UI
+        gridRefreshPending = false;  // CRITICAL: Tells the system NOT to destroy our work when the Rig opens!
+        SyncDataFromUI();            // Mathematically updates the 1D arrays based on the UI we just built
     }
 }

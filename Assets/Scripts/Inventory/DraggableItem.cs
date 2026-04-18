@@ -168,7 +168,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null && itemData.itemID == "CRPT") return; 
 
         itemBeingDragged = this;
-        ejectedFromRig = false;
+        ejectedFromRig = false; 
         dropAccepted = false;
         parentAfterDrag = transform.parent;
         originalParent = transform.parent;

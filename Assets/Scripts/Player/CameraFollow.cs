@@ -10,17 +10,25 @@ public class CameraFollow : MonoBehaviour
 
     [Header("Smoothing")]
     [Range(0.01f, 1f)]
-    public float smoothTime = 0.15f; // 0.15 is the golden number for 2D! Lower is snappier, higher is floatier.
+    public float smoothTime = 0.15f; // 0.15 is the golden number for 2D!
 
-    // SmoothDamp needs a blank velocity variable to store its own math in the background
+    // Internal velocity for SmoothDamp math
     private Vector3 velocity = Vector3.zero;
 
     void Start()
     {
+        // 1. Find the target if it wasn't assigned in the Inspector
         if (target == null)
         {
             GameObject player = GameObject.Find("Player_Kaelen");
             if (player != null) target = player.transform;
+        }
+
+        // 2. Instantly teleport camera to target
+        // This prevents the "sliding" effect when the game first starts.
+        if (target != null)
+        {
+            transform.position = target.position + offset;
         }
     }
 
@@ -28,9 +36,10 @@ public class CameraFollow : MonoBehaviour
     {
         if (target != null)
         {
+            // Target position including our Z-depth offset
             Vector3 targetPosition = target.position + offset;
 
-            // THE UPGRADE: SmoothDamp acts like a perfect spring, completely immune to framerate drops!
+            // Smoothly glide to the target during gameplay
             transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
         }
     }
