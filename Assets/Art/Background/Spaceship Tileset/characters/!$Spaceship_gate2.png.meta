@@ -46,7 +46,7 @@ TextureImporter:
   maxTextureSize: 2048
   textureSettings:
     serializedVersion: 2
-    filterMode: 1
+    filterMode: 0
     aniso: 1
     mipBias: 0
     wrapU: 1
@@ -60,7 +60,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 100
+  spritePixelsToUnits: 48
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -84,7 +84,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
+    textureCompression: 0
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -113,11 +113,11 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 0
-        y: 287
-        width: 432
-        height: 74
-      alignment: 0
-      pivot: {x: 0, y: 0}
+        y: 288
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -134,20 +134,20 @@ TextureImporter:
       name: '!$Spaceship_gate2_1'
       rect:
         serializedVersion: 2
-        x: 0
-        y: 191
-        width: 432
-        height: 74
-      alignment: 0
-      pivot: {x: 0, y: 0}
+        x: 144
+        y: 288
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 962d19f62775471c0800000000000000
-      internalID: -4506881178081308055
+      spriteID: 3ed2dcec16275354b8d5f265329bff39
+      internalID: 490137282
       vertices: []
       indices: 
       edges: []
@@ -156,20 +156,20 @@ TextureImporter:
       name: '!$Spaceship_gate2_2'
       rect:
         serializedVersion: 2
-        x: 0
-        y: 95
-        width: 289
-        height: 74
-      alignment: 0
-      pivot: {x: 0, y: 0}
+        x: 288
+        y: 288
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: bc24af8168654de70800000000000000
-      internalID: 9139024677786239691
+      spriteID: c5ab795e68b483a4d877239cc9fa463b
+      internalID: -2018646529
       vertices: []
       indices: 
       edges: []
@@ -179,19 +179,173 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 0
-        y: 0
-        width: 432
-        height: 73
-      alignment: 0
-      pivot: {x: 0, y: 0}
+        y: 192
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 50bfbd35105678d00800000000000000
-      internalID: 974858900725299973
+      spriteID: 6bd9a65e049f76f409efd8f2d209b3c4
+      internalID: 738430035
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_4'
+      rect:
+        serializedVersion: 2
+        x: 144
+        y: 192
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e7ee91ab2d098af4a8f9d6dc8c19e053
+      internalID: -2049452770
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_5'
+      rect:
+        serializedVersion: 2
+        x: 288
+        y: 192
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 11dd4c0be6feac148beb87a3f3dd7ff9
+      internalID: 1924328796
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_6'
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 96
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fabd8b373e680f949b11ac3447c92d2e
+      internalID: 1428731665
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_7'
+      rect:
+        serializedVersion: 2
+        x: 144
+        y: 96
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: acb54076c79ecc2459cda95ee836b7de
+      internalID: -1705524967
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_8'
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 0
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 937b5925efce2424ba4cb294d3a8d997
+      internalID: -1488695463
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_9'
+      rect:
+        serializedVersion: 2
+        x: 144
+        y: 0
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5370d589f4387f243be05560b576f2dd
+      internalID: -1506536950
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: '!$Spaceship_gate2_10'
+      rect:
+        serializedVersion: 2
+        x: 288
+        y: 0
+        width: 144
+        height: 72
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9f37c3e4a8abc084da73e762d075e205
+      internalID: -497828997
       vertices: []
       indices: 
       edges: []
@@ -200,7 +354,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 4f430fc07fb1afe46b02884c49ae624f
     internalID: 0
     vertices: []
     indices: 
@@ -208,12 +362,21 @@ TextureImporter:
     weights: []
     secondaryTextures: []
     spriteCustomMetadata:
-      entries: []
+      entries:
+      - key: SpriteEditor.SliceSettings
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":144.0,"y":96.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.0},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":7,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
       '!$Spaceship_gate2_0': 6965001588912240200
-      '!$Spaceship_gate2_1': -4506881178081308055
-      '!$Spaceship_gate2_2': 9139024677786239691
-      '!$Spaceship_gate2_3': 974858900725299973
+      '!$Spaceship_gate2_1': 490137282
+      '!$Spaceship_gate2_10': -497828997
+      '!$Spaceship_gate2_2': -2018646529
+      '!$Spaceship_gate2_3': 738430035
+      '!$Spaceship_gate2_4': -2049452770
+      '!$Spaceship_gate2_5': 1924328796
+      '!$Spaceship_gate2_6': 1428731665
+      '!$Spaceship_gate2_7': -1705524967
+      '!$Spaceship_gate2_8': -1488695463
+      '!$Spaceship_gate2_9': -1506536950
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
