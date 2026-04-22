@@ -16,10 +16,15 @@ public class UIPurgeSystem : MonoBehaviour
     
     private Color originalTextColor;
 
+    void Awake()
+    {
+        // Moved to Awake so it initializes before the Save System tries to load data!
+        if (buttonText != null) originalTextColor = buttonText.color;
+    }
+
     void Start()
     {
-        if (buttonText != null) originalTextColor = buttonText.color;
-        if (cooldownOverlay != null) cooldownOverlay.fillAmount = 0f; // Hide overlay on start
+        if (cooldownOverlay != null && !isCoolingDown) cooldownOverlay.fillAmount = 0f; 
     }
 
     void Update()
@@ -84,5 +89,38 @@ public class UIPurgeSystem : MonoBehaviour
         if (purgeButton != null) purgeButton.interactable = true;
         if (buttonText != null) buttonText.color = originalTextColor;
         if (cooldownOverlay != null) cooldownOverlay.fillAmount = 0f; // Hide the overlay
+    }
+
+    // ==========================================
+    // SAVE SYSTEM INTEGRATION
+    // ==========================================
+    public float GetCurrentCooldown()
+    {
+        return currentCooldown; 
+    }
+
+    public void LoadCooldownState(float savedCooldown)
+    {
+        currentCooldown = savedCooldown;
+
+        if (currentCooldown > 0f)
+        {
+            isCoolingDown = true;
+            
+            // Force the button and text into the disabled state immediately
+            if (purgeButton != null) purgeButton.interactable = false;
+            if (buttonText != null) buttonText.color = new Color(0.4f, 0.4f, 0.4f);
+            
+            // Force the visual overlay to the correct fill amount
+            if (cooldownOverlay != null)
+            {
+                cooldownOverlay.fillAmount = currentCooldown / cooldownTime;
+            }
+        }
+        else
+        {
+            // If the loaded save had 0 cooldown, ensure the button is ready to use
+            EndCooldown();
+        }
     }
 }

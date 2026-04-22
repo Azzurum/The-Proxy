@@ -156,4 +156,61 @@ public class ShatterAnimator : MonoBehaviour
             }
         }
     }
+
+    // Blasts the glass completely off the screen
+    public IEnumerator BlowbackRoutine()
+    {
+        _isFullyShattered = false; // Turn off jitter
+        float elapsed = 0f;
+        float duration = 0.2f; // Lightning fast blast
+
+        Vector3[] startPositions = new Vector3[_shards.Length];
+        for (int i = 0; i < _shards.Length; i++) startPositions[i] = _shards[i].localPosition;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            t = t * t; // Ease-In: Starts slightly slow, accelerates violently
+
+            for (int i = 0; i < _shards.Length; i++)
+            {
+                Vector3 pushDirection = _originalPositions[i].normalized;
+                if (pushDirection == Vector3.zero) pushDirection = new Vector3(0.1f, 0.1f, 0);
+                
+                // Multiply force by 25 to guarantee they clear the screen
+                Vector3 massiveForce = pushDirection * 25f; 
+                
+                _shards[i].localPosition = Vector3.Lerp(startPositions[i], _originalPositions[i] + massiveForce, t);
+            }
+            yield return null;
+        }
+        glassParent.gameObject.SetActive(false); // Hide them completely once off-screen
+    }
+
+    // Sucks the glass back to its paused state
+    public IEnumerator RestoreRoutine()
+    {
+        glassParent.gameObject.SetActive(true);
+        float elapsed = 0f;
+        float duration = 0.25f;
+
+        Vector3[] startPositions = new Vector3[_shards.Length];
+        for (int i = 0; i < _shards.Length; i++) startPositions[i] = _shards[i].localPosition;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            t = 1f - Mathf.Pow(1f - t, 3f); // Cubic Ease-Out for a smooth deceleration
+
+            for (int i = 0; i < _shards.Length; i++)
+            {
+                // Return to the locked target positions so jitter resumes seamlessly
+                _shards[i].localPosition = Vector3.Lerp(startPositions[i], _targetPositions[i], t);
+            }
+            yield return null;
+        }
+        _isFullyShattered = true; // Turn jitter back on
+    }
 }

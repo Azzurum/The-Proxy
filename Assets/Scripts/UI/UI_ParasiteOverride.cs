@@ -24,7 +24,7 @@ public class UI_ParasiteOverride : MonoBehaviour
     public Outline timerBackgroundOutline;
     public Transform stackContainer;
     public Outline[] slotHighlights;
-    public Image rightBorderAccent;        // NEW: The thick right accent line
+    public Image rightBorderAccent;
 
     [Header("Theme Colors")]
     public Color stableColor = new Color(0f, 1f, 0.8f);
@@ -43,7 +43,6 @@ public class UI_ParasiteOverride : MonoBehaviour
     void Start()
     {
         timeLeft = cycleTime;
-
         if (stackContainer != null)
         {
             int childCount = stackContainer.childCount;
@@ -57,21 +56,17 @@ public class UI_ParasiteOverride : MonoBehaviour
 
     void Update()
     {
-        // The UI now ONLY handles the visual draining animation. 
         if (currentStacks < maxStacks)
         {
             timeLeft -= Time.deltaTime;
             if (timeLeft < 0) timeLeft = 0; 
         }
 
-        // Timer Visuals
-        if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime; 
+        if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime;
         if (timerReadoutText != null) timerReadoutText.text = timeLeft.ToString("F2") + "s"; 
 
-        // Stack Text
         if (stackCounterText != null) stackCounterText.text = $"[ {currentStacks:D2} / 10 ]";
 
-        // Theme Colors
         Color currentTheme = stableColor;
         string currentTitle = "MOTHER // ASSIMILATING";
 
@@ -98,13 +93,15 @@ public class UI_ParasiteOverride : MonoBehaviour
     // NEW EXACT SYNC METHOD: The Inventory will use this to force the UI to match reality
     public void SetExactStacks(int physicalItemCount)
     {
-        // Every 10 physical items = 1 UI block
-        currentStacks = physicalItemCount / 10; 
-
-        if (currentStacks > maxStacks) currentStacks = maxStacks;
+        int newStacks = physicalItemCount / 10; 
+        if (newStacks > maxStacks) newStacks = maxStacks;
         
-        // Snap the visual timer back to 60s so Kaelen has time before the next natural tick
-        timeLeft = cycleTime; 
+        // CRITICAL FIX: Only reset the timer if MOTHER actually gains or loses a tier of corruption!
+        if (newStacks != currentStacks)
+        {
+            currentStacks = newStacks;
+            timeLeft = cycleTime; 
+        }
     }
 
     private void ApplyThemeColor(Color theme)
@@ -113,8 +110,6 @@ public class UI_ParasiteOverride : MonoBehaviour
         if (timerReadoutText != null) timerReadoutText.color = theme;
         if (timerFill != null) timerFill.color = theme;
         if (timerBackgroundOutline != null) timerBackgroundOutline.effectColor = theme;
-        
-        // NEW: Apply the color to the Right Border
         if (rightBorderAccent != null) rightBorderAccent.color = theme;
 
         foreach (var txt in slotKeyTexts) { if (txt != null) txt.color = theme; }
@@ -128,5 +123,24 @@ public class UI_ParasiteOverride : MonoBehaviour
                 stackBlocks[i].color = (i < currentStacks) ? theme : emptyBlockColor;
             }
         }
+    }
+
+    // ==========================================
+    // SAVE SYSTEM INTEGRATION
+    // ==========================================
+    public float GetCurrentTimer()
+    {
+        return timeLeft;
+    }
+
+    public void LoadParasiteData(int savedStacks, float savedTimer)
+    {
+        currentStacks = savedStacks;
+        timeLeft = savedTimer;
+
+        // Force visual update immediately on load
+        if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime;
+        if (timerReadoutText != null) timerReadoutText.text = timeLeft.ToString("F2") + "s";
+        if (stackCounterText != null) stackCounterText.text = $"[ {currentStacks:D2} / 10 ]";
     }
 }
