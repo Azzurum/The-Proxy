@@ -1,1 +1,1 @@
-Hello ken
+walang ginawa si ken
