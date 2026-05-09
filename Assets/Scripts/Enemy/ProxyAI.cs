@@ -54,7 +54,8 @@ public class ProxyAI : MonoBehaviour
     // Components & Managers
     private Animator animator;
     private Rigidbody2D rb;
-    private SpriteRenderer spriteRenderer; // ADDED: To handle the Left/Right sprite flipping
+    private SpriteRenderer spriteRenderer;
+
     private MetRigManager metRigManager;
     private GameOverManager gameOverManager;
     private InventoryManager inventoryManager;
@@ -66,7 +67,7 @@ public class ProxyAI : MonoBehaviour
         // Setup Components
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>(); // ADDED: Cache the renderer
+        spriteRenderer = GetComponent<SpriteRenderer>();
         
         if (rb == null)
         {
@@ -102,7 +103,7 @@ public class ProxyAI : MonoBehaviour
 
         // State Machine execution hierarchy ensures no overlapping behaviors
         if (isStunned || isKnockedBack) return;
-        
+
         if (isPlayerInMeleeRange && canAttack && !isAttacking)
         {
             StartCoroutine(AttackRoutine());
@@ -155,7 +156,7 @@ public class ProxyAI : MonoBehaviour
             lastKnownPosition = targetPlayer.position;
             hasLastKnownPosition = true;
             isWandering = false; 
-            SetMoveTarget(targetPlayer.position, currentSpeed);
+            SetMoveTarget(targetPlayer.position, sprintSpeed);
         }
         // SCENARIO B: Stealth Mode. Rely on hearing and memory.
         else if (hasLastKnownPosition)
@@ -332,7 +333,6 @@ public class ProxyAI : MonoBehaviour
     public void ApplyStun()
     {
         if (isStunned) return;
-        
         stunCount++;
         stunMemoryTimer = memoryResetTime; 
 
@@ -372,14 +372,12 @@ public class ProxyAI : MonoBehaviour
 
         Vector2 myPos2D = rb != null ? rb.position : (Vector2)transform.position;
         Vector2 playerPos2D = new Vector2(playerPosition.x, playerPosition.y);
-        
         Vector2 pushDirection = (myPos2D - playerPos2D).normalized;
         Vector2 targetPosition = myPos2D + (pushDirection * distance);
-        
+
         while (Vector2.Distance(myPos2D, targetPosition) > 0.1f)
         {
             myPos2D = Vector2.MoveTowards(myPos2D, targetPosition, knockbackSpeed * Time.deltaTime);
-            
             if (rb != null) rb.MovePosition(myPos2D);
             else transform.position = new Vector3(myPos2D.x, myPos2D.y, transform.position.z);
             
@@ -437,9 +435,9 @@ public class ProxyAI : MonoBehaviour
             animator.SetFloat("MoveX", direction.x);
             animator.SetFloat("MoveY", direction.y);
 
-            // THE FLIP LOGIC (Ensures the Walk Right sprite flips horizontally when moving left)
             if (spriteRenderer != null)
             {
+                // HORIZONTAL FLIP LOGIC
                 if (direction.x < -0.1f) 
                 {
                     spriteRenderer.flipX = true;  // Face Left
@@ -447,6 +445,17 @@ public class ProxyAI : MonoBehaviour
                 else if (direction.x > 0.1f) 
                 {
                     spriteRenderer.flipX = false; // Face Right
+                }
+
+                // VERTICAL FLIP LOGIC (Upside-down ONLY when walking primarily up)
+                // We use Mathf.Abs (Absolute value) to ignore negative signs when comparing
+                if (direction.y > 0.1f && Mathf.Abs(direction.y) > Mathf.Abs(direction.x))
+                {
+                    spriteRenderer.flipY = true;  // Turn upside down
+                }
+                else
+                {
+                    spriteRenderer.flipY = false; // Return to normal
                 }
             }
         }
@@ -463,7 +472,6 @@ public class ProxyAI : MonoBehaviour
         else
         {
             // Dynamically scale animation speed based on movement speed.
-            // If baseSpeed is 2 and current is 6 (sprinting), animation plays 3x faster.
             animator.speed = Mathf.Max(1f, currentSpeed / baseSpeed);
         }
     }
