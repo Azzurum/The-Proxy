@@ -3,6 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using UnityEngine.SceneManagement; // Required to check what level we are in
 
 [RequireComponent(typeof(LayoutElement))]
 public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
@@ -21,7 +22,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public CanvasGroup watermarkGroup;    
 
     [Header("UI Text Elements")]
-    public TextMeshProUGUI idText;            
+    public TextMeshProUGUI idText;
     public TextMeshProUGUI actionText;        
     public TextMeshProUGUI dataLeftText;      
     public TextMeshProUGUI dataRightText;     
@@ -43,7 +44,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public Color colorNormal = new Color(0.05f, 0.06f, 0.07f, 0.9f);
     public Color colorExpanded = new Color(0.93f, 0.96f, 0.98f, 1f); 
     public Color colorDanger = new Color(0.2f, 0f, 0f, 0.9f);
-    
     public Color hoverCyan = new Color(0f, 0.94f, 1f, 1f);
     public Color hoverRed = new Color(1f, 0f, 0.23f, 1f);
 
@@ -59,7 +59,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private Coroutine _scrambleCoroutine;
     private Coroutine _animationCoroutine;
     private Coroutine _hoverCoroutine;
-    
     private UISaveSlot[] _siblingSlots;
 
     void Awake()
@@ -67,6 +66,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (layoutElement == null) layoutElement = GetComponent<LayoutElement>();
         if (backgroundImage == null) backgroundImage = GetComponent<Image>();
         
+        // Find all other slots in the same folder so we can crush them when this one opens
         if (transform.parent != null)
         {
             _siblingSlots = transform.parent.GetComponentsInChildren<UISaveSlot>();
@@ -82,9 +82,11 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public void RefreshDataFromDisk()
     {
         if (SaveLoadManager.Instance == null) return;
+
+        // Check if we are currently in the main menu to prevent saving empty data
+        bool isMainMenu = SceneManager.GetActiveScene().name == "MainMenu_Scene";
         bool hasData = SaveLoadManager.Instance.DoesSaveExist(slotID);
         
-        // This ensures the Sector ID header is visible on EVERY slot (full or empty)
         if (matrixHeaderText != null) matrixHeaderText.text = $"SECTOR_{slotID:D2} IDENTIFIED";
 
         if (hasData)
@@ -93,12 +95,10 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             bool isCorrupted = data.motherCorruptionPercent > 0.5f;
 
             _targetDecryptedText = isCorrupted ? "[ FATAL_RECORD ]" : "[ MEMORY_LOG ]";
-            
             System.TimeSpan t = System.TimeSpan.FromSeconds(data.playTimeInSeconds);
             string timeStr = string.Format("{0:D2}:{1:D2}:{2:D2}", t.Hours, t.Minutes, t.Seconds);
 
             if (actionText != null) actionText.alignment = TextAlignmentOptions.TopRight;
-
             if (idText != null) idText.text = $"> BLK_0{slotID}";
             if (dataLeftText != null) dataLeftText.text = $"LOC: <color=#596877>{data.currentDeckLocation}</color>\n<b><size=130%>UPTIME: <color=#596877>{timeStr}</color></size></b>";
             
@@ -112,34 +112,39 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             if (hoverWipe != null) hoverWipe.color = isCorrupted ? hoverRed : hoverCyan;
 
             if (cmdLoad != null) { cmdLoad.gameObject.SetActive(true); cmdLoad.txtIndex.text = "// 01"; cmdLoad.txtCommand.text = "EXECUTE LOAD"; }
-            if (cmdOverwrite != null) { cmdOverwrite.gameObject.SetActive(true); cmdOverwrite.txtIndex.text = "// 02"; cmdOverwrite.txtCommand.text = "FORCE OVERWRITE"; }
+            
+            // Hide Overwrite button if in the Main Menu
+            if (cmdOverwrite != null) { cmdOverwrite.gameObject.SetActive(!isMainMenu); cmdOverwrite.txtIndex.text = "// 02"; cmdOverwrite.txtCommand.text = "FORCE OVERWRITE"; }
+            
             if (cmdDelete != null) { cmdDelete.gameObject.SetActive(true); cmdDelete.txtIndex.text = "// 03"; cmdDelete.txtCommand.text = "PURGE DATA"; }
             if (cmdAbort != null) { cmdAbort.gameObject.SetActive(true); cmdAbort.txtIndex.text = "// 04"; cmdAbort.txtCommand.text = "ABORT SEQUENCE"; }
         }
         else
         {
             _targetDecryptedText = "[ UNALLOCATED BUFFER ]";
-            
             if (actionText != null) actionText.alignment = TextAlignmentOptions.Center;
-            
             if (idText != null) idText.text = "";
             if (dataLeftText != null) dataLeftText.text = "";
             if (dataRightText != null) dataRightText.text = "";
-            
             if (backgroundImage != null) backgroundImage.color = colorNormal;
             if (hoverWipe != null) hoverWipe.color = hoverCyan;
 
+            // Hide Load and Delete buttons because there is no data
             if (cmdLoad != null) cmdLoad.gameObject.SetActive(false);
             if (cmdDelete != null) cmdDelete.gameObject.SetActive(false);
             
-            if (cmdOverwrite != null) { cmdOverwrite.gameObject.SetActive(true); cmdOverwrite.txtIndex.text = "// 01"; cmdOverwrite.txtCommand.text = "ALLOCATE BUFFER"; }
+            // Hide Allocate/Save button if in the Main Menu
+            if (cmdOverwrite != null) { cmdOverwrite.gameObject.SetActive(!isMainMenu); cmdOverwrite.txtIndex.text = "// 01"; cmdOverwrite.txtCommand.text = "ALLOCATE BUFFER"; }
+            
             if (cmdAbort != null) { cmdAbort.gameObject.SetActive(true); cmdAbort.txtIndex.text = "// 02"; cmdAbort.txtCommand.text = "ABORT SEQUENCE"; }
         }
 
+        // Reset progress bars
         if (fillLoad) fillLoad.fillAmount = 0;
         if (fillOverwrite) fillOverwrite.fillAmount = 0;
         if (fillDelete) fillDelete.fillAmount = 0;
 
+        // Create the scrambled cipher text for the hacking effect
         char[] encryptedArr = _targetDecryptedText.ToCharArray();
         for (int i = 0; i < encryptedArr.Length; i++)
         {
@@ -156,10 +161,10 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         _isExpanded = true;
         
         if (SystemLogger.Instance != null) 
-            SystemLogger.Instance.Log($"TERMINAL EXPANDED. SECTOR 0{slotID} ACCESSED.", "#FFAA00"); 
-        
+            SystemLogger.Instance.Log($"TERMINAL EXPANDED. SECTOR 0{slotID} ACCESSED.", "#FFAA00");
         if (hoverWipe != null) hoverWipe.fillAmount = 0;
         
+        // Tell all other slots to shrink
         if (_siblingSlots != null)
         {
             foreach (var slot in _siblingSlots)
@@ -205,6 +210,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (backgroundImage != null) backgroundImage.color = colorNormal;
     }
 
+    // --- BUTTON COMMANDS ---
     public void Command_Load() 
     { 
         if (_isExecuting) return;
@@ -232,26 +238,23 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public void Command_Abort() 
     { 
         if (_isExecuting) return;
-        
         if (SystemLogger.Instance != null) 
-            SystemLogger.Instance.Log("OPERATION ABORTED BY USER.", "#5E7382"); 
-            
+            SystemLogger.Instance.Log("OPERATION ABORTED BY USER.", "#5E7382");
         ReleaseAllSlots(); 
     }
 
     private IEnumerator ExecuteActionRoutine(Image targetFill, string flashType, System.Action finalAction)
     {
         _isExecuting = true;
-
         if (SystemLogger.Instance != null)
         {
-            SystemLogger.Instance.Log($"INITIATING DIRECTIVE: [{flashType}]...", "#FFAA00"); 
-            
+            SystemLogger.Instance.Log($"INITIATING DIRECTIVE: [{flashType}]...", "#FFAA00");
             if (flashType == "LOAD") SystemLogger.Instance.Log("DECRYPTING ARCHIVE...", "#00F0FF"); 
-            else if (flashType == "PURGE") SystemLogger.Instance.Log("OVERRIDING SAFETY PROTOCOLS...", "#FF003C"); 
+            else if (flashType == "PURGE") SystemLogger.Instance.Log("OVERRIDING SAFETY PROTOCOLS...", "#FF003C");
             else SystemLogger.Instance.Log("PACKING AETHER-CORE GRID POSITIONS...", "#00F0FF"); 
         }
 
+        // Animate the progress bar fill
         if (targetFill != null)
         {
             float timer = 0f;
@@ -267,18 +270,19 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         if (SystemLogger.Instance != null)
         {
-            if (flashType == "LOAD") SystemLogger.Instance.Log("RESTORING PHYSICAL SUIT STATE...", "#00F0FF"); 
+            if (flashType == "LOAD") SystemLogger.Instance.Log("RESTORING PHYSICAL SUIT STATE...", "#00F0FF");
             else if (flashType == "PURGE") SystemLogger.Instance.Log("PURGING SECTOR DATA...", "#FF003C"); 
-            else SystemLogger.Instance.Log("WRITING TO PHYSICAL DISK...", "#00F0FF"); 
+            else SystemLogger.Instance.Log("WRITING TO PHYSICAL DISK...", "#00F0FF");
         }
 
         if (SystemSyncFX.Instance != null) SystemSyncFX.Instance.ExecuteFlash(flashType);
 
+        // Execute the actual save/load/delete code
         finalAction?.Invoke();
-
+        
         if (SystemLogger.Instance != null && flashType != "PURGE")
         {
-            SystemLogger.Instance.Log("CHECKSUM VALID. DATA SECURED.", "#00FF66"); 
+            SystemLogger.Instance.Log("CHECKSUM VALID. DATA SECURED.", "#00FF66");
         }
 
         ReleaseAllSlots();
@@ -287,6 +291,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     private void ReleaseAllSlots()
     {
+        // Reset all slots back to resting state and refresh their data
         if (_siblingSlots != null)
         {
             foreach (var slot in _siblingSlots)
@@ -306,19 +311,20 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         float timer = 0;
         float duration = 0.35f; 
 
+        // Cache starting values for smooth transition
         float startHeight = layoutElement.preferredHeight;
         float startReadoutAlpha = containerReadout != null ? containerReadout.alpha : 1f;
         float startMatrixAlpha = containerMatrix != null ? containerMatrix.alpha : 0f;
         float startWatermarkAlpha = watermarkGroup != null ? watermarkGroup.alpha : 0f;
         Color startColor = backgroundImage != null ? backgroundImage.color : colorNormal;
-
-        // Extract HTML Y-Axis Slide Logic
+        
         Vector3 startMatrixPos = containerMatrix != null ? containerMatrix.transform.localPosition : Vector3.zero;
         float targetMatrixY = targetMatrixAlpha > 0.5f ? 0f : -20f; // Slide up into place
         
         Vector3 startReadoutPos = containerReadout != null ? containerReadout.transform.localPosition : Vector3.zero;
         float targetReadoutY = targetReadoutAlpha > 0.5f ? 0f : -20f; // Slide up and fade out
 
+        // Disable clicks while animating
         if (containerMatrix != null)
         {
             containerMatrix.interactable = false;
@@ -329,9 +335,9 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         {
             timer += Time.unscaledDeltaTime;
             float t = timer / duration;
-            // Smooth curve
+            // Smooth curve math
             t = t < 0.5f ? 2f * t * t : 1f - Mathf.Pow(-2f * t + 2f, 2f) / 2f;
-
+            
             layoutElement.preferredHeight = Mathf.Lerp(startHeight, targetHeight, t);
             
             if (containerReadout != null) 
@@ -346,33 +352,31 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
                 containerMatrix.transform.localPosition = new Vector3(startMatrixPos.x, Mathf.Lerp(startMatrixPos.y, targetMatrixY, t), startMatrixPos.z);
             }
             
-            if (watermarkGroup != null) watermarkGroup.alpha = Mathf.Lerp(startWatermarkAlpha, targetMatrixAlpha, t); 
+            if (watermarkGroup != null) watermarkGroup.alpha = Mathf.Lerp(startWatermarkAlpha, targetMatrixAlpha, t);
             if (backgroundImage != null) backgroundImage.color = Color.Lerp(startColor, targetColor, t);
 
             yield return null;
         }
 
+        // Snap to exact final targets
         layoutElement.preferredHeight = targetHeight;
-        
         if (containerReadout != null) 
         {
             containerReadout.alpha = targetReadoutAlpha;
             containerReadout.transform.localPosition = new Vector3(startReadoutPos.x, targetReadoutY, startReadoutPos.z);
         }
-        
         if (watermarkGroup != null) watermarkGroup.alpha = targetMatrixAlpha;
-        
         if (containerMatrix != null)
         {
             containerMatrix.alpha = targetMatrixAlpha;
             containerMatrix.transform.localPosition = new Vector3(startMatrixPos.x, targetMatrixY, startMatrixPos.z);
+            // Re-enable clicks if fully visible
             if (targetMatrixAlpha >= 1f)
             {
                 containerMatrix.interactable = true;
                 containerMatrix.blocksRaycasts = true;
             }
         }
-        
         if (backgroundImage != null) backgroundImage.color = targetColor;
     }
 
@@ -380,6 +384,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     {
         if (_isExpanded) return;
         
+        // Trigger the visual hacking/decryption effect
         if (_scrambleCoroutine != null) StopCoroutine(_scrambleCoroutine);
         _scrambleCoroutine = StartCoroutine(ScrambleTextRoutine(_targetDecryptedText));
 
@@ -403,8 +408,8 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (hoverWipe == null) yield break;
         float startFill = hoverWipe.fillAmount;
         float timer = 0f;
-        float duration = 0.15f; 
-
+        float duration = 0.15f;
+        
         while (timer < duration)
         {
             timer += Time.unscaledDeltaTime;
@@ -419,7 +424,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (actionText == null || string.IsNullOrEmpty(targetText)) yield break;
         float iter = 0; int len = targetText.Length;
         string glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!<>-_\\/[]{}—=+*^?#";
-
+        
         while (iter < len)
         {
             char[] currentText = new char[len];
