@@ -11,9 +11,13 @@ public class PauseManager : MonoBehaviour
 
     [Header("Menu Panels (State Machine)")]
     public GameObject panelMainMenu;
-    public GameObject panelSettings;
     public GameObject panelSaveLoad;
     public GameObject panelQuitConfirm;
+    
+    [Header("Settings / RIG Interface UI")]
+    public GameObject settingsOverlay;            // Replaced the old panelSettings
+    public CanvasGroup settingsCanvasGroup;       // Controls the master fade
+    public RectTransform settingsPanelTransform;  // Controls the hardware "pop" scale
 
     [Header("Audio SFX")]
     public AudioSource audioSource;
@@ -35,8 +39,8 @@ public class PauseManager : MonoBehaviour
     // Internal State
     private RenderTexture _pauseScreenTexture;
     private bool _isPaused = false;
-    private bool _isAnimating = false;      // Locks input during Pause/Unpause
-    private bool _isTransitioning = false;  // Locks input during Menu Swaps
+    private bool _isAnimating = false;    // Locks input during Pause/Unpause
+    private bool _isTransitioning = false;// Locks input during Menu Swaps
 
     // Active Coroutine Trackers (prevents overlapping animations)
     private Coroutine _audioFadeCoroutine;
@@ -52,6 +56,7 @@ public class PauseManager : MonoBehaviour
         if (audioSource != null) 
         {
             audioSource.playOnAwake = false;
+            audioSource.ignoreListenerPause = true;
             _originalVolume = audioSource.volume;
             if (SND_UI_Menu_Shatter != null) SND_UI_Menu_Shatter.LoadAudioData(); 
         }
@@ -128,24 +133,25 @@ public class PauseManager : MonoBehaviour
         _isTransitioning = false;
 
         // 2. Kill any active animations, audio fades, or time transitions
-        StopAllCoroutines(); 
+        StopAllCoroutines();
 
         // 3. Force Time and Audio back to normal instantly
         Time.timeScale = 1f;
+        AudioListener.pause = false;
         if (audioSource != null && audioSource.isPlaying) audioSource.Stop();
 
         // 4. Hard-reset all visuals and UI components
         if (shatteredGlassVisuals != null) shatteredGlassVisuals.SetActive(false);
         if (pauseMenuUI != null) pauseMenuUI.gameObject.SetActive(false);
         
-        // 5. Restore Kaelen's active gameplay HUD
+        // 5. Restore active gameplay HUD
         ToggleGameplayUI(true);
     }
 
     private bool IsSubMenuActive()
     {
         return (panelSaveLoad != null && panelSaveLoad.activeSelf) ||
-               (panelSettings != null && panelSettings.activeSelf) ||
+               (settingsOverlay != null && settingsOverlay.activeSelf) ||
                (panelQuitConfirm != null && panelQuitConfirm.activeSelf);
     }
 
@@ -204,6 +210,7 @@ public class PauseManager : MonoBehaviour
         yield return null; 
 
         Time.timeScale = 0f;
+        AudioListener.pause = true;
         shatterAnimator.PlayShatter(); 
         
         // 8. Unlock Input
@@ -226,6 +233,7 @@ public class PauseManager : MonoBehaviour
 
         // 2. Lock Input & Enter Bullet-Time
         Time.timeScale = 0.05f;
+        AudioListener.pause = false;
         pauseMenuUI.interactable = false;
         pauseMenuUI.blocksRaycasts = false;
         
@@ -245,7 +253,6 @@ public class PauseManager : MonoBehaviour
         _isAnimating = false; 
     }
 
-    // Helper to cleanly turn gameplay elements on/off
     private void ToggleGameplayUI(bool state)
     {
         if (elementsToHide == null) return;
@@ -260,7 +267,7 @@ public class PauseManager : MonoBehaviour
     // Instantly resets everything (Called on Pause)
     private void ForceResetMenuState()
     {
-        if (panelSettings != null) panelSettings.SetActive(false);
+        if (settingsOverlay != null) settingsOverlay.SetActive(false);
         if (panelSaveLoad != null) panelSaveLoad.SetActive(false);
         if (panelQuitConfirm != null) panelQuitConfirm.SetActive(false);
         
@@ -270,8 +277,18 @@ public class PauseManager : MonoBehaviour
 
     // --- Button Triggers ---
     public void OpenSaveLoad() => TriggerSubMenuTransition(panelSaveLoad);
-    public void OpenSettings() => TriggerSubMenuTransition(panelSettings);
     public void OpenQuitConfirm() => TriggerSubMenuTransition(panelQuitConfirm);
+    
+    // Explicit trigger for the Settings Prefab logic
+    public void OpenSettings()
+    {
+        if (_isTransitioning) return;
+        if (_uiTransitionCoroutine != null) StopCoroutine(_uiTransitionCoroutine);
+        _uiTransitionCoroutine = StartCoroutine(AnimateSettingsInRoutine());
+    }
+
+    // Explicit trigger for the Settings Prefab Return button
+    public void CloseSettings() => ReturnToMainMenuTransition();
 
     public void ReturnToMainMenuTransition()
     {
@@ -301,17 +318,87 @@ public class PauseManager : MonoBehaviour
         _isTransitioning = false;
     }
 
+    // NEW: Handles the cinematic glass blowback AND the premium UI fade-in
+    private IEnumerator AnimateSettingsInRoutine()
+    {
+        _isTransitioning = true;
+        if (panelMainMenu != null) panelMainMenu.SetActive(false);
+
+        // 1. Trigger the cinematic shattered glass blowback
+        if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 0f, 1f, 0.2f));
+        if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.BlowbackRoutine());
+
+        // 2. Turn on the Settings Overlay and start the premium scale/fade pop
+        if (settingsOverlay != null) settingsOverlay.SetActive(true);
+
+        if (settingsCanvasGroup != null && settingsPanelTransform != null)
+        {
+            settingsCanvasGroup.interactable = false;
+            settingsCanvasGroup.blocksRaycasts = false;
+            settingsCanvasGroup.alpha = 0f;
+            settingsPanelTransform.localScale = new Vector3(0.95f, 0.95f, 1f);
+
+            float timeElapsed = 0;
+            float duration = 0.25f;
+
+            while (timeElapsed < duration)
+            {
+                float t = timeElapsed / duration;
+                settingsCanvasGroup.alpha = Mathf.Lerp(0f, 1f, t);
+                float scale = Mathf.Lerp(0.95f, 1f, t);
+                settingsPanelTransform.localScale = new Vector3(scale, scale, 1f);
+
+                timeElapsed += Time.unscaledDeltaTime; 
+                yield return null;
+            }
+
+            settingsCanvasGroup.alpha = 1f;
+            settingsPanelTransform.localScale = Vector3.one;
+            settingsCanvasGroup.interactable = true;
+            settingsCanvasGroup.blocksRaycasts = true;
+        }
+
+        _isTransitioning = false;
+    }
+
     private IEnumerator TransitionToMainMenuRoutine()
     {
         _isTransitioning = true;
-        if (panelSettings != null) panelSettings.SetActive(false);
-        if (panelSaveLoad != null) panelSaveLoad.SetActive(false);
-        if (panelQuitConfirm != null) panelQuitConfirm.SetActive(false);
 
-        // Remove void while sucking glass back in
+        // 1. If Settings is currently open, perform the premium UI fade-out first
+        if (settingsOverlay != null && settingsOverlay.activeSelf && settingsCanvasGroup != null && settingsPanelTransform != null)
+        {
+            settingsCanvasGroup.interactable = false;
+            settingsCanvasGroup.blocksRaycasts = false;
+
+            float timeElapsed = 0;
+            float duration = 0.2f;
+
+            while (timeElapsed < duration)
+            {
+                float t = timeElapsed / duration;
+                settingsCanvasGroup.alpha = Mathf.Lerp(1f, 0f, t);
+                float scale = Mathf.Lerp(1f, 0.95f, t);
+                settingsPanelTransform.localScale = new Vector3(scale, scale, 1f);
+
+                timeElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            settingsOverlay.SetActive(false);
+        }
+        else
+        {
+            // Just close the other standard menus instantly
+            if (settingsOverlay != null) settingsOverlay.SetActive(false);
+            if (panelSaveLoad != null) panelSaveLoad.SetActive(false);
+            if (panelQuitConfirm != null) panelQuitConfirm.SetActive(false);
+        }
+
+        // 2. Cinematic Glass Restore
         if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 1f, 0f, 0.25f));
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.RestoreRoutine());
 
+        // 3. Restore the Main Menu buttons
         if (panelMainMenu != null) panelMainMenu.SetActive(true);
         _isTransitioning = false;
     }
@@ -338,13 +425,12 @@ public class PauseManager : MonoBehaviour
 
         float corruptionCount = inventory.GetTotalCorruptedSlots(); 
         float corruptionPct = Mathf.Clamp01(corruptionCount / 100f);
-        
+
         HorrorProxyButton[] buttons = pauseMenuUI.GetComponentsInChildren<HorrorProxyButton>(true);
         foreach (HorrorProxyButton btn in buttons) 
         {
             btn.corruptionPercent = corruptionPct;
-            // NOTE: Consider changing this to direct method call (e.g., btn.DrawFlowingLine()) in the future for better performance.
-            btn.SendMessage("DrawFlowingLine", SendMessageOptions.DontRequireReceiver); 
+            btn.SendMessage("DrawFlowingLine", SendMessageOptions.DontRequireReceiver);
         }
     }
 
