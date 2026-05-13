@@ -119,6 +119,29 @@ public class PauseManager : MonoBehaviour
         }
     }
 
+    // --- NEW: FORCED STARTUP LOAD KILL-SWITCH ---
+    public void ForceResumeGame()
+    {
+        // 1. Reset all internal state locks
+        _isPaused = false;
+        _isAnimating = false;
+        _isTransitioning = false;
+
+        // 2. Kill any active animations, audio fades, or time transitions
+        StopAllCoroutines(); 
+
+        // 3. Force Time and Audio back to normal instantly
+        Time.timeScale = 1f;
+        if (audioSource != null && audioSource.isPlaying) audioSource.Stop();
+
+        // 4. Hard-reset all visuals and UI components
+        if (shatteredGlassVisuals != null) shatteredGlassVisuals.SetActive(false);
+        if (pauseMenuUI != null) pauseMenuUI.gameObject.SetActive(false);
+        
+        // 5. Restore Kaelen's active gameplay HUD
+        ToggleGameplayUI(true);
+    }
+
     private bool IsSubMenuActive()
     {
         return (panelSaveLoad != null && panelSaveLoad.activeSelf) ||

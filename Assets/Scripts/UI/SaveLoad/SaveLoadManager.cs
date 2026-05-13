@@ -1,17 +1,18 @@
 using UnityEngine;
 using System.IO;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class SaveLoadManager : MonoBehaviour
 {
     public static SaveLoadManager Instance;
 
+    // Remembers which slot to load when transitioning from the Main Menu
+    public static int pendingLoadSlot = -1;
+
     [Header("World References")]
-    [Tooltip("Drag Player_Kaelen here")]
     public Transform playerKaelen; 
     public Transform enemyProxy;       
-    
-    [Tooltip("Drag your InventorySystem (InventoryManager) here")]
     public InventoryManager metRigInventory; 
 
     [Header("Dynamic Telemetry")]
@@ -25,6 +26,19 @@ public class SaveLoadManager : MonoBehaviour
         else Destroy(gameObject);
 
         _sessionStartTime = Time.unscaledTime;
+    }
+
+    private void Start()
+    {
+        // If we just arrived from the Main Menu, trigger the delayed load
+        if (pendingLoadSlot != -1)
+        {
+            int slotToLoad = pendingLoadSlot;
+            pendingLoadSlot = -1; // Reset memory immediately to prevent load loops
+            
+            // Add 'true' here to tell the script this is a startup load!
+            LoadGame(slotToLoad, true); 
+        }
     }
 
     private string GetSavePath(int slotIndex)
@@ -76,7 +90,7 @@ public class SaveLoadManager : MonoBehaviour
             data.parasiteStacks = UI_ParasiteOverride.Instance.currentStacks;
         }
 
-        // 5. MISSING LINK FIXED: Gather Purge Cooldown!
+        // 5. Gather Purge Cooldown
         UIPurgeSystem purgeSystem = FindAnyObjectByType<UIPurgeSystem>();
         if (purgeSystem != null)
         {
@@ -93,12 +107,24 @@ public class SaveLoadManager : MonoBehaviour
 
         WriteSaveData(slotIndex, data);
 
+        // Reset session time after saving to prevent double-counting
         _accumulatedPlayTime = data.playTimeInSeconds;
         _sessionStartTime = Time.unscaledTime;
     }
 
-    public void LoadGame(int slotIndex)
+    public void LoadGame(int slotIndex, bool isStartupLoad = false)
     {
+        // --- BULLETPROOF MENU CHECK ---
+        // If Kaelen is completely empty/unassigned, we MUST be in the Main Menu!
+        if (playerKaelen == null) 
+        {
+            Debug.Log($"<color=cyan>SYSTEM SYNC:</color> Sector 0{slotIndex} located. Booting sequence...");
+            pendingLoadSlot = slotIndex; 
+            SceneManager.LoadScene("MainGame");
+            return; // Stop running this function, wait for MainGame to load
+        }
+
+        // --- ACTUAL LOAD LOGIC ---
         SaveData data = ReadSaveData(slotIndex);
 
         if (data != null)
@@ -135,7 +161,7 @@ public class SaveLoadManager : MonoBehaviour
                 UI_ParasiteOverride.Instance.LoadParasiteData(data.parasiteStacks, data.parasiteTimer);
             }
 
-            // 5. MISSING LINK FIXED: Restore Purge Cooldown!
+            // 5. Restore Purge Cooldown
             UIPurgeSystem purgeSystem = FindAnyObjectByType<UIPurgeSystem>();
             if (purgeSystem != null)
             {
@@ -145,11 +171,19 @@ public class SaveLoadManager : MonoBehaviour
             Debug.Log($"<color=cyan>SYSTEM SYNC:</color> Successfully loaded memory sector 0{slotIndex}.");
 
             PauseManager pauseManager = FindAnyObjectByType<PauseManager>();
-            if (pauseManager != null) pauseManager.TogglePause();
-        }
-        else
-        {
-            Debug.LogWarning("Cannot load. File is corrupted or empty.");
+            if (pauseManager != null) 
+            {
+                if (isStartupLoad) 
+                {
+                    // If we just booted from the Main Menu, FORCE the pause menu closed
+                    pauseManager.ForceResumeGame();
+                }
+                else 
+                {
+                    // If we are already playing and just loaded a different save, flip it normally
+                    pauseManager.TogglePause();
+                }
+            }
         }
     }
 
