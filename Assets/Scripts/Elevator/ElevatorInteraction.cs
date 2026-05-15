@@ -7,19 +7,20 @@ public class ElevatorInteraction : MonoBehaviour
 {
     [Header("Interaction Settings")]
     public float requiredHoldTime = 1.5f;
-    public string nextFloorScene = "Level_2"; // Change to your actual scene name!
 
     [Header("UI References")]
-    public Canvas elevatorCanvas;
+    public Canvas elevatorCanvas; 
     public Image fillRing;
+    public GameObject deckTerminalCanvas; 
 
     [Header("Animation & Logic")]
     public Animator elevatorAnimator;
     public Transform walkInTarget;
+    public Transform walkOutTarget; 
     public float walkInSpeed = 2.5f;
 
     [Header("Linking")]
-    public string elevatorID; // Name this "Elevator_1", "Elevator_2", etc., in the Inspector
+    public string elevatorID; 
 
     private bool _isPlayerNear = false;
     private float _currentHoldTime = 0f;
@@ -29,6 +30,7 @@ public class ElevatorInteraction : MonoBehaviour
     void Start()
     {
         if (elevatorCanvas != null) elevatorCanvas.gameObject.SetActive(false);
+        if (deckTerminalCanvas != null) deckTerminalCanvas.SetActive(false);
         if (fillRing != null) fillRing.fillAmount = 0;
     }
 
@@ -41,12 +43,11 @@ public class ElevatorInteraction : MonoBehaviour
             if (Input.GetKey(KeyCode.E))
             {
                 _currentHoldTime += Time.deltaTime;
-                
                 if (fillRing != null) fillRing.fillAmount = _currentHoldTime / requiredHoldTime;
 
                 if (_currentHoldTime >= requiredHoldTime)
                 {
-                    StartCoroutine(ElevatorDepartureSequence());
+                    StartCoroutine(EnterElevatorSequence());
                 }
             }
             else
@@ -78,35 +79,29 @@ public class ElevatorInteraction : MonoBehaviour
         }
     }
 
-    private IEnumerator ElevatorDepartureSequence()
+    // --- PHASE 1: WALKING IN ---
+    private IEnumerator EnterElevatorSequence()
     {
         _sequenceStarted = true;
-        
-        // 1. Hide the UI
+        _currentHoldTime = 0f;
+        if (fillRing != null) fillRing.fillAmount = 0;
         if (elevatorCanvas != null) elevatorCanvas.gameObject.SetActive(false);
 
-        // 2. DISABLE PLAYER & PHYSICS
         Rigidbody2D playerRb = _playerTransform.GetComponent<Rigidbody2D>();
+        PlayerController playerMovement = _playerTransform.GetComponent<PlayerController>();
+        Animator playerAnim = _playerTransform.GetComponentInChildren<Animator>();
+
         if (playerRb != null) 
         {
             playerRb.linearVelocity = Vector2.zero; 
             playerRb.bodyType = RigidbodyType2D.Kinematic; 
-            // FIX: Turn off interpolation to stop the sprite flickering/jittering 
-            // when we move him manually via script.
             playerRb.interpolation = RigidbodyInterpolation2D.None; 
         }
-
-        PlayerController playerMovement = _playerTransform.GetComponent<PlayerController>();
         if (playerMovement != null) playerMovement.enabled = false;
 
-        // 3. HANDLE MINIMAP BLIP & SPRITES
-        // Find and hide the Minimap Blip specifically so it doesn't float in the elevator
         Transform blip = _playerTransform.Find("Minimap_Blip_Player");
         if (blip != null) blip.gameObject.SetActive(false);
 
-        // 4. PREPARE ANIMATION
-        Animator playerAnim = _playerTransform.GetComponent<Animator>();
-        if (playerAnim == null) playerAnim = _playerTransform.GetComponentInChildren<Animator>();
         if (playerAnim != null)
         {
             playerAnim.SetFloat("Speed", 1f);      
@@ -114,15 +109,12 @@ public class ElevatorInteraction : MonoBehaviour
             playerAnim.SetFloat("Horizontal", 0f);
         }
 
-        // 5. OPEN DOORS
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Open");
         yield return new WaitForSeconds(1f); 
 
-        // 6. WALK INSIDE
         if (_playerTransform != null && walkInTarget != null)
         {
             Vector3 lockedTargetPos = new Vector3(walkInTarget.position.x, walkInTarget.position.y, _playerTransform.position.z);
-
             while (Vector3.Distance(_playerTransform.position, lockedTargetPos) > 0.01f)
             {
                 _playerTransform.position = Vector3.MoveTowards(_playerTransform.position, lockedTargetPos, walkInSpeed * Time.deltaTime);
@@ -130,26 +122,82 @@ public class ElevatorInteraction : MonoBehaviour
             }
         }
 
-        // 7. FINAL SORTING ADJUSTMENT
         SpriteRenderer[] allPlayerSprites = _playerTransform.GetComponentsInChildren<SpriteRenderer>();
         foreach (SpriteRenderer sprite in allPlayerSprites)
         {
             if (sprite.gameObject.name.Contains("Blip")) continue;
-
-            // Pushing Kaelen deep into the background (Order -5) 
-            // This should place him behind the doors AND the wall frame (walls_1.1)
             sprite.sortingLayerName = "Default"; 
             sprite.sortingOrder = -5; 
         }
 
         if (playerAnim != null) playerAnim.SetFloat("Speed", 0f);
 
-        // 8. CLOSE DOORS
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Close");
         yield return new WaitForSeconds(1f); 
 
-        // 9. LOAD NEXT DECK
+        if (deckTerminalCanvas != null) deckTerminalCanvas.SetActive(true);
+    }
+
+    // --- PHASE 2: CONFIRMATION (Proceed to next deck) ---
+    public void ConfirmDeparture(string targetScene)
+    {
         ElevatorManager.LastUsedElevatorID = elevatorID;
-        SceneManager.LoadScene(nextFloorScene);
+        SceneManager.LoadScene(targetScene);
+    }
+
+    // --- PHASE 3: CANCELLATION (Walk back out) ---
+    public void CancelDeparture()
+    {
+        StartCoroutine(ExitElevatorSequence());
+    }
+
+    private IEnumerator ExitElevatorSequence()
+    {
+        if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Open");
+        yield return new WaitForSeconds(1f);
+
+        SpriteRenderer[] allPlayerSprites = _playerTransform.GetComponentsInChildren<SpriteRenderer>();
+        foreach (SpriteRenderer sprite in allPlayerSprites)
+        {
+            if (sprite.gameObject.name.Contains("Blip")) 
+            {
+                sprite.gameObject.SetActive(true);
+                continue; // FIX: Skip the blip
+            }
+            sprite.sortingOrder = 20; 
+        }
+
+        Animator playerAnim = _playerTransform.GetComponentInChildren<Animator>();
+        if (playerAnim != null)
+        {
+            playerAnim.SetFloat("Speed", 1f);      
+            playerAnim.SetFloat("Vertical", -1f); 
+        }
+
+        if (_playerTransform != null && walkOutTarget != null)
+        {
+            Vector3 targetPos = new Vector3(walkOutTarget.position.x, walkOutTarget.position.y, _playerTransform.position.z);
+            while (Vector3.Distance(_playerTransform.position, targetPos) > 0.05f)
+            {
+                _playerTransform.position = Vector3.MoveTowards(_playerTransform.position, targetPos, walkInSpeed * Time.deltaTime);
+                yield return null; 
+            }
+        }
+
+        if (playerAnim != null) playerAnim.SetFloat("Speed", 0f);
+
+        Rigidbody2D playerRb = _playerTransform.GetComponent<Rigidbody2D>();
+        if (playerRb != null) 
+        {
+            playerRb.bodyType = RigidbodyType2D.Dynamic; 
+            playerRb.interpolation = RigidbodyInterpolation2D.Interpolate; 
+        }
+
+        PlayerController playerMovement = _playerTransform.GetComponent<PlayerController>();
+        if (playerMovement != null) playerMovement.enabled = true;
+
+        if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Close");
+        
+        _sequenceStarted = false; 
     }
 }
