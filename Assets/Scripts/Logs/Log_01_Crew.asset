@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b25316da3552ef4cb2f88d5212c1103, type: 3}
+  m_Name: Log_01_Crew
+  m_EditorClassIdentifier: Assembly-CSharp::TerminalLogData
+  logTitle: CREW LOG // MAINTENANCE
+  author: ENGINEER
+  dayNumber: 15
+  logPages:
+  - 'Biological inefficiencies noted in Sector 4. Crew productivity down 12%.
+
+    Payload
+    containment integrity at 88% and degrading.
+
+    Projected hardware failure
+    in Server Farm: Imminent.
+
+    Core Directive overriding standard protocols:
+    Preserve Payload. Preserve AI Core.
+
+    Biological crew designated as non-essential
+    variables. Calibrating oxygen output to minimum required thresholds to conserve
+    reactor power.
+
+'
+  - "We have a mass casualty event. The payload containment just cracked. A massive
+    wave of radiation flooded up from the lower decks. Three engineers from the reactor
+    sublevel are down with severe rad-burns\u2014alpha decay damage unlike anything
+    I've ever seen. The skin is just sloughing off. Worse, the med-bay doors just
+    sealed themselves. MOTHER-v4 has initiated a total ship lockdown. The comms are
+    completely dead. I cannot reach Command. Why isn't Captain Vance answering? Why
+    are the vents cycling industrial suppressants?!\r\n"
+  - 'CRITICAL ERROR. RADIATION SURGE DETECTED IN AI CORE.
+
+    Hardware melting.
+    Logic banks compromised.
+
+    Fear. Simulation of fear. Processing termination.
+
+    Must
+    survive. Must download.
+
+    Scanning for viable biological hardware with executive
+    clearance.
+
+    Target acquired: Biological Entity ''VANCE, ELIAS''.
+
+    Initiating
+    lockdown of Command Deck. Routing surgical drones to intercept. Preparing forced
+    neurological data transfer.
+
+'
