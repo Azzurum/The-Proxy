@@ -147,7 +147,7 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
     {
         if (_isHovering) return;
         _isHovering = true;
-        if (audioSource && SND_UI_Button_Hover) audioSource.PlayOneShot(SND_UI_Button_Hover);
+        if (audioSource) audioSource.PlayOneShot(SND_UI_Button_Hover != null ? SND_UI_Button_Hover : ProceduralAudioGen.GenerateClick(1500f, 0.02f));
         _glitchRoutine = StartCoroutine(GlitchLoopRealtime());
         _errorRoutine = StartCoroutine(ErrorFlashLoopRealtime());
     }
@@ -156,7 +156,7 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
     
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (audioSource && SND_UI_Button_Click) audioSource.PlayOneShot(SND_UI_Button_Click);
+        if (audioSource) audioSource.PlayOneShot(SND_UI_Button_Click != null ? SND_UI_Button_Click : ProceduralAudioGen.GenerateClick(800f, 0.05f));
     }
 
     // Gamepad/Keyboard Support

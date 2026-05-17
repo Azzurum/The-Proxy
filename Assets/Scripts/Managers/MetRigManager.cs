@@ -66,6 +66,13 @@ public class MetRigManager : MonoBehaviour
 
     public void ToggleRig()
     {
+        // Fix: Disconnect from the locker BEFORE hiding the UI so the inventory can save your changes!
+        InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
+        if (isRigOpen && inventoryManager != null)
+        {
+            inventoryManager.DisconnectFromLocker();
+        }
+
         isRigOpen = !isRigOpen;
         terminalOverlayUI.SetActive(isRigOpen);
 
@@ -84,11 +91,27 @@ public class MetRigManager : MonoBehaviour
 
         if (isRigOpen)
         {
-            InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
             if (inventoryManager != null)
             {
                 Canvas.ForceUpdateCanvases();
                 inventoryManager.RefreshAllGrids();
+
+                // ONLY show the external tray if we are at a locker, OR if we have items to retrieve!
+                bool shouldShowExt = inventoryManager.isInteractingWithLocker || inventoryManager.HasItemsInExternalStorage();
+                if (inventoryManager.gridExt != null && inventoryManager.gridExt.parent != null)
+                {
+                    inventoryManager.gridExt.parent.gameObject.SetActive(shouldShowExt);
+                }
+            }
+        }
+        else
+        {
+            if (inventoryManager != null)
+            {
+                if (inventoryManager.gridExt != null && inventoryManager.gridExt.parent != null)
+                {
+                    inventoryManager.gridExt.parent.gameObject.SetActive(false);
+                }
             }
         }
 
@@ -154,6 +177,15 @@ public class MetRigManager : MonoBehaviour
     {
         // If the rig is currently open, toggle it closed.
         if (isRigOpen)
+        {
+            ToggleRig();
+        }
+    }
+
+    public void OpenRig()
+    {
+        // If the rig is currently closed, toggle it open.
+        if (!isRigOpen)
         {
             ToggleRig();
         }

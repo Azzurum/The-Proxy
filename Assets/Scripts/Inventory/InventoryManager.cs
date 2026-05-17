@@ -55,10 +55,18 @@ public class InventoryManager : MonoBehaviour
     [Header("Game Over State")]
     private bool isGameOverSequenceStarted = false;
 
+    [Header("Locker State")]
+    public bool isInteractingWithLocker = false;
+    private LockerStorage activeLocker = null; // Track the locker currently being viewed
+
     void Start()
     {
         while (inventoryState.mainGridSlots.Count < 100) inventoryState.mainGridSlots.Add(null);
-        while (inventoryState.extGridSlots.Count < 25) inventoryState.extGridSlots.Add(null);
+        while (inventoryState.matterBufferSlots.Count < 25) inventoryState.matterBufferSlots.Add(null);
+        
+        // Ensure the external UI always defaults to the Buffer on boot
+        inventoryState.extGridSlots = inventoryState.matterBufferSlots;
+
         while (inventoryState.hotbarSlots.Count < 3) inventoryState.hotbarSlots.Add(null);
 
         metRigManager = FindAnyObjectByType<MetRigManager>();
@@ -106,6 +114,9 @@ public class InventoryManager : MonoBehaviour
 
     public void ResolveCorruptionTick()
     {   
+        // Forcefully cancel any active drag before restructuring the grid!
+        if (DraggableItem.itemBeingDragged != null) DraggableItem.itemBeingDragged.AbortDrag();
+
         SyncDataFromUI();
 
         int columns = 5;
@@ -135,6 +146,9 @@ public class InventoryManager : MonoBehaviour
 
     public void ExecuteCleanProtocol()
     {
+        // Forcefully cancel any active drag before restructuring the grid!
+        if (DraggableItem.itemBeingDragged != null) DraggableItem.itemBeingDragged.AbortDrag();
+
         bool didCleanAnything = false;
         int columns = 5;
 
@@ -194,6 +208,7 @@ public class InventoryManager : MonoBehaviour
             {
                 GameObject ejected = Instantiate(itemData.worldPrefab, playerTransform.position, Quaternion.identity);
                 PhysicalItem pi = ejected.GetComponent<PhysicalItem>();
+                if (pi == null) pi = ejected.GetComponentInChildren<PhysicalItem>();
                 if (pi != null) pi.itemData = itemData;
             }
         }
@@ -396,6 +411,12 @@ public class InventoryManager : MonoBehaviour
     {
         if (slot == null || draggedItem == null || draggedItem.itemData == null) return false;
         
+        // RESTRICT PORTABLE STASHING: You can only put items INTO the external storage if you are physically at a locker!
+        if (slot.gridRegion == InventorySlot.GridRegion.External && !isInteractingWithLocker)
+        {
+            return false; // Read-Only Mode!
+        }
+
         ItemFootprint footprint = draggedItem.footprint;
         if (footprint == null) footprint = new ItemFootprint(1, 1);
         return IsSpaceFreeForFootprint(slot, footprint);
@@ -452,7 +473,10 @@ public class InventoryManager : MonoBehaviour
             // Ask the scatter math to find a clean, empty patch of floor
             Vector3 spawnPos = GetScatterPosition(basePos);
             
-            Instantiate(dragItem.itemData.worldPrefab, spawnPos, Quaternion.identity);
+            GameObject dropped = Instantiate(dragItem.itemData.worldPrefab, spawnPos, Quaternion.identity);
+            PhysicalItem pi = dropped.GetComponent<PhysicalItem>();
+            if (pi == null) pi = dropped.GetComponentInChildren<PhysicalItem>();
+            if (pi != null) pi.itemData = dragItem.itemData;
         }
 
         Destroy(itemUI);
@@ -480,6 +504,13 @@ public class InventoryManager : MonoBehaviour
                 if (hit.CompareTag("Interactable") || hit.CompareTag("MasterKey"))
                 {
                     isSpaceFree = false; // Spot taken!
+                    break;
+                }
+                
+                // Check if we hit a solid obstacle/wall (ignores triggers and Kaelen himself)
+                if (!hit.isTrigger && !hit.CompareTag("Player"))
+                {
+                    isSpaceFree = false; // Inside a wall!
                     break;
                 }
             }
@@ -559,6 +590,47 @@ public class InventoryManager : MonoBehaviour
                     return true;
                 }
             }
+        }
+        return false;
+    }
+
+    public void OpenLocker(LockerStorage locker)
+    {
+        SyncDataFromUI();
+        
+        activeLocker = locker;
+        // Swap the external grid's memory to point to this specific locker
+        inventoryState.extGridSlots = locker.gridSlots;
+        isInteractingWithLocker = true;
+
+        if (gridExt != null && gridExt.parent != null)
+        {
+            gridExt.parent.gameObject.SetActive(true);
+            RefreshAllGrids();
+        }
+    }
+
+    public void DisconnectFromLocker()
+    {
+        SyncDataFromUI();
+        inventoryState.extGridSlots = inventoryState.matterBufferSlots;
+        isInteractingWithLocker = false;
+        
+        // Save the locker's new contents to the hard drive now that we are done!
+        if (activeLocker != null)
+        {
+            activeLocker.SaveLockerState();
+            activeLocker = null;
+        }
+    }
+
+    // Checks if Kaelen is currently holding any items in his digitized buffer
+    public bool HasItemsInExternalStorage()
+    {
+        if (inventoryState == null || inventoryState.extGridSlots == null) return false;
+        foreach (var item in inventoryState.extGridSlots)
+        {
+            if (item != null) return true;
         }
         return false;
     }

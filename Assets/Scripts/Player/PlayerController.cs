@@ -9,8 +9,8 @@ public class PlayerController : MonoBehaviour
     public float sprintMeterThreshold = 5f; 
 
     [Header("Sprint Decay")]
-    public float baseDecayRate = 2f;
-    public float idleDecayMultiplier = 1.5f;
+    public float baseDecayRate = 0.25f; // Drastically reduced for survival horror pacing
+    public float idleDecayMultiplier = 1.2f; // Slightly rewards standing still, but still takes a long time
     public float thresholdIncrease = 2f; 
 
     [Header("Crush Penalty")]

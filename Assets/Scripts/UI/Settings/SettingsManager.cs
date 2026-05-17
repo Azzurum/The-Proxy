@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Audio;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 public class SettingsManager : MonoBehaviour
 {
@@ -92,6 +93,9 @@ public class SettingsManager : MonoBehaviour
             if (value <= 0) mainMixer.SetFloat("MasterVolume", -80f);
             else mainMixer.SetFloat("MasterVolume", Mathf.Log10(value / 100f) * 20f);
         }
+
+        // Also update our mathematical sound generator!
+        ProceduralAudioGen.SetGlobalVolume(value / 100f); 
     }
 
     private void SetFullscreen(bool isFullscreen)
@@ -105,14 +109,20 @@ public class SettingsManager : MonoBehaviour
     {
         PlayerPrefs.SetInt("CrtDistortion", isEnabled ? 1 : 0);
         PlayerPrefs.Save();
-        // (We will wire this to the camera filter next!)
+        
+        // Instantly update the CRT overlay if it's currently in the scene
+        UICRTPattern crtOverlay = FindAnyObjectByType<UICRTPattern>();
+        if (crtOverlay != null)
+        {
+            crtOverlay.enabled = isEnabled;
+            if (crtOverlay.TryGetComponent(out RawImage rawImage)) rawImage.enabled = isEnabled;
+        }
     }
 
     private void UpdateShake(bool isEnabled)
     {
         PlayerPrefs.SetInt("KineticTremor", isEnabled ? 1 : 0);
         PlayerPrefs.Save();
-        // (We will wire this to the damage scripts next!)
     }
 
     private void UpdateBulb(Toggle toggle, Image bulb)
@@ -132,5 +142,13 @@ public class SettingsManager : MonoBehaviour
                 aura.color = toggle.isOn ? new Color(bulbOnColor.r, bulbOnColor.g, bulbOnColor.b, 0.4f) : new Color(0, 0, 0, 0f);
             }
         }
+    }
+
+    // ==========================================
+    // NAVIGATION
+    // ==========================================
+    public void ReturnToMainMenu()
+    {
+        SceneManager.LoadScene("MainMenu"); // Change this string if your main menu scene is named differently!
     }
 }

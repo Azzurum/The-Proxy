@@ -15,6 +15,10 @@ public class CameraFollow : MonoBehaviour
     // Internal velocity for SmoothDamp math
     private Vector3 velocity = Vector3.zero;
 
+    [Header("Screen Shake")]
+    private float shakeTimeRemaining = 0f;
+    private float currentShakeMagnitude = 0f;
+
     void Start()
     {
         // 1. Find the target if it wasn't assigned in the Inspector
@@ -40,7 +44,29 @@ public class CameraFollow : MonoBehaviour
             Vector3 targetPosition = target.position + offset;
 
             // Smoothly glide to the target during gameplay
-            transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
+            Vector3 smoothedPosition = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
+
+            // Apply Screen Shake if active
+            if (shakeTimeRemaining > 0)
+            {
+                shakeTimeRemaining -= Time.deltaTime;
+                float x = Random.Range(-1f, 1f) * currentShakeMagnitude;
+                float y = Random.Range(-1f, 1f) * currentShakeMagnitude;
+                transform.position = smoothedPosition + new Vector3(x, y, 0f);
+            }
+            else
+            {
+                transform.position = smoothedPosition;
+            }
         }
+    }
+
+    public void TriggerShake(float duration, float magnitude)
+    {
+        // Check settings to see if the player disabled screen shake (Kinetic Tremor)
+        if (PlayerPrefs.GetInt("KineticTremor", 1) == 0) return;
+
+        shakeTimeRemaining = duration;
+        currentShakeMagnitude = magnitude;
     }
 }

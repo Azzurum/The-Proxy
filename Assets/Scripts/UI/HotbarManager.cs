@@ -22,12 +22,6 @@ public class HotbarManager : MonoBehaviour
 
     void Start()
     {
-        // Safely clear all physical slots when the game boots
-        foreach (var slot in quickSlots)
-        {
-            if (slot != null) slot.ClearSlot();
-        }
-        
         // Ensure outlines start turned off
         UpdateHighlights();
     }

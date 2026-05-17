@@ -1,25 +1,37 @@
 fileFormatVersion: 2
-guid: f6b61c931c786e042bac5c356536bac6
+guid: e029eaab822f1e24d9bf0c7320fd0c50
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -8830721901174836035
-    second: WalkDown_0
+      213: -3538441499396046043
+    second: Down Attack_0
   - first:
-      213: 8100657595718731531
-    second: WalkDown_1
+      213: 7549907874689271902
+    second: Down Attack_1
   - first:
-      213: 7693077107956105692
-    second: WalkDown_2
+      213: 4477178229621005025
+    second: Down Attack_2
   - first:
-      213: -4102124623599646074
-    second: WalkDown_3
+      213: -1697127364048730763
+    second: Down Attack_3
   - first:
-      213: 2804550559828367112
-    second: WalkDown_4
+      213: -7500930348290389000
+    second: Down Attack_4
   - first:
-      213: -6261836212592285338
-    second: WalkDown_5
+      213: -4587632650262311839
+    second: Down Attack_5
+  - first:
+      213: 6898587365561049010
+    second: Down Attack_6
+  - first:
+      213: 5902525995848433585
+    second: Down Attack_7
+  - first:
+      213: 2044896520611838686
+    second: Down Attack_8
+  - first:
+      213: 2368827825954612560
+    second: Down Attack_9
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -66,7 +78,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 48
+  spritePixelsToUnits: 290
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -115,13 +127,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: WalkDown_0
+      name: Down Attack_0
       rect:
         serializedVersion: 2
-        x: 5
-        y: 346
-        width: 129
-        height: 246
+        x: 167
+        y: 127
+        width: 793
+        height: 1009
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -130,20 +142,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: db43632d739f27580800000000000000
-      internalID: -8830721901174836035
+      spriteID: 5238ff9243ee4eec0800000000000000
+      internalID: -3538441499396046043
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: WalkDown_1
+      name: Down Attack_1
       rect:
         serializedVersion: 2
-        x: 139
-        y: 359
-        width: 130
-        height: 236
+        x: 1278
+        y: 127
+        width: 936
+        height: 1009
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -152,20 +164,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b0782e70a215b6070800000000000000
-      internalID: 8100657595718731531
+      spriteID: e5847cdf539a6c860800000000000000
+      internalID: 7549907874689271902
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: WalkDown_2
+      name: Down Attack_2
       rect:
         serializedVersion: 2
-        x: 273
-        y: 355
-        width: 128
-        height: 237
+        x: 2542
+        y: 93
+        width: 926
+        height: 1043
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -174,20 +186,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: cd1c969bedc43ca60800000000000000
-      internalID: 7693077107956105692
+      spriteID: 1ea1ca4f0e1222e30800000000000000
+      internalID: 4477178229621005025
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: WalkDown_3
+      name: Down Attack_3
       rect:
         serializedVersion: 2
-        x: 6
-        y: 35
-        width: 124
-        height: 258
+        x: 3796
+        y: 73
+        width: 926
+        height: 1063
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -196,20 +208,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 68ac5f983635217c0800000000000000
-      internalID: -4102124623599646074
+      spriteID: 575c74777a79278e0800000000000000
+      internalID: -1697127364048730763
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: WalkDown_4
+      name: Down Attack_4
       rect:
         serializedVersion: 2
-        x: 141
-        y: 42
-        width: 124
-        height: 247
+        x: 5109
+        y: 39
+        width: 867
+        height: 1097
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -218,20 +230,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 807513100e3cbe620800000000000000
-      internalID: 2804550559828367112
+      spriteID: 8fb4431079757e790800000000000000
+      internalID: -7500930348290389000
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: WalkDown_5
+      name: Down Attack_5
       rect:
         serializedVersion: 2
-        x: 272
-        y: 35
-        width: 125
-        height: 257
+        x: 6412
+        y: 49
+        width: 818
+        height: 1087
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -240,8 +252,52 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 66962ca242d7919a0800000000000000
-      internalID: -6261836212592285338
+      spriteID: 16c812139647550c0800000000000000
+      internalID: -4587632650262311839
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Down Attack_6
+      rect:
+        serializedVersion: 2
+        x: 7877
+        y: 78
+        width: 607
+        height: 1058
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2bf9340a8a4bcbf50800000000000000
+      internalID: 6898587365561049010
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Down Attack_7
+      rect:
+        serializedVersion: 2
+        x: 9131
+        y: 103
+        width: 607
+        height: 1033
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1bffd0cce1cf9e150800000000000000
+      internalID: 5902525995848433585
       vertices: []
       indices: 
       edges: []
@@ -250,7 +306,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: a3cf2787faa0ced43bba8e2324f1317c
+    spriteID: 6606ea560e0a49440a065f272069d148
     internalID: 0
     vertices: []
     indices: 
@@ -260,14 +316,16 @@ TextureImporter:
     spriteCustomMetadata:
       entries:
       - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":3.0,"y":2.0},"gridSpriteSize":{"x":64.0,"y":64.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":0,"keepEmptyRects":false,"isAlternate":false}'
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":64.0,"y":64.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":0,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      WalkDown_0: -8830721901174836035
-      WalkDown_1: 8100657595718731531
-      WalkDown_2: 7693077107956105692
-      WalkDown_3: -4102124623599646074
-      WalkDown_4: 2804550559828367112
-      WalkDown_5: -6261836212592285338
+      Down Attack_0: -3538441499396046043
+      Down Attack_1: 7549907874689271902
+      Down Attack_2: 4477178229621005025
+      Down Attack_3: -1697127364048730763
+      Down Attack_4: -7500930348290389000
+      Down Attack_5: -4587632650262311839
+      Down Attack_6: 6898587365561049010
+      Down Attack_7: 5902525995848433585
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
