@@ -29,18 +29,14 @@ public class ItemSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPoin
         InventorySlot slot = GetComponent<InventorySlot>();
         InventoryManager manager = FindAnyObjectByType<InventoryManager>();
 
-        // Only accept a drop into an empty slot
-        if (transform.childCount > 0)
-        {
-            draggableItem.dropAccepted = false;
-            return;
-        }
-
         if (manager == null || slot == null)
         {
             draggableItem.dropAccepted = false;
             return;
         }
+
+        // THE FIX: We completely removed the "if (childCount > 0)" restriction.
+        // We now rely 100% on the intelligent CanDropToSlot math to check negative space!
 
         if (manager.CanDropToSlot(slot, draggableItem))
         {
@@ -68,22 +64,21 @@ public class ItemSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPoin
         bool canDrop = manager.CanDropToSlot(slot, dragged);
 
         Transform grid = transform.parent;
-        int columns = 5; // Assume 5 columns for all grids
+        int columns = 5; 
 
-        // FIX: Calculate the exact same center offset so the green boxes shift up and left!
         int offsetX = -Mathf.FloorToInt(footprint.width / 2f);
         int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
 
-        // Highlight the footprint
         for (int y = 0; y < footprint.height; y++)
         {
             for (int x = 0; x < footprint.width; x++)
             {
+                // THE FIX: Skip painting the green/red box if the footprint cell is empty!
+                if (!footprint.GetCell(x, y)) continue; 
+
                 int checkX = slot.slotCoordinate.x + offsetX + x;
                 int checkY = slot.slotCoordinate.y + offsetY + y;
 
-                // FIX: Add boundary checks so the green boxes don't wrap to the next line 
-                // if you hover halfway off the left or right edges of the grid.
                 if (checkX >= 0 && checkX < columns && checkY >= 0)
                 {
                     int slotIndex = checkY * columns + checkX;

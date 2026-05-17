@@ -12,7 +12,7 @@ public class HotbarManager : MonoBehaviour
     public Image[] hudIcons = new Image[3];        // The images inside your HUD slots
     public Outline[] hudOutlines = new Outline[3]; // The Outlines on the HUD slots
 
-    private int currentEquippedIndex = -1; // -1 means hands are empty
+    public int currentEquippedIndex = -1; // -1 means hands are empty
 
     void Awake()
     {

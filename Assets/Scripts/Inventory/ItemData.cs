@@ -50,6 +50,13 @@ public class ItemFootprint
     public ItemFootprint GetRotated()
     {
         ItemFootprint rotated = new ItemFootprint(height, width);
+        
+        // THE FIX: Wipe the new footprint completely clean (False) before copying the rotated cells!
+        for (int i = 0; i < rotated.cells.Length; i++) 
+        {
+            rotated.cells[i] = false;
+        }
+
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5826bacd0c6e5e14d9babe0cf63fa3ee, type: 3}
+  m_Name: Item_Electromagnetic Decoy
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  itemID: TOOL-DECOY
+  itemName: ELECTROMAGNETIC DECOY
+  mass: 2.5
+  status: Standby
+  substats: 'FREQ: 144Hz // WGT: 2.5 KG'
+  icon: {fileID: 21300000, guid: 60769fddf3321544ebdedec8bd9dc673, type: 3}
+  worldPrefab: {fileID: 7789533097703761357, guid: fe11449c7858b6c44bc52e724c519448, type: 3}
+  description: A modified Aether-Core distress beacon. When activated, it broadcasts
+    a massive, localized electromagnetic flare.
+  footprint:
+    width: 1
+    height: 2
+    cells: 0101
+  isRotated: 0
