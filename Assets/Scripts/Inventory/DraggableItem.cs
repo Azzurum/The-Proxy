@@ -56,7 +56,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null)
         {
             itemName = itemData.itemName;
-            itemDescription = itemData.description; // Uses unified description
+            itemDescription = itemData.description; 
             isRotated = itemData.isRotated; 
         }
         UpdateVisualSize();
@@ -94,12 +94,11 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         if (inHotbar)
         {
-            // 1. Shrink to a 1x1 square
             rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
-            rectTransform.localEulerAngles = Vector3.zero; // Force straight up
+            rectTransform.localEulerAngles = Vector3.zero; 
             
-            // 2. Hide the Tetris grid background so only the picture remains!
-            if (uiItem != null && uiItem.backgroundImage != null) uiItem.backgroundImage.enabled = false;
+            // STRICTLY use the new Tetris logic! No standard Images!
+            if (uiItem != null) uiItem.SetTetrisGridVisibility(false);
 
             if (itemBeingDragged != this)
             {
@@ -108,11 +107,12 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
                 rectTransform.anchoredPosition = Vector2.zero;
                 rectTransform.localScale = Vector3.one;
             }
-            return; // Exit here so we don't run the Grid math below!
+            return; 
         }
 
         // --- GRID AWARENESS ---
-        if (uiItem != null && uiItem.backgroundImage != null) uiItem.backgroundImage.enabled = true; // Turn shape back on
+        // STRICTLY use the new Tetris logic! No standard Images!
+        if (uiItem != null) uiItem.SetTetrisGridVisibility(true); 
 
         rectTransform.sizeDelta = new Vector2(baseFp.width * cellSize, baseFp.height * cellSize);
         rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? -90f : 0f);
@@ -144,21 +144,24 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        // --- LEFT CLICK: INSPECT ---
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            // 1. Trigger your existing Inspector Manager
             if (UIInspectorManager.Instance != null && itemData != null)
-            {
                 UIInspectorManager.Instance.InspectItem(itemData);
-            }
 
-            // 2. Trigger the new M.E.T. Rig Screen Update
             InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-
             if (manager != null && itemData != null)
-            {
-                // Grabbing the picture directly from the ItemData script!
                 manager.SetInspectionIcon(itemData.icon); 
+        }
+        // --- RIGHT CLICK: USE ITEM ---
+        else if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            ItemUsageManager usageManager = FindAnyObjectByType<ItemUsageManager>();
+            if (usageManager != null && itemData != null)
+            {
+                // Send the item data, AND the physical UI object in case it's a consumable that needs to be destroyed
+                usageManager.ExecuteItem(itemData, gameObject);
             }
         }
     }
@@ -184,7 +187,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         cleanPos.z = 0f; 
         rectTransform.localPosition = cleanPos;
         
-        // Immediately expand the item to its full size as soon as we rip it out of the hotbar
         UpdateVisualSize();
         UpdateDragPosition(eventData); 
 
@@ -194,7 +196,13 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Canvas myCanvas = GetComponent<Canvas>();
         if (myCanvas != null) myCanvas.sortingOrder = 20;
 
-        canvasGroup.blocksRaycasts = false;
+        // THE FIX: Disable raycasts on ALL items so they don't hijack your mouse!
+        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
+        foreach (DraggableItem item in allItems)
+        {
+            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = false;
+        }
+
         canvasGroup.alpha = 0.8f;
         SetRotationHintVisible(true);
     }
@@ -225,7 +233,14 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null && itemData.itemID == "CRPT") return;
 
         itemBeingDragged = null;
-        canvasGroup.blocksRaycasts = true;
+        
+        // THE FIX: Turn raycasts back on for ALL items so you can click them again!
+        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
+        foreach (DraggableItem item in allItems)
+        {
+            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = true;
+        }
+
         canvasGroup.alpha = 1f;
 
         ClearAllSlotHighlights();
@@ -265,7 +280,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     private Vector2 GetTargetAnchoredPosition() 
     { 
-        // HOTBAR AWARENESS: Glide perfectly to the center!
         if (parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null)
         {
             return Vector2.zero; 
@@ -282,13 +296,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         animateCoroutine = StartCoroutine(SmoothMoveToParent(targetParent, GetTargetAnchoredPosition(), 0.18f));
     }
 
-    private void StartSmoothReturn()
-    {
-        if (originalParent == null) originalParent = transform.parent;
-        if (animateCoroutine != null) StopCoroutine(animateCoroutine);
-        animateCoroutine = StartCoroutine(SmoothMoveToParent(originalParent, originalAnchoredPosition, 0.18f));
-    }
-
     private void StartRejectedReturn()
     {
         if (originalParent == null) originalParent = transform.parent;
@@ -302,7 +309,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         transform.SetParent(targetParent, true); 
         
-        // HOTBAR AWARENESS: Use correct anchors for the return trip
         if (targetParent.GetComponent<HotbarSlot>() != null)
         {
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -365,7 +371,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         transform.SetParent(targetParent, true);
         
-        // HOTBAR AWARENESS: Set anchors depending on destination
         if (targetParent.GetComponent<HotbarSlot>() != null)
         {
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);

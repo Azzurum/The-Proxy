@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5826bacd0c6e5e14d9babe0cf63fa3ee, type: 3}
-  m_Name: Item_Battery
+  m_Name: Item_Aether-Core Battery
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   itemID: BATT
   itemName: AETHER-CORE BATTERY
   mass: 1.2
   status: Volatile
   substats: 'VOL: 02 // WGT: 14.5 KG'
-  icon: {fileID: -3017979480325208809, guid: 9dad12c85322fa240a3cc5a1958d2c03, type: 3}
-  worldPrefab: {fileID: 8847195431510759831, guid: 70ab60a2a6dcf40438b441f55b54b04e, type: 3}
+  icon: {fileID: 21300000, guid: 39cf9788f11e42d42bb9445e94b36543, type: 3}
+  worldPrefab: {fileID: 2992969439911386164, guid: 70ab60a2a6dcf40438b441f55b54b04e, type: 3}
   description: A military-grade, hyper-dense energy cell. Originally designed to
     power the Wayfarer's industrial containment rings, it utilizes suspended aetheric
     plasma to deliver near-infinite decentralized power.
