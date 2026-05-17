@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5826bacd0c6e5e14d9babe0cf63fa3ee, type: 3}
+  m_Name: Item_MasterKey 2
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  itemID: KEY
+  itemName: EXECUTIVE SEC-PASS KEY
+  mass: 12
+  status: Encrypted
+  substats: 'AUTH: PENDING // WGT: 12.0 KG'
+  icon: {fileID: -3777565241127972025, guid: c1dfbac5e86897a4389ed7e8bce10e2f, type: 3}
+  worldPrefab: {fileID: 3512848636361668345, guid: ef2656b9a800a6344a6988683c11a152, type: 3}
+  description: A bulky, localized mainframe override encased in scratched matte metal.
+    Corrupted amber circuitry pulses faintly through the cracks in its casing.
+  footprint:
+    width: 3
+    height: 3
+    cells: 010101010101010101
+  isRotated: 0

@@ -189,9 +189,12 @@ public class InventoryManager : MonoBehaviour
     {
         if (itemData != null && itemData != corruptionData)
         {
-            if (physicalBatteryPrefab != null && playerTransform != null)
+            // THE FIX: Use the specific item's worldPrefab, NOT the hardcoded Battery!
+            if (itemData.worldPrefab != null && playerTransform != null)
             {
-                Instantiate(physicalBatteryPrefab, playerTransform.position, Quaternion.identity);
+                GameObject ejected = Instantiate(itemData.worldPrefab, playerTransform.position, Quaternion.identity);
+                PhysicalItem pi = ejected.GetComponent<PhysicalItem>();
+                if (pi != null) pi.itemData = itemData;
             }
         }
     }
@@ -235,7 +238,7 @@ public class InventoryManager : MonoBehaviour
         if (layout != null) currentCellSize = layout.cellSize.x;
         else if (cellSizeOverride > 0f) currentCellSize = cellSizeOverride;
 
-        HashSet<ItemData> spawnedUniqueItems = new HashSet<ItemData>();
+        bool[] spawnedMask = new bool[columns * rows];
 
         for (int i = 0; i < dataList.Count - dataOffset && i < columns * rows; i++)
         {
@@ -269,8 +272,38 @@ public class InventoryManager : MonoBehaviour
             {
                 if (data != corruptionData)
                 {
-                    if (spawnedUniqueItems.Contains(data)) continue;
-                    spawnedUniqueItems.Add(data);
+                    if (spawnedMask[y * columns + x]) continue;
+
+                    bool isRotated = false;
+                    ItemFootprint fp = data.GetFootprint();
+                    if (fp != null)
+                    {
+                        if (fp.width == 1 && fp.height > 1) 
+                        {
+                            if (x + 1 < columns && i + dataOffset + 1 < dataList.Count && dataList[i + dataOffset + 1] == data) isRotated = true;
+                        }
+                        else if (fp.width > 1 && fp.height == 1)
+                        {
+                            if (y + 1 < rows && i + dataOffset + columns < dataList.Count && dataList[i + dataOffset + columns] == data) isRotated = true;
+                        }
+                    }
+
+                    int w = fp != null ? fp.width : 1;
+                    int h = fp != null ? fp.height : 1;
+                    if (isRotated) { int temp = w; w = h; h = temp; }
+
+                    for (int fy = 0; fy < h; fy++)
+                    {
+                        for (int fx = 0; fx < w; fx++)
+                        {
+                            int cy = y + fy;
+                            int cx = x + fx;
+                            if (cx < columns && cy < rows)
+                            {
+                                spawnedMask[cy * columns + cx] = true;
+                            }
+                        }
+                    }
                 }
 
                 GameObject prefabToSpawn = (data == corruptionData && uiCorruptionPrefab != null) ?
@@ -388,6 +421,9 @@ public class InventoryManager : MonoBehaviour
         {
             for (int x = 0; x < w; x++)
             {
+                // THE FIX: Ignore empty footprint cells when checking for collision
+                if (!footprint.GetCell(x, y)) continue;
+
                 int cx = startX + x;
                 int cy = startY + y;
 
@@ -496,6 +532,7 @@ public class InventoryManager : MonoBehaviour
                 {
                     for (int cx = 0; cx < w; cx++)
                     {
+                        if (item.GetFootprint() != null && !item.GetFootprint().GetCell(cx, cy)) continue;
                         int index = gridOffset + ((y + cy) * maxCols) + (x + cx);
                         if (targetGrid[index] != null)
                         {
@@ -513,6 +550,7 @@ public class InventoryManager : MonoBehaviour
                     {
                         for (int cx = 0; cx < w; cx++)
                         {
+                            if (item.GetFootprint() != null && !item.GetFootprint().GetCell(cx, cy)) continue;
                             int index = gridOffset + ((y + cy) * maxCols) + (x + cx);
                             targetGrid[index] = item;
                         }
@@ -563,6 +601,21 @@ public class InventoryManager : MonoBehaviour
         ScrapeGrid(gridRight, inventoryState.mainGridSlots, 50, 5, 10);
         if (gridExt != null) ScrapeGrid(gridExt, inventoryState.extGridSlots, 0, 5, 5);
         
+        if (HotbarManager.Instance != null && inventoryState.hotbarSlots != null && inventoryState.hotbarSlots.Count >= 3)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                if (HotbarManager.Instance.quickSlots.Length > i && HotbarManager.Instance.quickSlots[i] != null && HotbarManager.Instance.quickSlots[i].containedItem != null)
+                {
+                    inventoryState.hotbarSlots[i] = HotbarManager.Instance.quickSlots[i].containedItem.itemData;
+                }
+                else
+                {
+                    inventoryState.hotbarSlots[i] = null;
+                }
+            }
+        }
+
         // Calculate and broadcast health one final time just in case manual dragging caused corruption changes
         BroadcastHealthState();
     }
@@ -574,9 +627,12 @@ public class InventoryManager : MonoBehaviour
         for (int i = 0; i < gridTransform.childCount; i++)
         {
             Transform slot = gridTransform.GetChild(i);
-            if (slot.childCount > 0)
+            
+            // THE FIX: Loop through ALL children in the slot! 
+            // This allows the Gun and the Battery to safely share an anchor slot without deleting each other.
+            for (int c = 0; c < slot.childCount; c++)
             {
-                Transform itemObj = slot.GetChild(0);
+                Transform itemObj = slot.GetChild(c);
                 DraggableItem dragItem = itemObj.GetComponent<DraggableItem>();
                 UIItem uiItem = itemObj.GetComponent<UIItem>();
 
@@ -594,6 +650,9 @@ public class InventoryManager : MonoBehaviour
                     {
                         for (int x = 0; x < w; x++)
                         {
+                            // Skip empty negative space so it doesn't overwrite smaller items
+                            if (dragItem.footprint != null && !dragItem.footprint.GetCell(x, y)) continue;
+
                             int cx = startX + x;
                             int cy = startY + y;
                             if (cx < cols && cy < rows)
@@ -602,16 +661,6 @@ public class InventoryManager : MonoBehaviour
                                 targetList[index] = uiItem.myData;
                             }
                         }
-                    }
-                }
-                else
-                {
-                    int startX = i % cols;
-                    int startY = i / cols;
-                    int index = dataOffset + (startY * cols) + startX;
-                    if (index >= 0 && index < targetList.Count)
-                    {
-                        targetList[index] = corruptionData;
                     }
                 }
             }
@@ -661,22 +710,23 @@ public class InventoryManager : MonoBehaviour
         List<SavedGridItem> savedItems = new List<SavedGridItem>();
         
         // Create a mathematical mask of the entire inventory (Left, Right, and Ext)
-        bool[,] memoryMask = new bool[15, 10];
+        bool[,] memoryMask = new bool[18, 10];
 
         // Helper function to safely read any grid coordinate mathematically
         ItemData GetItemAtGlobal(int x, int y)
         {
-            if (x < 0 || y < 0 || y >= 10 || x >= 15) return null;
+            if (x < 0 || y < 0 || y >= 10 || x >= 18) return null;
             if (x < 5) return inventoryState.mainGridSlots[(y * 5) + x];
             if (x < 10) return inventoryState.mainGridSlots[50 + (y * 5) + (x - 5)];
             if (x < 15 && y < 5 && inventoryState.extGridSlots != null) return inventoryState.extGridSlots[(y * 5) + (x - 10)];
+            if (x >= 15 && x < 18 && y == 0 && inventoryState.hotbarSlots != null) return inventoryState.hotbarSlots[x - 15];
             return null;
         }
 
         // Loop through every single possible coordinate in the 1D Arrays
         for (int gy = 0; gy < 10; gy++)
         {
-            for (int gx = 0; gx < 15; gx++)
+            for (int gx = 0; gx < 18; gx++)
             {
                 // Skip if we already mapped this coordinate as part of a larger item's footprint
                 if (memoryMask[gx, gy]) continue;
@@ -717,7 +767,7 @@ public class InventoryManager : MonoBehaviour
                 {
                     for (int fx = 0; fx < w; fx++)
                     {
-                        if (gx + fx < 15 && gy + fy < 10) memoryMask[gx + fx, gy + fy] = true;
+                        if (gx + fx < 18 && gy + fy < 10) memoryMask[gx + fx, gy + fy] = true;
                     }
                 }
             }
@@ -775,6 +825,20 @@ public class InventoryManager : MonoBehaviour
                 if (savedItem.gridPosX < 5) targetSlot = gridLeft.GetChild((savedItem.gridPosY * 5) + savedItem.gridPosX);
                 else if (savedItem.gridPosX < 10) targetSlot = gridRight.GetChild((savedItem.gridPosY * 5) + (savedItem.gridPosX - 5));
                 else if (gridExt != null && savedItem.gridPosX < 15) targetSlot = gridExt.GetChild((savedItem.gridPosY * 5) + (savedItem.gridPosX - 10));
+                else if (savedItem.gridPosX >= 15 && savedItem.gridPosX < 18)
+                {
+                    int hotbarIndex = savedItem.gridPosX - 15;
+                    if (HotbarManager.Instance != null && HotbarManager.Instance.quickSlots.Length > hotbarIndex)
+                    {
+                        targetSlot = HotbarManager.Instance.quickSlots[hotbarIndex].transform;
+                    }
+                    if (inventoryState.hotbarSlots != null && inventoryState.hotbarSlots.Count > hotbarIndex)
+                    {
+                        inventoryState.hotbarSlots[hotbarIndex] = foundData;
+                    }
+                    
+                    if (targetSlot == null) continue;
+                }
 
                 if (targetSlot != null)
                 {
@@ -797,6 +861,12 @@ public class InventoryManager : MonoBehaviour
                     if (dragItem != null) {
                         dragItem.cellSize = currentCellSize;
                         dragItem.UpdateVisualSize();
+                    }
+
+                    if (targetSlot.GetComponent<HotbarSlot>() != null && dragItem != null)
+                    {
+                        // Dynamically resolve the missing script connection
+                        targetSlot.GetComponent<HotbarSlot>().containedItem = dragItem;
                     }
                 }
             }

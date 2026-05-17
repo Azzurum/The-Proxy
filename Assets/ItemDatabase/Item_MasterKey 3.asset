@@ -10,20 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5826bacd0c6e5e14d9babe0cf63fa3ee, type: 3}
-  m_Name: Item_MasterKey
+  m_Name: Item_MasterKey 3
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   itemID: KEY
   itemName: EXECUTIVE SEC-PASS KEY
-  mass: 0.1
+  mass: 12
   status: Encrypted
-  substats: 'VOL: 01 // WGT: 0.2 KG'
-  icon: {fileID: -1570072599388670678, guid: 3515e41c6582b05489774addf1a81a4c, type: 3}
-  worldPrefab: {fileID: 4675027471643783981, guid: ef2656b9a800a6344a6988683c11a152, type: 3}
-  description: A Level-4 Executive Security Cipher. Forged from biometric-locked
-    polymer, this master bypass drive is authorized to override standard lockdown
-    protocols across all Habitation and Spine sectors.
+  substats: 'AUTH: PENDING // WGT: 12.0 KG'
+  icon: {fileID: -3777565241127972025, guid: c1dfbac5e86897a4389ed7e8bce10e2f, type: 3}
+  worldPrefab: {fileID: 3512848636361668345, guid: ef2656b9a800a6344a6988683c11a152, type: 3}
+  description: A bulky, localized mainframe override encased in scratched matte metal.
+    Corrupted amber circuitry pulses faintly through the cracks in its casing.
   footprint:
     width: 3
     height: 3
-    cells: 000100010101000100
+    cells: 010101010101010101
   isRotated: 0

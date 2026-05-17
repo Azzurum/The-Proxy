@@ -386,6 +386,18 @@ public class ProxyAI : MonoBehaviour
         isKnockedBack = false;
     }
 
+    public void DistractToLocation(Vector3 distractionPos, float duration)
+    {
+        StartCoroutine(DistractionRoutine(distractionPos, duration));
+    }
+
+    private System.Collections.IEnumerator DistractionRoutine(Vector3 distractionPos, float duration)
+    {
+        SetMoveTarget(distractionPos, sprintSpeed);
+        yield return new WaitForSeconds(duration);
+        hasMoveTarget = false;
+    }
+
     // --- MOVEMENT EXECUTION ---
 
     private void FixedUpdate()

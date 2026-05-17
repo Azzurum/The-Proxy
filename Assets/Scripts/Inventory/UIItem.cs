@@ -1,44 +1,42 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 public class UIItem : MonoBehaviour
 {
     public ItemData myData;
     
     [Header("Visual References")]
-    [Tooltip("Drag the CHILD 'Icon' GameObject here")]
     public Image displayImage; 
-    
-    [Tooltip("Drag the ROOT Background Image here")]
-    public Image backgroundImage;
+    public Image backgroundImage; 
+
+    private List<GameObject> generatedBackgroundBlocks = new List<GameObject>();
 
     public void Initialize(ItemData data, float cellSize)
     {
         myData = data;
 
-        // NOTE: I removed the "if (displayImage == null) GetComponent<Image>()" line.
-        // That line was accidentally turning your background into the icon!
+        // FOOLPROOF TETHER: Auto-grab the root image if it's not assigned
+        if (backgroundImage == null) backgroundImage = GetComponent<Image>();
 
-        if (data != null && displayImage != null)
+        // THE FIX: Stop the root background from eating mouse clicks!
+        if (backgroundImage != null) backgroundImage.raycastTarget = false;
+
+        if (data != null && displayImage != null && data.icon != null)
         {
-            if (data.icon != null)
-            {
-                displayImage.sprite = data.icon;
-                displayImage.preserveAspect = true; // Prevents the picture from stretching
-                
-                // THE FIX: Mathematically force the icon to sit inside the background with padding!
-                RectTransform iconRect = displayImage.GetComponent<RectTransform>();
-                if (iconRect != null)
-                {
-                    // Lock anchors to the 4 corners of the parent footprint
-                    iconRect.anchorMin = Vector2.zero; // Bottom-Left
-                    iconRect.anchorMax = Vector2.one;  // Top-Right
+            // THE FIX: Stop the transparent pixels of the gun from blocking the empty space!
+            displayImage.raycastTarget = false;
 
-                    // Apply 12 pixels of padding to all 4 sides so it shrinks inside the borders
-                    float padding = 12f; 
-                    iconRect.offsetMin = new Vector2(padding, padding);   // Push Right and Up
-                    iconRect.offsetMax = new Vector2(-padding, -padding); // Push Left and Down
-                }
+            displayImage.sprite = data.icon;
+            displayImage.preserveAspect = true; 
+            
+            RectTransform iconRect = displayImage.GetComponent<RectTransform>();
+            if (iconRect != null)
+            {
+                iconRect.anchorMin = Vector2.zero; 
+                iconRect.anchorMax = Vector2.one;  
+                iconRect.offsetMin = Vector2.zero;   
+                iconRect.offsetMax = Vector2.zero; 
             }
         }
 
@@ -48,14 +46,120 @@ public class UIItem : MonoBehaviour
             drag.itemData = data;
             drag.itemName = data.itemName;
             drag.itemDescription = data.description;
-
-            drag.SetCellSize(cellSize);
-            
-            // Read the saved rotation state from memory when spawning
             drag.isRotated = data.isRotated; 
 
-            ItemFootprint fp = data.GetFootprint();
-            drag.SetFootprint(drag.isRotated ? fp.GetRotated() : fp);
+            ItemFootprint baseFp = data.GetFootprint();
+            drag.SetFootprint(drag.isRotated ? baseFp.GetRotated() : baseFp);
+
+            GenerateShapeBackground(baseFp, cellSize, drag);
+        }
+    }
+    
+    public void GenerateShapeBackground(ItemFootprint activeFootprint, float cellSize, DraggableItem drag)
+    {
+        // PERMANENTLY hide the giant rectangular bounding box
+        if (backgroundImage != null) backgroundImage.enabled = false;
+
+        foreach (GameObject block in generatedBackgroundBlocks) Destroy(block);
+        generatedBackgroundBlocks.Clear();
+
+        // --- HOLOGRAPHIC M.E.T. RIG COLORS ---
+        Color fillNormal = new Color(0f, 0.4f, 0.4f, 0.5f); // Translucent Dark Teal
+        Color outlineNormal = new Color(0f, 1f, 1f, 0.8f);  // Bright Neon Cyan
+
+        for (int y = 0; y < activeFootprint.height; y++)
+        {
+            for (int x = 0; x < activeFootprint.width; x++)
+            {
+                if (activeFootprint.GetCell(x, y))
+                {
+                    // 1. THE OUTLINE (Parent Block)
+                    // This block sits perfectly flush in the grid and holds the bright cyan color
+                    GameObject outlineObj = new GameObject("BG_Outline_" + x + "_" + y);
+                    outlineObj.transform.SetParent(this.transform, false);
+                    outlineObj.transform.SetAsFirstSibling(); 
+                    
+                    Image outlineImg = outlineObj.AddComponent<Image>();
+                    outlineImg.color = outlineNormal; 
+
+                    RectTransform outlineRect = outlineObj.GetComponent<RectTransform>();
+                    outlineRect.sizeDelta = new Vector2(cellSize, cellSize);
+                    outlineRect.anchorMin = new Vector2(0f, 1f); 
+                    outlineRect.anchorMax = new Vector2(0f, 1f);
+                    outlineRect.pivot = new Vector2(0f, 1f);
+                    outlineRect.anchoredPosition = new Vector2(x * cellSize, -y * cellSize);
+
+                    // 2. THE FILL (Child Block)
+                    // This block sits inside the outline and is shrunk to create the inward border
+                    GameObject fillObj = new GameObject("Fill");
+                    fillObj.transform.SetParent(outlineObj.transform, false);
+                    
+                    Image fillImg = fillObj.AddComponent<Image>();
+                    fillImg.color = fillNormal; 
+
+                    RectTransform fillRect = fillObj.GetComponent<RectTransform>();
+                    fillRect.anchorMin = Vector2.zero; // Stretch to fill parent
+                    fillRect.anchorMax = Vector2.one;
+                    
+                    // THIS CREATES THE INWARD OUTLINE (2 pixels thick on all sides)
+                    float borderThickness = 2f; 
+                    fillRect.offsetMin = new Vector2(borderThickness, borderThickness);
+                    fillRect.offsetMax = new Vector2(-borderThickness, -borderThickness);
+
+                    // Save the parent so we can destroy/toggle it later
+                    generatedBackgroundBlocks.Add(outlineObj);
+                }
+            }
+        }
+
+        if (drag != null) drag.SetCellSize(cellSize);
+    }
+
+    public void SetTetrisGridVisibility(bool isVisible)
+    {
+        foreach (GameObject block in generatedBackgroundBlocks)
+        {
+            if (block != null) block.SetActive(isVisible);
+        }
+    }
+
+    void Update()
+    {
+        // This ensures the custom L-shape flashes red when Kaelen tries to drop it in an invalid slot!
+        if (backgroundImage != null && generatedBackgroundBlocks.Count > 0)
+        {
+            // Detect if DraggableItem is trying to flash the hidden background red
+            bool isPulsingRed = backgroundImage.color.r > 0.5f && backgroundImage.color.g < 0.5f;
+
+            foreach (GameObject block in generatedBackgroundBlocks)
+            {
+                if (block != null)
+                {
+                    // The parent object is our Outline
+                    Image outlineImg = block.GetComponent<Image>();
+                    
+                    // The child object is our Fill
+                    Image fillImg = null;
+                    if (block.transform.childCount > 0)
+                    {
+                        fillImg = block.transform.GetChild(0).GetComponent<Image>();
+                    }
+
+                    if (outlineImg != null && fillImg != null)
+                    {
+                        if (isPulsingRed)
+                        {
+                            fillImg.color = new Color(0.8f, 0f, 0f, 0.6f); // Warning Red Fill
+                            outlineImg.color = Color.red;                  // Warning Red Outline
+                        }
+                        else
+                        {
+                            fillImg.color = new Color(0f, 0.4f, 0.4f, 0.5f);   // Normal Teal Fill
+                            outlineImg.color = new Color(0f, 1f, 1f, 0.8f);    // Normal Cyan Outline
+                        }
+                    }
+                }
+            }
         }
     }
 }
