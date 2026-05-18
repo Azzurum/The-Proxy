@@ -110,6 +110,9 @@ GameObject:
   - component: {fileID: 7426435493757642048}
   - component: {fileID: 7875437750931186344}
   - component: {fileID: 1651119795785266337}
+  - component: {fileID: 5666932118869925619}
+  - component: {fileID: 290961730550938189}
+  - component: {fileID: 2086397086170824349}
   m_Layer: 0
   m_Name: Player_Kaelen
   m_TagString: Player
@@ -256,12 +259,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerInteraction
   interactRadius: 5
-  stunnerRange: 5
-  repulsorRange: 3
-  repulsorForce: 7
-  repulsorCooldown: 10
-  batteryData: {fileID: 11400000, guid: e849e54ee2d9cae4e9a6cc7964739320, type: 2}
-  masterKeyData: {fileID: 11400000, guid: 7773dab58f89de84cbeaee605ea33ae3, type: 2}
+  interactionPrompt: {fileID: 0}
+  promptOffset: {x: 0, y: 1, z: 0}
+  audioSource: {fileID: 0}
+  sfxPickup: {fileID: 0}
+  sfxInventoryFull: {fileID: 0}
+  sfxLockerOpen: {fileID: 0}
 --- !u!70 &2471984045692285542
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -528,6 +531,58 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &5666932118869925619
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3860330508545190566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf8fd0f19909c34498e813c872446c7e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIPickupLog
+  logText: {fileID: 0}
+  messageDuration: 4
+  fadeDuration: 1
+  audioSource: {fileID: 0}
+  sfxBlip: {fileID: 0}
+--- !u!114 &290961730550938189
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3860330508545190566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7212b337a3a06d346b0565aa7f5cb05a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCombat
+  inventoryManager: {fileID: 0}
+  audioSource: {fileID: 0}
+  sfxStunnerFire: {fileID: 0}
+  sfxRepulsorFire: {fileID: 0}
+  sfxWeaponEmpty: {fileID: 0}
+  sfxEnemyHit: {fileID: 0}
+--- !u!114 &2086397086170824349
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3860330508545190566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3083d7012ebf3514f82c171832f5d8f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemUsageManager
+  inventoryManager: {fileID: 0}
+  physicalDecoyPrefab: {fileID: 0}
+  audioSource: {fileID: 0}
+  sfxUseHeatSink: {fileID: 0}
+  sfxError: {fileID: 0}
 --- !u!1 &6803825329111671136
 GameObject:
   m_ObjectHideFlags: 0

@@ -66,6 +66,11 @@ public class ProxyAI : MonoBehaviour
     private Coroutine delayedHuntCoroutine;
 
     // Components & Managers
+    [Header("Depth Sorting")]
+    [Tooltip("Make sure this exactly matches Kaelen's sorting layer!")]
+    public string sortingLayerName = "Player";
+    public float depthOffset = -0.5f; // Where the Proxy's feet are relative to its center
+    
     private Animator animator;
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
@@ -88,13 +93,16 @@ public class ProxyAI : MonoBehaviour
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null) spriteRenderer.sortingLayerName = sortingLayerName;
         
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody2D>();
         }
         
-        rb.bodyType = RigidbodyType2D.Kinematic;
+        // PHYSICS FAILSAFE: The Proxy must be Dynamic to collide with the server maze!
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.gravityScale = 0f;
         rb.simulated = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.freezeRotation = true;
@@ -180,6 +188,12 @@ public class ProxyAI : MonoBehaviour
         }
         
         UpdateAnimationSpeed();
+
+        // DYNAMIC DEPTH SORTING: Update sorting order based on Y position so the Proxy can walk behind things!
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
+        }
     }
 
     // --- STATE MACHINE LOGIC ---
