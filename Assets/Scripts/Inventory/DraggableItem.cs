@@ -360,7 +360,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
         if (myCanvas != null && slot != null) myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? 1 : 5;
-
+        
         InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
         if (inventoryManager != null) inventoryManager.SyncDataFromUI();
     }
@@ -411,7 +411,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
         if (myCanvas != null && slot != null) myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? 1 : 5;
-
+        
         InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
         if (inventoryManager != null) inventoryManager.SyncDataFromUI();
     }

@@ -19,6 +19,12 @@ public class PlayerInteraction : MonoBehaviour
     void Start()
     {
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
+
+        // AUTO-WIRING: Find the floating interaction prompt UI
+        if (interactionPrompt == null)
+        {
+            interactionPrompt = FindAnyObjectByType<FloatingPrompt>(FindObjectsInactive.Include);
+        }
     }
 
     void Update()
@@ -41,7 +47,7 @@ public class PlayerInteraction : MonoBehaviour
         // Find the absolute closest item
         foreach (var obj in nearbyObjects)
         {
-            if (obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || obj.CompareTag("Generator") || obj.CompareTag("Locker"))
+            if (obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || obj.CompareTag("Generator") || obj.CompareTag("Locker") || obj.CompareTag("LockedDoor"))
             {
                 float dist = Vector2.Distance(transform.position, obj.transform.position);
                 if (dist < minDistance)
@@ -51,7 +57,7 @@ public class PlayerInteraction : MonoBehaviour
                 }
             }
         }
-
+        
         // If the closest item changes (or we walked away from it)
         if (closest != closestInteractable)
         {
@@ -76,6 +82,11 @@ public class PlayerInteraction : MonoBehaviour
                         }
                     }
                 }
+                else if (closestInteractable.CompareTag("LockedDoor"))
+                {
+                    // Always show locked doors as white, the feedback will be red text if failed.
+                    promptColor = Color.white;
+                }
 
                 interactionPrompt.SetPromptColor(promptColor);
 
@@ -93,7 +104,7 @@ public class PlayerInteraction : MonoBehaviour
 
     private void AttemptPickup()
     {
-        if (closestInteractable == null) return;
+        if (closestInteractable == null) return; // Nothing to interact with.
 
         InventoryManager manager = FindAnyObjectByType<InventoryManager>();
         if (manager == null) return;
@@ -195,6 +206,21 @@ public class PlayerInteraction : MonoBehaviour
             else
             {
                 Debug.LogWarning("This Locker is missing a LockerStorage script!");
+            }
+        }
+        // SCENARIO E: A Locked Door
+        else if (obj.CompareTag("LockedDoor"))
+        {
+            LockedDoor door = obj.GetComponent<LockedDoor>();
+            if (door == null) door = obj.GetComponentInParent<LockedDoor>();
+
+            if (door != null)
+            {
+                door.AttemptUnlock();
+            }
+            else
+            {
+                Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'LockedDoor' but is missing the LockedDoor.cs script!");
             }
         }
     }

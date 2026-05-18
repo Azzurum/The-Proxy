@@ -165,6 +165,9 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Cancel out any physical forces so Kaelen doesn't slide when hit
+        rb.linearVelocity = Vector2.zero;
+
         // Force stop if movement is locked
         if (isMovementLocked)
         {

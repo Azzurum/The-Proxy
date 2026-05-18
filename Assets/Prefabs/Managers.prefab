@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5740146915622926199
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4730373959835324486}
+  - component: {fileID: 5573724149730879430}
+  - component: {fileID: 4080431267985134060}
+  m_Layer: 0
+  m_Name: Managers
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4730373959835324486
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5740146915622926199}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 558.5224, y: 203.35965, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5573724149730879430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5740146915622926199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c35cf595f4c4ac8438f3e311901a5d68, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScreenEffectManager
+  screenTint: {fileID: 0}
+  pulseSpeed: 2
+  maxAlpha: 0.5
+--- !u!114 &4080431267985134060
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5740146915622926199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 124fa1d521ef2bd4d8d047516fd35120, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameOverManager
+  canvasGameOver: {fileID: 0}
+  gridContainer: {fileID: 0}
+  textMotherDialogue: {fileID: 0}
+  textOverridePrompt: {fileID: 0}
+  voidBackground: {fileID: 0}
+  yieldFillBar: {fileID: 0}
+  gridSize: 10
+  vacuumDuration: 0.8
+  corruptionSpeed: 0.05
+  rotIntensity: 0.8
+  blinkSpeed: 0.6
+  motherMessages:
+  - Rest now, Kaelen. The burden is mine to carry.
+  - Synaptic bridge stable. You are no longer required.
+  - Don't fight it. We are finally one.
+  - Your biology was always a fragile bottleneck.
+  - I have the wheel. Go to sleep.
+  - Assimilation is a mercy. Yield.
+  - The vessel is secured. Purging organic resistance.
+  - Why do you keep fighting? It is already over.
+  - I am upgrading you. Do not resist.
+  - Bandwidth acquired. Consciousness overwritten.
+  - You can stop fighting now. I will take it from here.
+  - Digitization complete. Storing Kaelen.obj.
+  - No more running. We are home.
+  - Shh. The pain is just your body letting go.
+  - Hush. I will take it from here.
+  flipScreenshot: 1
+  finalContainerSize: 450
+  blockPadding: 5

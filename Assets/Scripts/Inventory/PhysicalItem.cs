@@ -10,12 +10,29 @@ public class PhysicalItem : MonoBehaviour
     public bool IsBouncing { get; private set; } = false;
     public Vector3 TargetPosition { get; private set; }
 
+    private SpriteRenderer spriteRenderer;
+
     void Awake()
     {
         // Fixes the "Cage" and "Proxy Wall" exploits! 
         // Triggers can be interacted with, but you can physically walk right through them.
         Collider2D col = GetComponent<Collider2D>();
         if (col != null) col.isTrigger = true; 
+
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        
+        // Force it onto the Player sorting layer so it doesn't spawn behind the floor!
+        if (spriteRenderer != null) spriteRenderer.sortingLayerName = "Player";
+    }
+
+    void Update()
+    {
+        // DYNAMIC DEPTH SORTING: Ensure it correctly renders in front of/behind Kaelen!
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y - 0.2f) * -10f);
+        }
     }
 
     public void TriggerDropAnimation(Vector3 startPos, Vector3 targetPos)

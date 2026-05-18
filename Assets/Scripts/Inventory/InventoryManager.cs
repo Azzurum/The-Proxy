@@ -69,6 +69,53 @@ public class InventoryManager : MonoBehaviour
 
     void Start()
     {
+        // AUTO-WIRING: Find UI grids if they are missing
+        if (gridLeft == null || gridRight == null)
+        {
+            InventoryGrid[] grids = FindObjectsByType<InventoryGrid>(FindObjectsInactive.Include);
+            foreach (var grid in grids)
+            {
+                string gName = grid.name.ToLower();
+                if (gName.Contains("left")) gridLeft = grid.transform;
+                else if (gName.Contains("right")) gridRight = grid.transform;
+                else if (gName.Contains("ext")) gridExt = grid.transform;
+            }
+        }
+
+        // AUTO-WIRING: Find the System Shock progress bar
+        if (systemShockProgressBar == null)
+        {
+            Slider[] sliders = FindObjectsByType<Slider>(FindObjectsInactive.Include);
+            foreach (var slider in sliders)
+            {
+                string sName = slider.name.ToLower();
+                if (sName.Contains("shock") || sName.Contains("corruption"))
+                {
+                    systemShockProgressBar = slider;
+                    break;
+                }
+            }
+        }
+
+        // AUTO-WIRING: Find the Player
+        if (playerTransform == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj == null) playerObj = GameObject.Find("Player_Kaelen");
+            if (playerObj != null) playerTransform = playerObj.transform;
+        }
+
+        // AUTO-WIRING: Find the UI Inspect Icon
+        if (uiInspectIcon == null)
+        {
+            Image[] allImages = FindObjectsByType<Image>(FindObjectsInactive.Include);
+            foreach (var img in allImages)
+            {
+                // Make sure your Inspect image has the word "inspect" somewhere in its name!
+                if (img.name.ToLower().Contains("inspect")) { uiInspectIcon = img; break; }
+            }
+        }
+
         while (inventoryState.mainGridSlots.Count < 100) inventoryState.mainGridSlots.Add(null);
         while (inventoryState.matterBufferSlots.Count < 25) inventoryState.matterBufferSlots.Add(null);
         
@@ -715,26 +762,33 @@ public class InventoryManager : MonoBehaviour
     {
         DraggableItem dragItem = itemUI.GetComponent<DraggableItem>();
         
-        if (dragItem != null && dragItem.itemData != null && dragItem.itemData.worldPrefab != null)
+        if (dragItem != null && dragItem.itemData != null)
         {
-            Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
-            
-            // Start the drop exactly at Kaelen's feet
-            Vector3 basePos = player != null ? player.position : Vector3.zero;
-            
-            // Ask the scatter math to find a clean, empty patch of floor
-            Vector3 spawnPos = GetScatterPosition(basePos);
-            
-            GameObject dropped = Instantiate(dragItem.itemData.worldPrefab, basePos, Quaternion.identity);
-            PhysicalItem pi = dropped.GetComponent<PhysicalItem>();
-            if (pi == null) pi = dropped.GetComponentInChildren<PhysicalItem>();
-            if (pi != null) 
+            if (dragItem.itemData.worldPrefab == null)
             {
-                pi.itemData = dragItem.itemData;
-                pi.TriggerDropAnimation(basePos, spawnPos);
+                Debug.LogWarning($"<color=red>CANNOT DROP ITEM:</color> '{dragItem.itemData.itemName}' does not have a World Prefab assigned in its ItemData! The item has been deleted.");
             }
+            else
+            {
+                Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+                
+                // Start the drop exactly at Kaelen's feet
+                Vector3 basePos = player != null ? player.position : Vector3.zero;
+                
+                // Ask the scatter math to find a clean, empty patch of floor
+                Vector3 spawnPos = GetScatterPosition(basePos);
+                
+                GameObject dropped = Instantiate(dragItem.itemData.worldPrefab, basePos, Quaternion.identity);
+                PhysicalItem pi = dropped.GetComponent<PhysicalItem>();
+                if (pi == null) pi = dropped.GetComponentInChildren<PhysicalItem>();
+                if (pi != null) 
+                {
+                    pi.itemData = dragItem.itemData;
+                    pi.TriggerDropAnimation(basePos, spawnPos);
+                }
 
-            if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(dragItem.itemData.itemName ?? dragItem.itemData.itemID, Color.gray, "Dropped");
+                if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(dragItem.itemData.itemName ?? dragItem.itemData.itemID, Color.gray, "Dropped");
+            }
         }
 
         Destroy(itemUI);
@@ -1293,6 +1347,55 @@ public class InventoryManager : MonoBehaviour
         // 4. SYNCHRONIZE BACKEND AND LOCK UI
         gridRefreshPending = false;  // CRITICAL: Tells the system NOT to destroy our work when the Rig opens!
         SyncDataFromUI();            // Mathematically updates the 1D arrays based on the UI we just built
+    }
+
+    // ==========================================
+    // ITEM QUERY & CONSUMPTION
+    // ==========================================
+
+    public bool HasItem(string itemID)
+    {
+        if (string.IsNullOrEmpty(itemID)) return false;
+
+        // Check main inventory
+        foreach (var item in inventoryState.mainGridSlots)
+        {
+            if (item != null && item.itemID == itemID) return true;
+        }
+        // Check external buffer (where picked up items go)
+        foreach (var item in inventoryState.matterBufferSlots)
+        {
+            if (item != null && item.itemID == itemID) return true;
+        }
+        return false;
+    }
+
+    public bool ConsumeItem(string itemID)
+    {
+        if (string.IsNullOrEmpty(itemID)) return false;
+
+        bool itemFound = false;
+        // Consume from main inventory
+        for (int i = 0; i < inventoryState.mainGridSlots.Count; i++)
+        {
+            if (inventoryState.mainGridSlots[i] != null && inventoryState.mainGridSlots[i].itemID == itemID)
+            {
+                inventoryState.mainGridSlots[i] = null;
+                itemFound = true;
+            }
+        }
+        // Consume from external buffer
+        for (int i = 0; i < inventoryState.matterBufferSlots.Count; i++)
+        {
+            if (inventoryState.matterBufferSlots[i] != null && inventoryState.matterBufferSlots[i].itemID == itemID)
+            {
+                inventoryState.matterBufferSlots[i] = null;
+                itemFound = true;
+            }
+        }
+
+        if (itemFound) RefreshAllGrids();
+        return itemFound;
     }
 
     // ==========================================

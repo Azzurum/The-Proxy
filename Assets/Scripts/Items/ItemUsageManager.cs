@@ -16,6 +16,7 @@ public class ItemUsageManager : MonoBehaviour
     void Start()
     {
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        if (inventoryManager == null) inventoryManager = FindAnyObjectByType<InventoryManager>();
     }
 
     public void ExecuteItem(ItemData item, GameObject uiItemReference)

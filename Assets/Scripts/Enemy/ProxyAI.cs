@@ -103,6 +103,7 @@ public class ProxyAI : MonoBehaviour
         // PHYSICS FAILSAFE: The Proxy must be Dynamic to collide with the server maze!
         rb.bodyType = RigidbodyType2D.Dynamic;
         rb.gravityScale = 0f;
+        rb.mass = 1000f; // Make it a brick wall so Kaelen can't push it!
         rb.simulated = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.freezeRotation = true;
@@ -573,6 +574,8 @@ public class ProxyAI : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (rb != null) rb.linearVelocity = Vector2.zero; // Immediately kill any sliding momentum!
+
         if (!hasMoveTarget || currentState == AIState.Stunned || currentState == AIState.KnockedBack || currentState == AIState.Attacking || currentState == AIState.Idle) return;
         
         // Apply the 20% speed buff if the M.E.T. Rig is emitting a signal

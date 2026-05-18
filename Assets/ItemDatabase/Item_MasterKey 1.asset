@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5826bacd0c6e5e14d9babe0cf63fa3ee, type: 3}
   m_Name: Item_MasterKey 1
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  itemID: KEY
-  itemName: EXECUTIVE SEC-PASS KEY
+  itemID: KEY-MSTR-1
+  itemName: MASTER KEY 1
   mass: 12
   status: Encrypted
   substats: 'AUTH: PENDING // WGT: 12.0 KG'
@@ -25,4 +25,4 @@ MonoBehaviour:
     width: 3
     height: 3
     cells: 010101010101010101
-  isRotated: 1
+  isRotated: 0
