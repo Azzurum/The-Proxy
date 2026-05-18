@@ -271,7 +271,7 @@ public class DialogueEngine : MonoBehaviour
 
     [Header("Player Control Integration")]
     public GameObject playerObject;
-
+    public GameObject questTrackerText;
     public void EndDialogue()
     {
         isDialogueActive = false;
@@ -284,6 +284,9 @@ public class DialogueEngine : MonoBehaviour
         if (playerObject != null)
         {
             playerObject.SetActive(true);
+
+            if (questTrackerText != null) questTrackerText.SetActive(true);
+
             Debug.Log("Dialogue complete! Player_Kaelen is now active and free to roam.");
 
             // Core Camera Tracking
