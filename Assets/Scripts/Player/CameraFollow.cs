@@ -5,7 +5,7 @@ public class CameraFollow : MonoBehaviour
     [Header("Targeting")]
     public Transform target;
 
-    // NEW: Drag your landing pad or master grid here so the camera stays centered at start!
+    // Drag your landing pad or master grid here so the camera stays centered at start!
     public Transform cutsceneStartingTarget;
 
     // In 2D, the camera MUST stay pushed back on the Z axis
@@ -32,13 +32,10 @@ public class CameraFollow : MonoBehaviour
         {
             FindTarget();
         }
-    }
 
-        // 2. Instantly teleport camera to target if found
+        // 2. Instantly teleport camera to target if it's already assigned at start
         if (target != null)
         {
-            target = player.transform;
-            // Instantly teleport camera to target the moment we find them to prevent "sliding" from the void
             transform.position = target.position + offset;
         }
     }
@@ -48,24 +45,49 @@ public class CameraFollow : MonoBehaviour
         // If player woke up, switch targets automatically
         if (target == null)
         {
-            GameObject player = GameObject.Find("Player_Kaelen");
-            if (player != null)
-            {
-                target = player.transform;
-            }
+            FindTarget();
         }
 
-        // Smoothly glide to whichever target is active (Cutscene anchor OR Player)
+        Vector3 targetPosition;
+
+        // Smoothly glide to whichever target is active (Player OR Cutscene anchor)
         if (target != null)
         {
-            Vector3 targetPosition = target.position + offset;
-            transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
+            targetPosition = target.position + offset;
         }
         else if (cutsceneStartingTarget != null)
         {
             // Keep the camera locked perfectly centered on the landing pad during the cutscene
-            Vector3 targetPosition = cutsceneStartingTarget.position + offset;
-            transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
+            targetPosition = cutsceneStartingTarget.position + offset;
+        }
+        else
+        {
+            return; // No target, do nothing
+        }
+
+        // Calculate standard smooth tracking position
+        Vector3 destination = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
+
+        // 3. Process Screen Shake / Kinetic Tremor modifications if active
+        if (shakeTimeRemaining > 0f)
+        {
+            Vector2 randomShake = Random.insideUnitCircle * currentShakeMagnitude;
+            destination.x += randomShake.x;
+            destination.y += randomShake.y;
+
+            shakeTimeRemaining -= Time.deltaTime;
+        }
+
+        transform.position = destination;
+    }
+
+    // Helper method to look for the player safely
+    private void FindTarget()
+    {
+        GameObject player = GameObject.Find("Player_Kaelen");
+        if (player != null)
+        {
+            target = player.transform;
         }
     }
 
