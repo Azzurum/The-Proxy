@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
 using System;
+using UnityEngine.SceneManagement;
 
 public class InventoryManager : MonoBehaviour
 {
@@ -13,7 +14,6 @@ public class InventoryManager : MonoBehaviour
     public Transform gridExt;
     public GameObject emptySlotPrefab;
     public GameObject filledItemPrefab;
-    public GameObject uiCorruptionPrefab;
 
     [Tooltip("Drag all your ItemData ScriptableObjects here so the game can load them by ID")]
     public List<ItemData> itemDatabase = new List<ItemData>();
@@ -29,9 +29,13 @@ public class InventoryManager : MonoBehaviour
     [Header("Corruption Setup")]
     public ItemData corruptionData;
 
+    [Header("Audio SFX")]
+    public AudioSource audioSource;
+    public AudioClip sfxCorruptionAdded;
+
     [Header("MOTHER-v4 System Shock")]
     public float shockInterval = 60f; // UPDATED TO 60 SECONDS
-    private float shockTimer;
+    public float shockTimer;
     private MetRigManager metRigManager;
 
     [Header("Signal Broadcasting")]
@@ -52,22 +56,38 @@ public class InventoryManager : MonoBehaviour
     private float crushTimer = 0f;
     private float[] crushDurations = { 5f, 10f }; 
 
+    [Header("Hallucination System")]
+    private float hallucinationCooldown = 15f;
+    private float jumpscareCooldown = 45f; // Initial cooldown before first jumpscare
+
     [Header("Game Over State")]
     private bool isGameOverSequenceStarted = false;
+
+    [Header("Locker State")]
+    public bool isInteractingWithLocker = false;
+    private LockerStorage activeLocker = null; // Track the locker currently being viewed
 
     void Start()
     {
         while (inventoryState.mainGridSlots.Count < 100) inventoryState.mainGridSlots.Add(null);
-        while (inventoryState.extGridSlots.Count < 25) inventoryState.extGridSlots.Add(null);
+        while (inventoryState.matterBufferSlots.Count < 25) inventoryState.matterBufferSlots.Add(null);
+        
+        // Ensure the external UI always defaults to the Buffer on boot
+        inventoryState.extGridSlots = inventoryState.matterBufferSlots;
+
         while (inventoryState.hotbarSlots.Count < 3) inventoryState.hotbarSlots.Add(null);
 
         metRigManager = FindAnyObjectByType<MetRigManager>();
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+
         shockInterval = 60f; // UPDATED TO 60 SECONDS
         shockTimer = shockInterval;
         
         RefreshAllGrids();
         BroadcastHealthState(); // Ensure UI gets the initial health on boot
         ClearInspectionScreen(); // NEW: Clear the screen on boot
+        LoadWorldItems(); // Load any items dropped on the floor!
     }
 
     void Update()
@@ -75,11 +95,28 @@ public class InventoryManager : MonoBehaviour
         // FIXED: Removed 'metRigManager.isRigOpen' so this timer runs everywhere, constantly!
         if (isSystemActive)
         {
-            shockTimer -= Time.deltaTime;
+            // LORE UPDATE: Leaving the M.E.T. Rig open heavily accelerates corruption buildup!
+            float tickMultiplier = (metRigManager != null && metRigManager.isRigOpen) ? 2.5f : 1.0f;
+            shockTimer -= Time.deltaTime * tickMultiplier;
 
             if (systemShockProgressBar != null) 
             {
                 systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
+            }
+
+            if (HasHallucinations)
+            {
+                if (jumpscareCooldown > 0f) jumpscareCooldown -= Time.deltaTime;
+                hallucinationCooldown -= Time.deltaTime;
+
+                if (hallucinationCooldown <= 0f)
+                {
+                    TriggerRandomHallucination();
+                    
+                    // LORE UPDATE: Hallucinations appear when corruption reaches 5 stacks, and triple in frequency at 8 stacks!
+                    float baseCooldown = GetCorruptionPercentage() >= 0.8f ? 8f : 22f;
+                    hallucinationCooldown = baseCooldown + UnityEngine.Random.Range(-4f, 4f);
+                }
             }
 
             if (shockTimer <= 0f)
@@ -102,10 +139,228 @@ public class InventoryManager : MonoBehaviour
         }
 
         if (Input.GetKeyDown(KeyCode.C)) ExecuteCleanProtocol();
+
+        // DEBUG: Press H to instantly test the Hallucination Jumpscare!
+        if (Input.GetKeyDown(KeyCode.H)) StartCoroutine(FakeProxyJumpscareRoutine());
+    }
+
+    // ==========================================
+    // HALLUCINATION SYSTEM
+    // ==========================================
+
+    private void TriggerRandomHallucination()
+    {
+        float rand = UnityEngine.Random.value;
+        
+        // Jumpscare chance: only allow if cooldown is ready (at least 90s between scares)
+        if (rand < 0.25f && jumpscareCooldown <= 0f) 
+        {
+            jumpscareCooldown = UnityEngine.Random.Range(80f, 110f); // ~1.5 minutes cooldown!
+            StartCoroutine(FakeProxyJumpscareRoutine());
+        }
+        else if (audioSource != null) // 85% chance for creepy audio
+        {
+            float audioRand = UnityEngine.Random.value;
+            if (audioRand < 0.30f) StartCoroutine(ApproachingFootstepsRoutine()); // 30% Approaching footsteps
+            else if (audioRand < 0.60f) PlaySpatialAudio(ProceduralAudioGen.GenerateWhisper()); // 30% Whisper
+            else if (audioRand < 0.80f) audioSource.PlayOneShot(ProceduralAudioGen.GenerateFootstep(0.4f)); // 20% Fake footstep
+            else if (audioRand < 0.90f) audioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(0.3f)); // 10% Fake proxy static
+            else audioSource.PlayOneShot(ProceduralAudioGen.GenerateHiss(0.5f)); // 10% Distant hiss
+        }
+    }
+
+    private System.Collections.IEnumerator ApproachingFootstepsRoutine()
+    {
+        Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        if (player == null) yield break;
+
+        // Spawn a temporary audio source off-screen
+        GameObject tempAudioObj = new GameObject("Hallucination_Footsteps");
+        Vector2 startDir = UnityEngine.Random.insideUnitCircle.normalized;
+        float distance = 12f;
+        tempAudioObj.transform.position = player.position + (Vector3)(startDir * distance);
+
+        AudioSource tempSource = tempAudioObj.AddComponent<AudioSource>();
+        tempSource.spatialBlend = 0.8f; 
+        tempSource.rolloffMode = AudioRolloffMode.Linear;
+        tempSource.minDistance = 2f;
+        tempSource.maxDistance = 15f;
+
+        int steps = UnityEngine.Random.Range(5, 9);
+        float timeBetweenSteps = 0.6f;
+
+        for (int i = 0; i < steps; i++)
+        {
+            if (player == null || tempAudioObj == null) break;
+
+            // Move the sound progressively closer to the player
+            float progress = (float)i / (steps - 1);
+            distance = Mathf.Lerp(12f, 2f, progress);
+            
+            // Keep the direction, but update position relative to the player's current position
+            tempAudioObj.transform.position = player.position + (Vector3)(startDir * distance);
+
+            // Increase volume/intensity
+            tempSource.volume = Mathf.Lerp(0.2f, 1.0f, progress) * ProceduralAudioGen.globalVolume;
+            tempSource.pitch = UnityEngine.Random.Range(0.95f, 1.05f);
+            
+            tempSource.PlayOneShot(ProceduralAudioGen.GenerateFootstep(0.4f));
+
+            yield return new WaitForSeconds(timeBetweenSteps + UnityEngine.Random.Range(-0.05f, 0.05f));
+        }
+
+        Destroy(tempAudioObj, 1.0f);
+    }
+
+    private void PlaySpatialAudio(AudioClip clip)
+    {
+        Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        if (player == null) return;
+
+        // Spawn very close to the player's ear (left or right)
+        GameObject tempAudioObj = new GameObject("Hallucination_Whisper");
+        Vector2 sideDir = UnityEngine.Random.value > 0.5f ? Vector2.right : Vector2.left;
+        tempAudioObj.transform.position = player.position + (Vector3)(sideDir * 1.5f);
+
+        AudioSource tempSource = tempAudioObj.AddComponent<AudioSource>();
+        tempSource.spatialBlend = 0.8f; 
+        tempSource.rolloffMode = AudioRolloffMode.Linear;
+        tempSource.minDistance = 1f;
+        tempSource.maxDistance = 5f;
+        tempSource.volume = ProceduralAudioGen.globalVolume;
+        tempSource.clip = clip;
+        tempSource.Play();
+
+        Destroy(tempAudioObj, clip.length + 0.1f);
+    }
+
+    private System.Collections.IEnumerator FakeProxyJumpscareRoutine()
+    {
+        Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        ProxyAI realProxy = FindAnyObjectByType<ProxyAI>();
+
+        if (player == null || realProxy == null) yield break;
+
+        // 1. Find a valid off-screen spawn location with NO walls in the way
+        Vector3 bestSpawnPos = Vector3.zero;
+        float maxClearDist = 0f;
+        float targetSpawnDist = 15f; // Ensures it starts outside the camera view
+
+        for (int i = 0; i < 16; i++) // Scan in 16 random directions
+        {
+            Vector2 dir = UnityEngine.Random.insideUnitCircle.normalized;
+            float currentClearDist = targetSpawnDist;
+
+            RaycastHit2D[] hits = Physics2D.RaycastAll(player.position, dir, targetSpawnDist);
+            foreach (var hit in hits)
+            {
+                // Stop if we hit a wall (ignores triggers, items, and the player)
+                if (!hit.collider.isTrigger && !hit.collider.CompareTag("Player") && !hit.collider.CompareTag("Interactable") && !hit.collider.CompareTag("MasterKey"))
+                {
+                    if (hit.distance < currentClearDist) currentClearDist = hit.distance;
+                }
+            }
+
+            // Keep track of the longest clear path
+            if (currentClearDist > maxClearDist)
+            {
+                maxClearDist = currentClearDist;
+                bestSpawnPos = player.position + (Vector3)(dir * (currentClearDist - 1f)); // Spawn slightly in front of the wall
+            }
+        }
+
+        // If Kaelen is in a tiny room and the furthest wall is too close (on-screen), abort the visual and just play a creepy sound
+        if (maxClearDist < 8f)
+        {
+            if (audioSource != null) audioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(0.5f));
+            yield break;
+        }
+
+        // 1.5 Instantiate an exact copy of the real Proxy
+        GameObject fakeProxy = Instantiate(realProxy.gameObject, bestSpawnPos, Quaternion.identity);
+        fakeProxy.name = "Hallucination_Proxy";
+
+        // Strip all AI and Physics so it is purely a visual ghost
+        ProxyAI fakeAI = fakeProxy.GetComponent<ProxyAI>();
+        if (fakeAI != null) { fakeAI.enabled = false; Destroy(fakeAI); }
+        
+        Rigidbody2D rb = fakeProxy.GetComponent<Rigidbody2D>();
+        if (rb != null) Destroy(rb);
+        
+        foreach (var col in fakeProxy.GetComponentsInChildren<Collider2D>()) Destroy(col);
+
+        Animator fakeAnim = fakeProxy.GetComponent<Animator>();
+        SpriteRenderer fakeRenderer = fakeProxy.GetComponent<SpriteRenderer>();
+        if (fakeRenderer != null) fakeRenderer.sortingOrder = 10;
+
+        // 2. Play a terrifying sound as it spawns
+        if (audioSource != null) audioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(1.0f));
+
+        float speed = 25f; // Insanely fast
+        
+        if (fakeAnim != null)
+        {
+            fakeAnim.SetFloat("Speed", speed);
+            fakeAnim.speed = Mathf.Max(1f, speed / realProxy.baseSpeed); // Turbo animation speed!
+        }
+
+        // 3. Sprint at the player
+        while (fakeProxy != null && player != null && Vector3.Distance(fakeProxy.transform.position, player.position) > 1.0f)
+        {
+            fakeProxy.transform.position = Vector3.MoveTowards(fakeProxy.transform.position, player.position, speed * Time.deltaTime);
+            
+            // Update the animation direction to accurately match its movement!
+            Vector2 dir = (player.position - fakeProxy.transform.position).normalized;
+            if (fakeAnim != null && fakeRenderer != null)
+            {
+                if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
+                {
+                    fakeAnim.SetFloat("Direction", 1f); // Side
+                    fakeRenderer.flipX = dir.x < 0;
+                }
+                else
+                {
+                    if (dir.y > 0)
+                    {
+                        fakeAnim.SetFloat("Direction", 1f); // Up
+                        if (dir.x < -0.01f) fakeRenderer.flipX = true;
+                        else if (dir.x > 0.01f) fakeRenderer.flipX = false;
+                    }
+                    else
+                    {
+                        fakeAnim.SetFloat("Direction", 0f); // Down
+                        fakeRenderer.flipX = false;
+                    }
+                }
+            }
+            yield return null;
+        }
+
+        // 4. Hit the player and vanish with a violent pop
+        if (fakeProxy != null)
+        {
+            if (audioSource != null) audioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(100f, 0.2f));
+            
+            CameraFollow cam = FindAnyObjectByType<CameraFollow>();
+            if (cam != null) cam.TriggerShake(0.3f, 0.5f);
+            
+            if (ScreenEffectManager.Instance != null) ScreenEffectManager.Instance.TriggerFlash(Color.black, 0.15f);
+            
+            Destroy(fakeProxy);
+        }
     }
 
     public void ResolveCorruptionTick()
     {   
+        // Forcefully cancel any active drag before restructuring the grid!
+        if (DraggableItem.itemBeingDragged != null) DraggableItem.itemBeingDragged.AbortDrag();
+
+        // Play the corruption warning sound
+        if (audioSource != null)
+        {
+            audioSource.PlayOneShot(sfxCorruptionAdded != null ? sfxCorruptionAdded : ProceduralAudioGen.GenerateErrorBuzz(90f, 0.8f));
+        }
+
         SyncDataFromUI();
 
         int columns = 5;
@@ -131,10 +386,14 @@ public class InventoryManager : MonoBehaviour
         CheckForGameOver();
         RefreshAllGrids(); 
         BroadcastHealthState(); // Update health after taking damage
+        SaveWorldItems(); // Save any items that were just ejected to the floor!
     }
 
     public void ExecuteCleanProtocol()
     {
+        // Forcefully cancel any active drag before restructuring the grid!
+        if (DraggableItem.itemBeingDragged != null) DraggableItem.itemBeingDragged.AbortDrag();
+
         bool didCleanAnything = false;
         int columns = 5;
 
@@ -192,9 +451,19 @@ public class InventoryManager : MonoBehaviour
             // THE FIX: Use the specific item's worldPrefab, NOT the hardcoded Battery!
             if (itemData.worldPrefab != null && playerTransform != null)
             {
-                GameObject ejected = Instantiate(itemData.worldPrefab, playerTransform.position, Quaternion.identity);
+                Vector3 startPos = playerTransform.position;
+                Vector3 spawnPos = GetScatterPosition(startPos);
+                
+                GameObject ejected = Instantiate(itemData.worldPrefab, startPos, Quaternion.identity);
                 PhysicalItem pi = ejected.GetComponent<PhysicalItem>();
-                if (pi != null) pi.itemData = itemData;
+                if (pi == null) pi = ejected.GetComponentInChildren<PhysicalItem>();
+                if (pi != null) 
+                {
+                    pi.itemData = itemData;
+                    pi.TriggerDropAnimation(startPos, spawnPos);
+                }
+
+                if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(itemData.itemName ?? itemData.itemID, new Color(1f, 0.4f, 0f), "Ejected");
             }
         }
     }
@@ -208,10 +477,6 @@ public class InventoryManager : MonoBehaviour
         }
 
         gridRefreshPending = false;
-
-        foreach (Transform child in gridLeft) Destroy(child.gameObject);
-        foreach (Transform child in gridRight) Destroy(child.gameObject);
-        if(gridExt != null) foreach (Transform child in gridExt) Destroy(child.gameObject);
 
         RefreshGrid(gridLeft, inventoryState.mainGridSlots, 5, 10, 0);
         RefreshGrid(gridRight, inventoryState.mainGridSlots, 5, 10, 50); 
@@ -245,25 +510,29 @@ public class InventoryManager : MonoBehaviour
             int x = i % columns;
             int y = i / columns;
 
-            GameObject slotObj = Instantiate(emptySlotPrefab, gridTransform);
-            RectTransform slotRect = slotObj.GetComponent<RectTransform>();
-
-            if (slotRect != null)
+            Transform slotTransform;
+            if (i < gridTransform.childCount)
             {
-                slotRect.localScale = Vector3.one;
-                slotRect.localRotation = Quaternion.identity;
-                slotRect.pivot = new Vector2(0f, 1f); 
+                slotTransform = gridTransform.GetChild(i);
+                // We reuse the slot to save performance! Just clear any items inside it.
+                for (int c = slotTransform.childCount - 1; c >= 0; c--) Destroy(slotTransform.GetChild(c).gameObject);
             }
-
-            InventorySlot slotLogic = slotObj.GetComponent<InventorySlot>();
-
-            if (slotLogic != null)
+            else
             {
-                slotLogic.slotCoordinate = new Vector2Int(x, y);
-
-                if (gridTransform == gridLeft) slotLogic.gridRegion = InventorySlot.GridRegion.MainLeft;
-                else if (gridTransform == gridRight) slotLogic.gridRegion = InventorySlot.GridRegion.MainRight;
-                else if (gridTransform == gridExt) slotLogic.gridRegion = InventorySlot.GridRegion.External;
+                GameObject slotObj = Instantiate(emptySlotPrefab, gridTransform);
+                slotTransform = slotObj.transform;
+                
+                RectTransform slotRect = slotObj.GetComponent<RectTransform>();
+                if (slotRect != null) { slotRect.localScale = Vector3.one; slotRect.localRotation = Quaternion.identity; slotRect.pivot = new Vector2(0f, 1f); }
+                
+                InventorySlot slotLogic = slotObj.GetComponent<InventorySlot>();
+                if (slotLogic != null)
+                {
+                    slotLogic.slotCoordinate = new Vector2Int(x, y);
+                    if (gridTransform == gridLeft) slotLogic.gridRegion = InventorySlot.GridRegion.MainLeft;
+                    else if (gridTransform == gridRight) slotLogic.gridRegion = InventorySlot.GridRegion.MainRight;
+                    else if (gridTransform == gridExt) slotLogic.gridRegion = InventorySlot.GridRegion.External;
+                }
             }
 
             ItemData data = dataList[i + dataOffset];
@@ -306,9 +575,7 @@ public class InventoryManager : MonoBehaviour
                     }
                 }
 
-                GameObject prefabToSpawn = (data == corruptionData && uiCorruptionPrefab != null) ?
-                    uiCorruptionPrefab : filledItemPrefab;
-                GameObject itemObj = Instantiate(prefabToSpawn, slotObj.transform);
+                GameObject itemObj = Instantiate(filledItemPrefab, slotTransform);
                 RectTransform itemRect = itemObj.GetComponent<RectTransform>();
 
                 if (itemRect != null)
@@ -396,6 +663,12 @@ public class InventoryManager : MonoBehaviour
     {
         if (slot == null || draggedItem == null || draggedItem.itemData == null) return false;
         
+        // RESTRICT PORTABLE STASHING: You can only put items INTO the external storage if you are physically at a locker!
+        if (slot.gridRegion == InventorySlot.GridRegion.External && !isInteractingWithLocker)
+        {
+            return false; // Read-Only Mode!
+        }
+
         ItemFootprint footprint = draggedItem.footprint;
         if (footprint == null) footprint = new ItemFootprint(1, 1);
         return IsSpaceFreeForFootprint(slot, footprint);
@@ -435,7 +708,7 @@ public class InventoryManager : MonoBehaviour
     }
 
     public int CrushTier => crushTier;
-    public bool HasHallucinations => crushTier >= 2;
+    public bool HasHallucinations => GetCorruptionPercentage() >= 0.5f; // 50% = 5 Stacks
     public void AddCorruptionRow() { ResolveCorruptionTick(); }
 
     public void DiscardItemToWorld(GameObject itemUI)
@@ -452,11 +725,21 @@ public class InventoryManager : MonoBehaviour
             // Ask the scatter math to find a clean, empty patch of floor
             Vector3 spawnPos = GetScatterPosition(basePos);
             
-            Instantiate(dragItem.itemData.worldPrefab, spawnPos, Quaternion.identity);
+            GameObject dropped = Instantiate(dragItem.itemData.worldPrefab, basePos, Quaternion.identity);
+            PhysicalItem pi = dropped.GetComponent<PhysicalItem>();
+            if (pi == null) pi = dropped.GetComponentInChildren<PhysicalItem>();
+            if (pi != null) 
+            {
+                pi.itemData = dragItem.itemData;
+                pi.TriggerDropAnimation(basePos, spawnPos);
+            }
+
+            if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(dragItem.itemData.itemName ?? dragItem.itemData.itemID, Color.gray, "Dropped");
         }
 
         Destroy(itemUI);
         SyncDataFromUI();
+        SaveWorldItems(); // Save the room after dropping an item!
     }
 
     private Vector3 GetScatterPosition(Vector3 center)
@@ -480,6 +763,13 @@ public class InventoryManager : MonoBehaviour
                 if (hit.CompareTag("Interactable") || hit.CompareTag("MasterKey"))
                 {
                     isSpaceFree = false; // Spot taken!
+                    break;
+                }
+                
+                // Check if we hit a solid obstacle/wall (ignores triggers and Kaelen himself)
+                if (!hit.isTrigger && !hit.CompareTag("Player"))
+                {
+                    isSpaceFree = false; // Inside a wall!
                     break;
                 }
             }
@@ -563,6 +853,83 @@ public class InventoryManager : MonoBehaviour
         return false;
     }
 
+    // Mathematically predicts if an item CAN be picked up without actually moving it
+    public bool CanFitItemToExternalTray(ItemData itemToPickup)
+    {
+        if (itemToPickup == null) return false;
+
+        ItemFootprint fp = itemToPickup.GetFootprint();
+        int w = fp != null ? fp.width : 1;
+        int h = fp != null ? fp.height : 1;
+
+        return CheckPlacementSpace(itemToPickup, w, h, inventoryState.extGridSlots, 5, 5, 0);
+    }
+
+    // A non-destructive version of AttemptPlacement
+    private bool CheckPlacementSpace(ItemData item, int w, int h, List<ItemData> targetGrid, int maxCols, int maxRows, int gridOffset)
+    {
+        for (int y = 0; y <= maxRows - h; y++)
+        {
+            for (int x = 0; x <= maxCols - w; x++)
+            {
+                bool spaceFree = true;
+                for (int cy = 0; cy < h; cy++)
+                {
+                    for (int cx = 0; cx < w; cx++)
+                    {
+                        if (item.GetFootprint() != null && !item.GetFootprint().GetCell(cx, cy)) continue;
+                        int index = gridOffset + ((y + cy) * maxCols) + (x + cx);
+                        if (targetGrid[index] != null) { spaceFree = false; break; }
+                    }
+                    if (!spaceFree) break;
+                }
+                if (spaceFree) return true; // Found a spot!
+            }
+        }
+        return false;
+    }
+
+    public void OpenLocker(LockerStorage locker)
+    {
+        SyncDataFromUI();
+        
+        activeLocker = locker;
+        // Swap the external grid's memory to point to this specific locker
+        inventoryState.extGridSlots = locker.gridSlots;
+        isInteractingWithLocker = true;
+
+        if (gridExt != null && gridExt.parent != null)
+        {
+            gridExt.parent.gameObject.SetActive(true);
+            RefreshAllGrids();
+        }
+    }
+
+    public void DisconnectFromLocker()
+    {
+        SyncDataFromUI();
+        inventoryState.extGridSlots = inventoryState.matterBufferSlots;
+        isInteractingWithLocker = false;
+        
+        // Save the locker's new contents to the hard drive now that we are done!
+        if (activeLocker != null)
+        {
+            activeLocker.SaveLockerState();
+            activeLocker = null;
+        }
+    }
+
+    // Checks if Kaelen is currently holding any items in his digitized buffer
+    public bool HasItemsInExternalStorage()
+    {
+        if (inventoryState == null || inventoryState.extGridSlots == null) return false;
+        foreach (var item in inventoryState.extGridSlots)
+        {
+            if (item != null) return true;
+        }
+        return false;
+    }
+
     public bool TryConsumeBatteries(int amountRequired)
     {
         int count = 0;
@@ -636,13 +1003,28 @@ public class InventoryManager : MonoBehaviour
                 DraggableItem dragItem = itemObj.GetComponent<DraggableItem>();
                 UIItem uiItem = itemObj.GetComponent<UIItem>();
 
-                if (dragItem != null && uiItem != null && uiItem.myData != null)
+                if (uiItem != null && uiItem.myData != null)
                 {
                     int startX = i % cols;
                     int startY = i / cols;
                     
-                    int w = dragItem.footprint != null ? dragItem.footprint.width : dragItem.sizeX;
-                    int h = dragItem.footprint != null ? dragItem.footprint.height : dragItem.sizeY;
+                    int w = 1;
+                    int h = 1;
+                    ItemFootprint fp = null;
+
+                    if (dragItem != null)
+                    {
+                        fp = dragItem.footprint;
+                        w = fp != null ? fp.width : dragItem.sizeX;
+                        h = fp != null ? fp.height : dragItem.sizeY;
+                    }
+                    else
+                    {
+                        fp = uiItem.myData.GetFootprint();
+                        w = fp != null ? fp.width : 1;
+                        h = fp != null ? fp.height : 1;
+                    }
+                    
                     w = Mathf.Max(1, w);
                     h = Mathf.Max(1, h);
                     
@@ -651,7 +1033,7 @@ public class InventoryManager : MonoBehaviour
                         for (int x = 0; x < w; x++)
                         {
                             // Skip empty negative space so it doesn't overwrite smaller items
-                            if (dragItem.footprint != null && !dragItem.footprint.GetCell(x, y)) continue;
+                            if (fp != null && !fp.GetCell(x, y)) continue;
 
                             int cx = startX + x;
                             int cy = startY + y;
@@ -786,27 +1168,30 @@ public class InventoryManager : MonoBehaviour
         {
             if (grid == null) return;
             
-            // Instantly rip out any existing ghost slots to prevent bleed-over
-            for (int i = grid.childCount - 1; i >= 0; i--) 
-            {
-                Transform child = grid.GetChild(i);
-                child.SetParent(null); 
-                Destroy(child.gameObject);
-            }
-            
-            // Force generate perfect empty slots
+            // Force generate or reuse perfect empty slots
             for (int i = 0; i < cols * rows; i++)
             {
-                GameObject slotObj = Instantiate(emptySlotPrefab, grid);
-                
-                RectTransform slotRect = slotObj.GetComponent<RectTransform>();
-                if (slotRect != null) { slotRect.localScale = Vector3.one; slotRect.localRotation = Quaternion.identity; slotRect.pivot = new Vector2(0f, 1f); }
-
-                InventorySlot slotLogic = slotObj.GetComponent<InventorySlot>();
-                if (slotLogic != null)
+                Transform slotTransform;
+                if (i < grid.childCount)
                 {
-                    slotLogic.slotCoordinate = new Vector2Int(i % cols, i / cols);
-                    slotLogic.gridRegion = region;
+                    slotTransform = grid.GetChild(i);
+                    // Clear any existing items in this slot
+                    for (int c = slotTransform.childCount - 1; c >= 0; c--) Destroy(slotTransform.GetChild(c).gameObject);
+                }
+                else
+                {
+                    GameObject slotObj = Instantiate(emptySlotPrefab, grid);
+                    slotTransform = slotObj.transform;
+                    
+                    RectTransform slotRect = slotObj.GetComponent<RectTransform>();
+                    if (slotRect != null) { slotRect.localScale = Vector3.one; slotRect.localRotation = Quaternion.identity; slotRect.pivot = new Vector2(0f, 1f); }
+                    
+                    InventorySlot slotLogic = slotObj.GetComponent<InventorySlot>();
+                    if (slotLogic != null)
+                    {
+                        slotLogic.slotCoordinate = new Vector2Int(i % cols, i / cols);
+                        slotLogic.gridRegion = region;
+                    }
                 }
             }
         }
@@ -885,7 +1270,7 @@ public class InventoryManager : MonoBehaviour
                 Transform slot = gridLeft.GetChild((row * 5) + col);
                 if (slot.childCount == 0) // Only spawn if an item isn't already here!
                 {
-                    GameObject crptObj = Instantiate(uiCorruptionPrefab != null ? uiCorruptionPrefab : filledItemPrefab, slot);
+                    GameObject crptObj = Instantiate(filledItemPrefab, slot);
                     UIItem uiItem = crptObj.GetComponent<UIItem>();
                     if (uiItem != null) uiItem.Initialize(corruptionData, currentCellSize);
                     spawned++;
@@ -897,7 +1282,7 @@ public class InventoryManager : MonoBehaviour
                 Transform slot = gridRight.GetChild((row * 5) + col);
                 if (slot.childCount == 0)
                 {
-                    GameObject crptObj = Instantiate(uiCorruptionPrefab != null ? uiCorruptionPrefab : filledItemPrefab, slot);
+                    GameObject crptObj = Instantiate(filledItemPrefab, slot);
                     UIItem uiItem = crptObj.GetComponent<UIItem>();
                     if (uiItem != null) uiItem.Initialize(corruptionData, currentCellSize);
                     spawned++;
@@ -908,5 +1293,75 @@ public class InventoryManager : MonoBehaviour
         // 4. SYNCHRONIZE BACKEND AND LOCK UI
         gridRefreshPending = false;  // CRITICAL: Tells the system NOT to destroy our work when the Rig opens!
         SyncDataFromUI();            // Mathematically updates the 1D arrays based on the UI we just built
+    }
+
+    // ==========================================
+    // WORLD ITEM SAVE SYSTEM
+    // ==========================================
+
+    public void SaveWorldItems(GameObject ignoreObj = null)
+    {
+        PhysicalItem[] itemsOnFloor = FindObjectsByType<PhysicalItem>(FindObjectsInactive.Exclude);
+        string saveString = "";
+
+        foreach (PhysicalItem pi in itemsOnFloor)
+        {
+            // Skip items that are currently being destroyed or picked up
+            if (pi == null || pi.itemData == null || pi.gameObject == ignoreObj) continue;
+
+            // Use the target position if it's currently mid-bounce, otherwise use its actual resting position
+            Vector3 pos = pi.IsBouncing ? pi.TargetPosition : pi.transform.position;
+            float rotZ = pi.transform.eulerAngles.z;
+            saveString += $"{pi.itemData.itemID},{pos.x:F3},{pos.y:F3},{pos.z:F3},{rotZ:F3};";
+        }
+
+        string sceneName = SceneManager.GetActiveScene().name;
+        PlayerPrefs.SetString("WorldItems_" + sceneName, saveString);
+        PlayerPrefs.SetInt("WorldItemsSaved_" + sceneName, 1);
+        PlayerPrefs.Save();
+    }
+
+    public void LoadWorldItems()
+    {
+        string sceneName = SceneManager.GetActiveScene().name;
+        
+        // If we have never saved this room before, leave the default items alone!
+        if (PlayerPrefs.GetInt("WorldItemsSaved_" + sceneName, 0) == 0) return;
+
+        // Otherwise, clear the room's default items so we don't duplicate them
+        PhysicalItem[] defaultItems = FindObjectsByType<PhysicalItem>(FindObjectsInactive.Exclude);
+        foreach (PhysicalItem pi in defaultItems) Destroy(pi.gameObject);
+
+        // And load our saved items back onto the floor
+        string saveString = PlayerPrefs.GetString("WorldItems_" + sceneName, "");
+        if (string.IsNullOrEmpty(saveString)) return; 
+
+        string[] items = saveString.Split(';');
+        foreach (string itemDataString in items)
+        {
+            if (string.IsNullOrEmpty(itemDataString)) continue;
+
+            string[] data = itemDataString.Split(',');
+            if (data.Length >= 4)
+            {
+                string id = data[0];
+                if (float.TryParse(data[1], out float x) && float.TryParse(data[2], out float y) && float.TryParse(data[3], out float z))
+                {
+                    ItemData foundItem = itemDatabase.Find(i => i.itemID == id);
+                    if (foundItem != null && foundItem.worldPrefab != null)
+                    {
+                        GameObject spawned = Instantiate(foundItem.worldPrefab, new Vector3(x, y, z), Quaternion.identity);
+                        
+                        // Restore the messy rotation!
+                        if (data.Length >= 5 && float.TryParse(data[4], out float savedRotZ))
+                            spawned.transform.rotation = Quaternion.Euler(0, 0, savedRotZ);
+                            
+                        PhysicalItem pi = spawned.GetComponent<PhysicalItem>();
+                        if (pi == null) pi = spawned.GetComponentInChildren<PhysicalItem>();
+                        if (pi != null) pi.itemData = foundItem;
+                    }
+                }
+            }
+        }
     }
 }

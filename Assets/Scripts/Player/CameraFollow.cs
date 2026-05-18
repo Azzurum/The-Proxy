@@ -17,6 +17,10 @@ public class CameraFollow : MonoBehaviour
 
     private Vector3 velocity = Vector3.zero;
 
+    [Header("Screen Shake")]
+    private float shakeTimeRemaining = 0f;
+    private float currentShakeMagnitude = 0f;
+
     void Start()
     {
         // 1. If the player isn't active yet, snap immediately to our cutscene anchor!
@@ -26,13 +30,15 @@ public class CameraFollow : MonoBehaviour
         }
         else if (target == null)
         {
-            GameObject player = GameObject.Find("Player_Kaelen");
-            if (player != null) target = player.transform;
+            FindTarget();
         }
+    }
 
         // 2. Instantly teleport camera to target if found
         if (target != null)
         {
+            target = player.transform;
+            // Instantly teleport camera to target the moment we find them to prevent "sliding" from the void
             transform.position = target.position + offset;
         }
     }
@@ -61,5 +67,14 @@ public class CameraFollow : MonoBehaviour
             Vector3 targetPosition = cutsceneStartingTarget.position + offset;
             transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
         }
+    }
+
+    public void TriggerShake(float duration, float magnitude)
+    {
+        // Check settings to see if the player disabled screen shake (Kinetic Tremor)
+        if (PlayerPrefs.GetInt("KineticTremor", 1) == 0) return;
+
+        shakeTimeRemaining = duration;
+        currentShakeMagnitude = magnitude;
     }
 }

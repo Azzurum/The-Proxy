@@ -487,4 +487,52 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             if (itemSlot != null) itemSlot.ClearHighlight();
         }
     }
+
+    public void AbortDrag()
+    {
+        if (itemBeingDragged != this) return;
+
+        itemBeingDragged = null;
+        
+        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
+        foreach (DraggableItem item in allItems)
+        {
+            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = true;
+        }
+
+        canvasGroup.alpha = 1f;
+        ClearAllSlotHighlights();
+        SetRotationHintVisible(false);
+
+        if (animateCoroutine != null)
+        {
+            StopCoroutine(animateCoroutine);
+            animateCoroutine = null;
+        }
+
+        if (originalParent != null)
+        {
+            transform.SetParent(originalParent, true);
+            
+            if (originalParent.GetComponent<HotbarSlot>() != null)
+            {
+                rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+                rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            }
+            else
+            {
+                rectTransform.anchorMin = new Vector2(0f, 1f);
+                rectTransform.anchorMax = new Vector2(0f, 1f);
+            }
+
+            Vector3 cleanPos = rectTransform.localPosition;
+            cleanPos.z = 0f;
+            rectTransform.localPosition = cleanPos;
+
+            rectTransform.anchoredPosition = originalAnchoredPosition;
+            rectTransform.localScale = Vector3.one; 
+        }
+        
+        UpdateVisualSize(); 
+    }
 }

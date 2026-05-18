@@ -7,23 +7,38 @@ public class ProxyAI : MonoBehaviour
     private Vector2 lastKnownPosition;
     private bool hasLastKnownPosition = false;
 
-    // WANDER VARIABLES
-    private bool isWandering = false;
+    public enum AIState
+    {
+        Idle,
+        Investigating,
+        Hunting,
+        Wandering,
+        Attacking,
+        Stunned,
+        KnockedBack,
+        Distracted
+    }
+
+    [Header("AI State Machine")]
+    public AIState currentState = AIState.Idle;
+    public int maxWandersBeforeIdle = 3;
+    private float stateTimer = 0f;
+    private int wanderCount = 0;
     private Vector2 wanderTarget;
     private float wanderWaitTimer = 0f;
     public float searchRadius = 4f; 
+    public Transform[] patrolWaypoints;
 
     [Header("Perception System")]
     public float hearingRadius = 6f;
     private Vector3 previousPlayerPos;
 
     [Header("Movement Stats")]
-    public float baseSpeed = 2.0f;
-    public float sprintSpeed = 6.0f;
+    public float baseSpeed = 2.5f; // Patrol speed (slower than Kaelen)
+    public float sprintSpeed = 4.6f; // Hunt speed (Slightly faster than Kaelen, DbD Killer pace!)
     private float currentSpeed;
 
     [Header("Stun Resistance")]
-    private bool isStunned = false;
     private int stunCount = 0;
     private float stunMemoryTimer = 0f;
     private float memoryResetTime = 60f;
@@ -33,20 +48,19 @@ public class ProxyAI : MonoBehaviour
     [SerializeField] private float delayedSignalDistance = 10f;
     [SerializeField] private float investigateSignalDistance = 20f;
     [SerializeField] private float delayedHuntSeconds = 2f;
+    [SerializeField] private float signalSpeedMultiplier = 1.2f; // 20% buff when Rig is open
+    private bool isSignalEmpowered = false; // Tracks if the Proxy is enraged by the open inventory
 
     [Header("Knockback")]
     [SerializeField] private float knockbackSpeed = 25f;
 
     [Header("Attack Behavior")]
-    public float attackWindup = 1.0f;
     public float attackRecovery = 1.5f;
     public float attackRange = 1.5f;
 
     // Internal State Variables
-    private bool isKnockedBack = false;
     private bool isPlayerInMeleeRange = false;
     private bool canAttack = true;
-    private bool isAttacking = false;
     private Vector2 moveTarget;
     private bool hasMoveTarget = false;
     private Coroutine delayedHuntCoroutine;
@@ -59,6 +73,12 @@ public class ProxyAI : MonoBehaviour
     private MetRigManager metRigManager;
     private GameOverManager gameOverManager;
     private InventoryManager inventoryManager;
+
+    [Header("Audio SFX")]
+    public AudioSource audioSource;
+    public AudioClip sfxAttackSwing;
+    public AudioClip sfxAttackHit;
+    public AudioClip sfxStunned;
 
     void Start()
     {
@@ -82,7 +102,10 @@ public class ProxyAI : MonoBehaviour
         // Auto-find player if not assigned
         if (targetPlayer == null)
         {
-            GameObject player = GameObject.Find("Player_Kaelen");
+            // Use the tag to safely find the player regardless of the GameObject's name
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player == null) player = GameObject.Find("Player_Kaelen");
+            
             if (player != null) targetPlayer = player.transform;
         }
 
@@ -90,6 +113,8 @@ public class ProxyAI : MonoBehaviour
         metRigManager = FindAnyObjectByType<MetRigManager>();
         gameOverManager = FindAnyObjectByType<GameOverManager>();
         inventoryManager = FindAnyObjectByType<InventoryManager>();
+
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
     }
@@ -101,21 +126,106 @@ public class ProxyAI : MonoBehaviour
         ManageStunMemory();
         UpdatePerception();
 
-        // State Machine execution hierarchy ensures no overlapping behaviors
-        if (isStunned || isKnockedBack) return;
-
-        if (isPlayerInMeleeRange && canAttack && !isAttacking)
+        // Global Attack Trigger Check
+        if (isPlayerInMeleeRange && canAttack && CanInterruptState(AIState.Attacking))
         {
-            StartCoroutine(AttackRoutine());
+            ChangeState(AIState.Attacking);
             return; // Halt other logic while attacking
         }
 
-        if (!isAttacking)
+        // Execute State Behaviors
+        switch (currentState)
         {
-            HuntPlayer();
+            case AIState.Hunting:
+                if (isSignalEmpowered || isPlayerInMeleeRange)
+                {
+                    lastKnownPosition = targetPlayer.position;
+                    SetMoveTarget(targetPlayer.position, sprintSpeed);
+                }
+                else
+                {
+                    // Signal lost! Keep running to the last known point, but downgrade to Investigate once reached
+                    if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
+                    {
+                        ChangeState(AIState.Investigating);
+                    }
+                }
+                break;
+
+            case AIState.Investigating:
+                if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
+                {
+                    stateTimer += Time.deltaTime;
+                    if (stateTimer >= 1f && !isPlayerInMeleeRange) // Organic Pause: Stand at the location and "look around" for 1 second!
+                    {
+                        ChangeState(AIState.Wandering);
+                    }
+                }
+                break;
+
+            case AIState.Wandering:
+                if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
+                {
+                    stateTimer += Time.deltaTime;
+                    if (stateTimer >= wanderWaitTimer)
+                    {
+                        wanderCount++;
+                        
+                        // If the monster searched the area 3 times and found nothing, it gives up and idles.
+                        if (wanderCount >= maxWandersBeforeIdle) ChangeState(AIState.Idle);
+                        else PickNewWanderTarget();
+                    }
+                }
+                break;
         }
         
         UpdateAnimationSpeed();
+    }
+
+    // --- STATE MACHINE LOGIC ---
+
+    private bool CanInterruptState(AIState newState)
+    {
+        if (currentState == AIState.Stunned || currentState == AIState.KnockedBack) return false;
+        if (currentState == AIState.Attacking && newState != AIState.Stunned && newState != AIState.KnockedBack) return false;
+        if (currentState == AIState.Distracted && newState != AIState.Stunned && newState != AIState.KnockedBack) return false;
+        return true;
+    }
+
+    private void ChangeState(AIState newState)
+    {
+        if (currentState == newState) return;
+        
+        currentState = newState;
+        stateTimer = 0f;
+
+        switch (newState)
+        {
+            case AIState.Idle:
+                hasMoveTarget = false;
+                currentSpeed = 0f;
+                wanderCount = 0;
+                break;
+                
+            case AIState.Hunting:
+                currentSpeed = sprintSpeed;
+                SetMoveTarget(targetPlayer.position, sprintSpeed);
+                break;
+                
+            case AIState.Investigating:
+                currentSpeed = baseSpeed;
+                if (hasLastKnownPosition) SetMoveTarget(lastKnownPosition, baseSpeed);
+                break;
+                
+            case AIState.Wandering:
+                currentSpeed = baseSpeed;
+                PickNewWanderTarget();
+                break;
+                
+            case AIState.Attacking:
+                StartCoroutine(AttackRoutine());
+                break;
+        }
     }
 
     private void ManageStunMemory()
@@ -141,56 +251,17 @@ public class ProxyAI : MonoBehaviour
         {
             lastKnownPosition = targetPlayer.position;
             hasLastKnownPosition = true;
-            isWandering = false; 
+            
+            if (CanInterruptState(AIState.Investigating) && currentState != AIState.Hunting) 
+            {
+                ChangeState(AIState.Investigating); 
+            }
+            else if (currentState == AIState.Hunting)
+            {
+                SetMoveTarget(targetPlayer.position, sprintSpeed);
+            }
         }
         previousPlayerPos = targetPlayer.position;
-    }
-
-    private void HuntPlayer()
-    {
-        bool isSignalEmitting = (metRigManager != null && metRigManager.isRigOpen && !metRigManager.inFaradayZone);
-
-        // SCENARIO A: Rig is open! Perfect tracking.
-        if (isSignalEmitting)
-        {
-            lastKnownPosition = targetPlayer.position;
-            hasLastKnownPosition = true;
-            isWandering = false; 
-            SetMoveTarget(targetPlayer.position, sprintSpeed);
-        }
-        // SCENARIO B: Stealth Mode. Rely on hearing and memory.
-        else if (hasLastKnownPosition)
-        {
-            Vector2 currentPos = rb != null ? rb.position : (Vector2)transform.position;
-            
-            if (!isWandering)
-            {
-                if (Vector2.Distance(currentPos, lastKnownPosition) > 0.1f)
-                {
-                    SetMoveTarget(lastKnownPosition, baseSpeed);
-                }
-                else
-                {
-                    isWandering = true;
-                    PickNewWanderTarget();
-                }
-            }
-            else
-            {
-                if (Vector2.Distance(currentPos, wanderTarget) > 0.1f)
-                {
-                    SetMoveTarget(wanderTarget, baseSpeed);
-                }
-                else
-                {
-                    wanderWaitTimer -= Time.deltaTime;
-                    if (wanderWaitTimer <= 0f)
-                    {
-                        PickNewWanderTarget();
-                    }
-                }
-            }
-        }
     }
 
     // --- EXTERNAL COMBAT TRIGGERS ---
@@ -200,32 +271,34 @@ public class ProxyAI : MonoBehaviour
         Debug.Log("<color=red>PROXY AI: Combat sound detected! Exact location locked.</color>");
         lastKnownPosition = actionPosition;
         hasLastKnownPosition = true;
-        isWandering = false; 
+        
+        if (CanInterruptState(AIState.Investigating))
+        {
+            ChangeState(AIState.Investigating);
+        }
     }
 
     public void OnSignalSpike(bool isListening, float distance)
     {
+        isSignalEmpowered = isListening; // Activates the 20% buff while the signal is active!
+
         if (isListening && distance >= 0)
         {
             lastKnownPosition = targetPlayer.position;
             hasLastKnownPosition = true;
-            isWandering = false;
 
-            if (distance < immediateSignalDistance) 
+            // LORE UPDATE: Always go into hunting mode when the inventory opens!
+            if (distance < delayedSignalDistance) 
             {
-                currentSpeed = sprintSpeed;
-                Debug.Log("PROXY: Signal detected nearby! Immediate hunt.");
+                ChangeState(AIState.Hunting);
+                Debug.Log("PROXY: Signal detected! Immediate hunt.");
             }
-            else if (distance < delayedSignalDistance) 
+            else 
             {
+                // If they are super far away, still hunt, but give the player a brief 2-second warning delay
                 if (delayedHuntCoroutine != null) StopCoroutine(delayedHuntCoroutine);
                 delayedHuntCoroutine = StartCoroutine(DelayedHunt(delayedHuntSeconds));
                 Debug.Log("PROXY: Signal detected far! Delayed hunt.");
-            }
-            else if (distance < investigateSignalDistance) 
-            {
-                currentSpeed = baseSpeed;
-                Debug.Log("PROXY: Signal detected very far! Investigating.");
             }
         }
         else
@@ -235,15 +308,22 @@ public class ProxyAI : MonoBehaviour
                 StopCoroutine(delayedHuntCoroutine);
                 Debug.Log("PROXY: Delayed hunt canceled - signal turned off!");
             }
-            currentSpeed = baseSpeed;
+            
+            if (currentState == AIState.Hunting)
+            {
+                ChangeState(AIState.Investigating);
+            }
         }
     }
 
     private System.Collections.IEnumerator DelayedHunt(float delay)
     {
         yield return new WaitForSeconds(delay);
-        currentSpeed = sprintSpeed;
-        Debug.Log("PROXY: Delayed hunt activated!");
+        if (CanInterruptState(AIState.Hunting))
+        {
+            ChangeState(AIState.Hunting);
+            Debug.Log("PROXY: Delayed hunt activated!");
+        }
     }
 
     // --- ATTACK LOGIC ---
@@ -251,48 +331,106 @@ public class ProxyAI : MonoBehaviour
     private System.Collections.IEnumerator AttackRoutine()
     {
         canAttack = false;
-        isAttacking = true;
         hasMoveTarget = false; // Stop moving
         
-        float previousSpeed = currentSpeed;
         currentSpeed = 0f;
 
-        Debug.Log("PROXY: Committing attack...");
-        float elapsed = 0f;
-        while (elapsed < attackWindup)
+        // Snap direction to face the player right before triggering the attack animation
+        if (targetPlayer != null && animator != null)
         {
-            if (targetPlayer == null || Vector2.Distance(transform.position, targetPlayer.position) > attackRange)
+            Vector2 dir = (targetPlayer.position - transform.position).normalized;
+            if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
             {
-                Debug.Log("PROXY: Attack broken as Kaelen escaped!");
-                ResetAttackState(previousSpeed);
-                yield return new WaitForSeconds(attackRecovery);
-                canAttack = true;
-                yield break;
+                animator.SetFloat("Direction", 1f); // Side Attack
+                if (spriteRenderer != null) spriteRenderer.flipX = dir.x < 0;
             }
-
-            elapsed += Time.deltaTime;
-            yield return null;
+            else
+            {
+                if (dir.y > 0)
+                {
+                    animator.SetFloat("Direction", 1f); // Up uses Side Attack
+                    if (spriteRenderer != null)
+                    {
+                        if (dir.x < -0.01f) spriteRenderer.flipX = true;
+                        else if (dir.x > 0.01f) spriteRenderer.flipX = false;
+                    }
+                }
+                else
+                {
+                    animator.SetFloat("Direction", 0f); // Down Attack
+                    if (spriteRenderer != null) spriteRenderer.flipX = false;
+                }
+            }
+            animator.SetTrigger("Attack");
         }
+
+        Debug.Log("PROXY: Committing attack. Waiting for Animation Events...");
+        yield break;
+    }
+
+    // --- ANIMATION EVENTS ---
+
+    // 1. Call this from the exact frame the claw swings!
+    public void AnimEvent_Strike()
+    {
+        if (audioSource != null) audioSource.PlayOneShot(sfxAttackSwing != null ? sfxAttackSwing : ProceduralAudioGen.GenerateWhoosh());
+
+        if (currentState == AIState.Stunned || currentState == AIState.KnockedBack) return; // Prevent damage if interrupted!
 
         if (targetPlayer != null && Vector2.Distance(transform.position, targetPlayer.position) <= attackRange)
         {
             ExecuteAttack();
         }
-
-        ResetAttackState(previousSpeed);
-        yield return new WaitForSeconds(attackRecovery);
-        canAttack = true;
+        else
+        {
+            Debug.Log("PROXY: Attack missed! Kaelen escaped the strike zone.");
+        }
     }
 
-    private void ResetAttackState(float restoredSpeed)
+    // 2. Call this from the very last frame of the attack animation!
+    public void AnimEvent_EndAttack()
     {
-        currentSpeed = restoredSpeed;
-        isAttacking = false;
+        if (currentState == AIState.Attacking)
+        {
+            if (isSignalEmpowered || isPlayerInMeleeRange)
+            {
+                ChangeState(AIState.Hunting); // Keep the pressure on!
+            }
+            else
+            {
+                ChangeState(AIState.Investigating); // Return to searching for the player
+            }
+        }
+        StartCoroutine(RecoveryRoutine());
+    }
+
+    private System.Collections.IEnumerator RecoveryRoutine()
+    {
+        // Attack recovers 20% faster when empowered!
+        float activeRecovery = isSignalEmpowered ? attackRecovery / signalSpeedMultiplier : attackRecovery;
+        yield return new WaitForSeconds(activeRecovery);
+        canAttack = true;
     }
 
     private void ExecuteAttack()
     {
+        if (audioSource != null) audioSource.PlayOneShot(sfxAttackHit != null ? sfxAttackHit : ProceduralAudioGen.GenerateStaticGlitch(0.4f));
         Debug.Log("PROXY: Attack landed. Inventory corruption injected.");
+        
+        // Trigger a violent screen shake!
+        CameraFollow cam = FindAnyObjectByType<CameraFollow>();
+        if (cam != null)
+        {
+            cam.TriggerShake(0.3f, 0.5f);
+        }
+
+        // Flash the screen red!
+        if (ScreenEffectManager.Instance != null)
+        {
+            ScreenEffectManager.Instance.TriggerFlash(new Color(1f, 0f, 0f, 0.6f), 0.3f);
+        }
+
+        // Inject the corruption damage
         if (inventoryManager != null)
         {
             inventoryManager.AddCorruptionRow();
@@ -332,7 +470,10 @@ public class ProxyAI : MonoBehaviour
 
     public void ApplyStun()
     {
-        if (isStunned) return;
+        if (currentState == AIState.Stunned) return;
+        
+        canAttack = true; // Reset attack readiness
+
         stunCount++;
         stunMemoryTimer = memoryResetTime; 
 
@@ -346,28 +487,34 @@ public class ProxyAI : MonoBehaviour
         }
 
         Debug.Log($"PROXY AI: Stunned for {duration} seconds!");
+        if (audioSource != null) audioSource.PlayOneShot(sfxStunned != null ? sfxStunned : ProceduralAudioGen.GenerateErrorBuzz(80f, 1.5f));
+        
+        ChangeState(AIState.Stunned);
         StartCoroutine(StunRoutine(duration));
     }
 
     private System.Collections.IEnumerator StunRoutine(float time)
     {
-        isStunned = true;
         hasMoveTarget = false; // Halt movement
         yield return new WaitForSeconds(time);
-        isStunned = false;
+        if (currentState == AIState.Stunned)
+        {
+            ChangeState(AIState.Investigating); // Wake up and search!
+        }
     }
 
     public void ApplyRepulsor(Vector3 playerPosition, float knockbackDistance)
     {
-        if (!isKnockedBack)
+        if (currentState != AIState.KnockedBack)
         {
+            canAttack = true;
+            ChangeState(AIState.KnockedBack);
             StartCoroutine(KnockbackRoutine(playerPosition, knockbackDistance));
         }
     }
 
     private System.Collections.IEnumerator KnockbackRoutine(Vector3 playerPosition, float distance)
     {
-        isKnockedBack = true;
         hasMoveTarget = false;
 
         Vector2 myPos2D = rb != null ? rb.position : (Vector2)transform.position;
@@ -383,29 +530,41 @@ public class ProxyAI : MonoBehaviour
             
             yield return null;
         }
-        isKnockedBack = false;
+        if (currentState == AIState.KnockedBack)
+        {
+            ChangeState(AIState.Investigating); // Wake up angry!
+        }
     }
 
     public void DistractToLocation(Vector3 distractionPos, float duration)
     {
-        StartCoroutine(DistractionRoutine(distractionPos, duration));
+        if (CanInterruptState(AIState.Distracted))
+        {
+            ChangeState(AIState.Distracted);
+            StartCoroutine(DistractionRoutine(distractionPos, duration));
+        }
     }
 
     private System.Collections.IEnumerator DistractionRoutine(Vector3 distractionPos, float duration)
     {
         SetMoveTarget(distractionPos, sprintSpeed);
         yield return new WaitForSeconds(duration);
-        hasMoveTarget = false;
+        if (currentState == AIState.Distracted)
+        {
+            ChangeState(AIState.Investigating);
+        }
     }
 
     // --- MOVEMENT EXECUTION ---
 
     private void FixedUpdate()
     {
-        if (!hasMoveTarget || isStunned || isKnockedBack || isAttacking) return;
+        if (!hasMoveTarget || currentState == AIState.Stunned || currentState == AIState.KnockedBack || currentState == AIState.Attacking || currentState == AIState.Idle) return;
         
+        // Apply the 20% speed buff if the M.E.T. Rig is emitting a signal
+        float activeSpeed = isSignalEmpowered ? currentSpeed * signalSpeedMultiplier : currentSpeed;
         Vector2 currentPosition = rb != null ? rb.position : (Vector2)transform.position;
-        Vector2 newPosition = Vector2.MoveTowards(currentPosition, moveTarget, currentSpeed * Time.fixedDeltaTime);
+        Vector2 newPosition = Vector2.MoveTowards(currentPosition, moveTarget, activeSpeed * Time.fixedDeltaTime);
         
         if (rb != null) rb.MovePosition(newPosition);
         else transform.position = new Vector3(newPosition.x, newPosition.y, transform.position.z);
@@ -428,9 +587,48 @@ public class ProxyAI : MonoBehaviour
 
     private void PickNewWanderTarget()
     {
-        Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
-        wanderTarget = lastKnownPosition + randomDirection;
+        // If you assigned specific patrol waypoints, pick the closest one!
+        if (patrolWaypoints != null && patrolWaypoints.Length > 0)
+        {
+            Transform closestWaypoint = null;
+            float closestDistance = float.MaxValue;
+            Vector2 currentPosition = transform.position;
+
+            foreach (Transform waypoint in patrolWaypoints)
+            {
+                if (waypoint == null) continue;
+
+                float distance = Vector2.Distance(currentPosition, waypoint.position);
+
+                // Ignore the waypoint we are currently standing on so it actually moves!
+                if (distance < 1.0f) continue;
+
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestWaypoint = waypoint;
+                }
+            }
+
+            if (closestWaypoint != null)
+            {
+                wanderTarget = closestWaypoint.position;
+            }
+            else
+            {
+                // Failsafe if it couldn't find a valid one
+                wanderTarget = patrolWaypoints[Random.Range(0, patrolWaypoints.Length)].position;
+            }
+        }
+        else // Fallback: Just wander blindly using math if no waypoints exist
+        {
+            Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
+            wanderTarget = lastKnownPosition + randomDirection;
+        }
+
         wanderWaitTimer = Random.Range(1f, 3f);
+        stateTimer = 0f;
+        SetMoveTarget(wanderTarget, baseSpeed);
     }
 
     // --- ANIMATION CONTROLLER ---
@@ -442,33 +640,31 @@ public class ProxyAI : MonoBehaviour
         Vector2 currentPosition = rb != null ? rb.position : (Vector2)transform.position;
         Vector2 direction = (target - currentPosition).normalized;
         
-        if (direction.sqrMagnitude > 0.01f && hasMoveTarget && !isStunned && !isAttacking)
+        if (direction.sqrMagnitude > 0.01f && hasMoveTarget && currentState != AIState.Stunned && currentState != AIState.Attacking)
         {
-            animator.SetFloat("MoveX", direction.x);
-            animator.SetFloat("MoveY", direction.y);
-
             if (spriteRenderer != null)
             {
-                // HORIZONTAL FLIP LOGIC
-                if (direction.x < -0.1f) 
+                if (Mathf.Abs(direction.x) > Mathf.Abs(direction.y))
                 {
-                    spriteRenderer.flipX = true;  // Face Left
-                }
-                else if (direction.x > 0.1f) 
-                {
-                    spriteRenderer.flipX = false; // Face Right
-                }
-
-                // VERTICAL FLIP LOGIC (Upside-down ONLY when walking primarily up)
-                // We use Mathf.Abs (Absolute value) to ignore negative signs when comparing
-                if (direction.y > 0.1f && Mathf.Abs(direction.y) > Mathf.Abs(direction.x))
-                {
-                    spriteRenderer.flipY = true;  // Turn upside down
+                    animator.SetFloat("Direction", 1f); // Side
+                    spriteRenderer.flipX = direction.x < 0;
                 }
                 else
                 {
-                    spriteRenderer.flipY = false; // Return to normal
+                    if (direction.y > 0)
+                    {
+                        animator.SetFloat("Direction", 1f); // Up uses Side animation
+                        if (direction.x < -0.01f) spriteRenderer.flipX = true;
+                        else if (direction.x > 0.01f) spriteRenderer.flipX = false;
+                    }
+                    else
+                    {
+                        animator.SetFloat("Direction", 0f); // Down
+                        spriteRenderer.flipX = false;
+                    }
                 }
+                
+                spriteRenderer.flipY = false; // Never turn upside down anymore!
             }
         }
     }
@@ -477,14 +673,22 @@ public class ProxyAI : MonoBehaviour
     {
         if (animator == null) return;
         
-        if (isStunned || (!hasMoveTarget && !isAttacking))
+        float activeMultiplier = isSignalEmpowered ? signalSpeedMultiplier : 1f;
+
+        if (currentState == AIState.Stunned || (!hasMoveTarget && currentState != AIState.Attacking))
         {
-            animator.speed = 0f; // Pause animation when idle or stunned
+            animator.SetFloat("Speed", 0f);
+            animator.speed = 1f; // CRITICAL: Unpause the component so Idle animations can play!
+        }
+        else if (currentState == AIState.Attacking)
+        {
+            animator.speed = activeMultiplier; // Faster attack animations!
         }
         else
         {
+            animator.SetFloat("Speed", currentSpeed);
             // Dynamically scale animation speed based on movement speed.
-            animator.speed = Mathf.Max(1f, currentSpeed / baseSpeed);
+            animator.speed = Mathf.Max(1f, currentSpeed / baseSpeed) * activeMultiplier;
         }
     }
 }

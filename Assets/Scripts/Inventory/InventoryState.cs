@@ -13,13 +13,15 @@ public class InventoryState : ScriptableObject
     [Header("Slot Data")]
     public List<ItemData> mainGridSlots = new List<ItemData>(); // Index 0-49 for main visors
     public List<ItemData> extGridSlots = new List<ItemData>(); // Index 0-24 for external
+    public List<ItemData> matterBufferSlots = new List<ItemData>(); // Independent memory for world pickups!
     public List<ItemData> hotbarSlots = new List<ItemData>(); // 3 slots
 
     // Initialize with empty slots if needed
     public void Initialize()
     {
         mainGridSlots = new List<ItemData>(new ItemData[gridWidth * gridHeight]);
-        extGridSlots = new List<ItemData>(new ItemData[extGridWidth * extGridHeight]);
+        matterBufferSlots = new List<ItemData>(new ItemData[extGridWidth * extGridHeight]);
+        extGridSlots = matterBufferSlots; 
         hotbarSlots = new List<ItemData>(new ItemData[3]);
     }
 }

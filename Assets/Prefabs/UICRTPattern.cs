@@ -27,6 +27,14 @@ public class UICRTPattern : MonoBehaviour
         _rawImage.raycastTarget = false;
         _rawImage.color = Color.white; 
         GenerateAndApplyPattern();
+
+        // Automatically turn off if the player disabled it in settings!
+        if (Application.isPlaying)
+        {
+            bool isEnabled = PlayerPrefs.GetInt("CrtDistortion", 1) == 1;
+            _rawImage.enabled = isEnabled;
+            this.enabled = isEnabled;
+        }
     }
 
     void GenerateAndApplyPattern()

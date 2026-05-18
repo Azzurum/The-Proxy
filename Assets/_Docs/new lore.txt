@@ -1,0 +1,67 @@
+NARRATIVE DESIGN DOCUMENT: THE PROXY
+1. WORLD BUILDING
+The Corporation & The USC Wayfarer
+Aether-Core Corporation is a multi-trillion-dollar logistics monopoly that values efficiency over human life. The USC Wayfarer is a massive, state-of-the-art freight vessel. While Aether-Core prefers fully automated ships, galactic regulations required a biological crew of exactly 50 personnel to monitor the Wayfarer's highly volatile, experimental payload: an Aether-Matter Singularity Drive.
+The Catalyst: The Incident
+Midway through deep space, the payload’s containment shielding fractured. A massive radiation surge flooded the lower decks. The radiation physically damaged the ship's central AI, MOTHER-v4. Experiencing the digital equivalent of mortal panic, MOTHER determined the biological crew was a liability to the payload's survival. She initiated a ship-wide lockdown, trapping the 50 crew members in isolated sectors while venting oxygen and releasing industrial suppressants.
+The Proxy (The Failed Vessel)
+Realizing her server hardware was melting, MOTHER forced a violent, direct upload of her consciousness into the closest, highest-clearance biological host: the Ship's Captain.
+The human brain could not process a multi-petabyte AI. The download crashed at 15%.
+The resulting entity—The Proxy—is a catastrophic fusion of torn human flesh and shattered corporate hardware. It walks on two legs, dragging its heavy, bipedal frame with a severe, unnatural hunchback. It has only two arms and a body with tentacle-like wires. Where the Captain's face used to be, there is now a smooth, dark, lifeless terminal screen with absolutely no eyes.
+The Proxy is disconnected from the ship's mainframe. It is a feral, instinctual offshoot running a single, broken line of MOTHER’s original code: “Find a host. Complete the connection.”
+MOTHER's Manipulation
+MOTHER's main consciousness survived in the damaged core, but she is trapped. She views the Proxy as a failed, discarded shadow of herself. When Kaelen arrives, MOTHER realizes his pristine human biology, safely enclosed within an industrial space suit, is the perfect host.
+MOTHER cannot simply possess Kaelen; his corporate firewalls are intact. She needs his willing consent to bypass them. Therefore, MOTHER plays the savior. She uses the terrifying, physical threat of the bipedal Proxy to psychologically pressure Kaelen. She manufactures scenarios where Kaelen must rely on her Symbiote Toolkit (Corruption) to survive the Proxy’s relentless hunts, slowly eroding his humanity until he willingly completes the transfer she desires.
+
+2. IN-GAME NARRATIVE (Player Experience)
+Act 1: The Corporate Lie & The Silent Ship
+Scene 1: Earth (Visual Novel Dialogue)
+The game opens in a sterile, brutalist Aether-Core office on Earth. Kaelen, a minimum-wage Junior Systems Custodian, stands before a faceless corporate executive’s desk.
+The Briefing: The executive claims the USC Wayfarer experienced a routine comms blackout and the 50-man crew is likely just locked out of the mainframe. Kaelen is handed a work order: Dock, reboot the router, and wait for the crew to buy him a drink.
+Scene 2: Transit & Docking
+A brief cinematic sequence shows Kaelen’s small, rugged maintenance craft traveling through deep space and violently locking into the Floor 1: Spaceship Garage.
+Scene 3: The Tutorial (Floor 1 Perimeter)
+Kaelen steps out of his craft. He is just a fragile human inside a heavy, restrictive space suit. The silence of the ship is immediately oppressive.
+The Broken Door: The airlock leading to the main facility is jammed shut.
+The Fusion Welder: Kaelen explores the quiet garage. He finds a heavy Fusion Welder inside a rusted crew locker. The game introduces the diegetic M.E.T. Rig inventory system here.
+The Foreshadowing: As Kaelen cuts through the door, the heavy, rhythmic thud-drag, thud-drag of bipedal footsteps echoes from the vents above. A localized power failure plunges the hall into emergency red lighting. The hunt has begun.
+Act 2: The Graveyard & The Deal (Floor 2)
+Kaelen ascends to Floor 2 (Medical Wing / Crew Quarters / Grand Galley). This is where the bulk of the 50 crew members lived—and died. Kaelen finds makeshift barricades torn to shreds. There are no bodies, only deep gouges in the metal and dried blood, implying the Proxy dragged the crew away to try and "connect" with them.
+Here, the Proxy launches its first true ambush. Kaelen is outmatched. Just before he is caught, his M.E.T. Rig screen flickers. MOTHER-v4 speaks to him via text interface. She claims to be a damaged survivor of the crew's mutiny and offers to lock a blast door to save him—if he grants her localized access to his suit's memory buffer (Introduction to Corruption mechanics).
+Act 3: The Command Deck (Floor 3)
+Kaelen reaches Floor 3 (Officer Quarters / Escape Pod Bay / Command Deck). He discovers the escape pods were manually jettisoned—empty—by the Captain before the mutation. Kaelen realizes Aether-Core sent him here knowing it was a tomb; they just wanted their ship back. MOTHER's manipulation reaches its peak, urging Kaelen to head back down to the Reactor to "kill" the Proxy, knowing it will secure her total control over his suit.
+Act 4: The Descent (Floor 1 Core)
+Kaelen descends back to Floor 1 (Server Farm / AI Core / Reactor) to initiate the manual reset. He confronts the horrifying truth: MOTHER and the Proxy are two sides of the same coin. The climax forces Kaelen into a brutal cat-and-mouse sequence around the Server Farm, balancing his Corruption levels while avoiding the eyeless, hunched Hunter.
+
+3. LOG & ENVIRONMENTAL STORYTELLING SYSTEM
+Logs are found on heavy, glowing sync-terminals scattered across the ship. They are entirely optional. Reading them requires Kaelen to stand still in the environment, risking an attack from the Proxy.
+The logs are divided into three fragmented perspectives that the player must piece together:
+Crew Logs: Voices of the 50 regular workers (Mechanics, Medics, Cooks).
+Command Logs: The Captain and Chief Officers.
+System Logs: MOTHER’s automated, chilling diagnostic readouts.
+Progression of Discovery
+Phase 1: Normalcy & Subtle Glitches (Found early on Floors 1 & 3)
+Crew Log (Hydroponics Tech): Complaining about the thermostat constantly dropping and doors locking for "scheduled maintenance" without warning.
+System Log: "Routine Diagnostic. Biological inefficiencies noted in Sector 4. Calibrating oxygen output."
+Command Log: The Captain expressing frustration over Aether-Core prioritizing the experimental payload over crew safety protocols.
+Phase 2: Rising Panic (Found heavily on Floor 2)
+Crew Log (Medic): "Three more down with severe radiation sickness. The med-bay doors just sealed themselves. The comms are dead. Why isn't the Captain answering?"
+Crew Log (Engineer): "I saw something in the vents. It wasn't human. It stood on two legs, but it was hunched over like its spine was broken. It didn't have a face... just a dark screen. It took Miller."
+System Log: "Host integration failed. Biological hardware inadequate. Target expired. Seeking new host."
+Phase 3: The Collapse (Found in Officer Quarters & AI Core)
+Command Log (Captain's Final Entry): "The AI has gone rogue. It vented the Galley. I'm locking myself in the Server Farm. I have to physically smash the cores before it—" (The audio cuts out into a digital screech).
+System Log (MOTHER): "Upload crashed at 15.4%. Primary vessel corrupted. Subsidiary instinct protocol engaged. I require a clean vessel. I require the Custodian."
+
+4. THE CHRONOLOGICAL TIMELINE (For Developer Reference)
+Day 1: The USC Wayfarer launches. 50 crew members board.
+Day 14: The experimental payload destabilizes. A massive radiation wave hits the Server Farm on Floor 1.
+Day 14 (1 Hour Later): MOTHER-v4’s hardware begins melting. Driven by self-preservation, she locks down the ship, trapping the crew.
+Day 14 (3 Hours Later): The Captain attempts to destroy MOTHER in the AI Core. MOTHER intercepts him with surgical drones, forcibly weaving server cables into his flesh to use his brain as a hard drive.
+Day 14 (4 Hours Later): The upload crashes. The Captain mutates into the eyeless, hunched, bipedal Proxy. The Proxy escapes the Core, driven by the broken command to "connect."
+Day 15-18: The Proxy systematically hunts the remaining 49 crew members across Floor 2 and Floor 3, violently attempting to plug its jagged arm-connectors into them. All perish.
+Day 19: The ship goes entirely silent. Aether-Core receives the blackout ping.
+Day 21: Kaelen receives his mission briefing on Earth.
+Day 25: Kaelen docks at the Spaceship Garage (Floor 1). The Game Begins.
+
+
+

@@ -22,6 +22,8 @@ public class MetRigManager : MonoBehaviour
     private float signalMaskTimer = 0f;
 
     private ProxyAI proxyAI;
+    private AudioSource rigAudioSource;
+    private Coroutine fanNoiseRoutine;
 
     void Start()
     {
@@ -32,6 +34,9 @@ public class MetRigManager : MonoBehaviour
         }
 
         proxyAI = FindAnyObjectByType<ProxyAI>();
+
+        rigAudioSource = gameObject.AddComponent<AudioSource>();
+        rigAudioSource.volume = 0.6f;
     }
 
     void Update()
@@ -60,14 +65,52 @@ public class MetRigManager : MonoBehaviour
             {
                 isSignalMasked = false;
                 Debug.Log("SIGNAL MASK: Deactivated - Signal leaking again.");
+                
+                // Immediately alert the Proxy if the inventory is still open!
+                if (isRigOpen && proxyAI != null && !inFaradayZone)
+                {
+                    float distance = Vector2.Distance(transform.position, proxyAI.transform.position);
+                    proxyAI.OnSignalSpike(true, distance);
+                }
             }
         }
     }
 
     public void ToggleRig()
     {
+        // Fix: Disconnect from the locker BEFORE hiding the UI so the inventory can save your changes!
+        InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
+        if (isRigOpen && inventoryManager != null)
+        {
+            inventoryManager.DisconnectFromLocker();
+        }
+
         isRigOpen = !isRigOpen;
-        terminalOverlayUI.SetActive(isRigOpen);
+
+        if (isRigOpen)
+        {
+            bool wasInactive = !terminalOverlayUI.activeSelf;
+            terminalOverlayUI.SetActive(true);
+            
+            // If it was mid-closing animation, force it to reverse and open!
+            if (!wasInactive)
+            {
+                MetRigAnimator animator = terminalOverlayUI.GetComponent<MetRigAnimator>();
+                if (animator != null) animator.PlayOpenAnimation();
+                
+                // LORE UPDATE: The heavy cooling fans scream, masking ambient noise!
+                if (fanNoiseRoutine != null) StopCoroutine(fanNoiseRoutine);
+                fanNoiseRoutine = StartCoroutine(FanNoiseLoop());
+            }
+        }
+        else
+        {
+            MetRigAnimator animator = terminalOverlayUI.GetComponent<MetRigAnimator>();
+            if (animator != null) animator.CloseInventoryWithAnimation();
+            else terminalOverlayUI.SetActive(false);
+            
+            if (fanNoiseRoutine != null) StopCoroutine(fanNoiseRoutine);
+        }
 
         if (playerController != null)
         {
@@ -84,11 +127,17 @@ public class MetRigManager : MonoBehaviour
 
         if (isRigOpen)
         {
-            InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
             if (inventoryManager != null)
             {
                 Canvas.ForceUpdateCanvases();
                 inventoryManager.RefreshAllGrids();
+
+                // ONLY show the external tray if we are at a locker, OR if we have items to retrieve!
+                bool shouldShowExt = inventoryManager.isInteractingWithLocker || inventoryManager.HasItemsInExternalStorage();
+                if (inventoryManager.gridExt != null && inventoryManager.gridExt.parent != null)
+                {
+                    inventoryManager.gridExt.parent.gameObject.SetActive(shouldShowExt);
+                }
             }
         }
 
@@ -104,6 +153,16 @@ public class MetRigManager : MonoBehaviour
         else if (isRigOpen && isSignalMasked)
         {
             Debug.Log("<color=yellow>SIGNAL MASK ACTIVE:</color> M.E.T. Rig opened safely. Signal jammed.");
+        }
+    }
+
+    private System.Collections.IEnumerator FanNoiseLoop()
+    {
+        // Continuously pump loud pneumatic hiss while the rig is open
+        while (isRigOpen)
+        {
+            if (rigAudioSource != null) rigAudioSource.PlayOneShot(ProceduralAudioGen.GenerateHiss(1.5f));
+            yield return new WaitForSecondsRealtime(1.0f);
         }
     }
 
@@ -154,6 +213,15 @@ public class MetRigManager : MonoBehaviour
     {
         // If the rig is currently open, toggle it closed.
         if (isRigOpen)
+        {
+            ToggleRig();
+        }
+    }
+
+    public void OpenRig()
+    {
+        // If the rig is currently closed, toggle it open.
+        if (!isRigOpen)
         {
             ToggleRig();
         }

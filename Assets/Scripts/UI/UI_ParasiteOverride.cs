@@ -33,6 +33,7 @@ public class UI_ParasiteOverride : MonoBehaviour
     public Color emptyBlockColor = new Color(0.04f, 0.04f, 0.04f);
 
     private Image[] stackBlocks;
+    private InventoryManager invManager;
 
     void Awake()
     {
@@ -42,6 +43,7 @@ public class UI_ParasiteOverride : MonoBehaviour
 
     void Start()
     {
+        invManager = FindAnyObjectByType<InventoryManager>();
         timeLeft = cycleTime;
         if (stackContainer != null)
         {
@@ -56,10 +58,10 @@ public class UI_ParasiteOverride : MonoBehaviour
 
     void Update()
     {
-        if (currentStacks < maxStacks)
+        if (invManager != null)
         {
-            timeLeft -= Time.deltaTime;
-            if (timeLeft < 0) timeLeft = 0; 
+            timeLeft = currentStacks < maxStacks ? invManager.shockTimer : 0f;
+            cycleTime = invManager.shockInterval;
         }
 
         if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime;
@@ -100,7 +102,6 @@ public class UI_ParasiteOverride : MonoBehaviour
         if (newStacks != currentStacks)
         {
             currentStacks = newStacks;
-            timeLeft = cycleTime; 
         }
     }
 
@@ -137,6 +138,10 @@ public class UI_ParasiteOverride : MonoBehaviour
     {
         currentStacks = savedStacks;
         timeLeft = savedTimer;
+
+        // Sync the actual gameplay manager to the loaded save data!
+        if (invManager == null) invManager = FindAnyObjectByType<InventoryManager>();
+        if (invManager != null) invManager.shockTimer = savedTimer;
 
         // Force visual update immediately on load
         if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime;

@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 8657149641749065004}
   - component: {fileID: 3169762760177028632}
   - component: {fileID: 4693288267683324014}
+  - component: {fileID: -3247975755530640056}
   m_Layer: 0
   m_Name: Physical_Battery
   m_TagString: Interactable
@@ -130,7 +131,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.2200003, y: 2.446875}
+    oldSize: {x: 5.8725, y: 2.7527344}
     newSize: {x: 9.396, y: 4.4043746}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -138,3 +139,16 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 5.2200003, y: 2.446875}
   m_EdgeRadius: 0
+--- !u!114 &-3247975755530640056
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2992969439911386164}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4192955ed148432498abeccd88d069bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhysicalItem
+  itemData: {fileID: 11400000, guid: e849e54ee2d9cae4e9a6cc7964739320, type: 2}

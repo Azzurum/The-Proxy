@@ -10,9 +10,18 @@ public class UITrayAnimator : MonoBehaviour
     public float animationDuration = 0.4f;
     public bool isOpen = false;
 
+    [Header("Audio SFX")]
+    public AudioSource audioSource;
+
     private float animationTimer = 0f;
     private Vector2 currentStartPos;
     private Vector2 currentTargetPos;
+
+    void Start()
+    {
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+    }
 
     void Update()
     {
@@ -49,6 +58,12 @@ public class UITrayAnimator : MonoBehaviour
         // 3. FORCE the Y position to stay exactly the same. 
         // This guarantees the tray only slides left/right, even if your Inspector Y values are wrong!
         currentTargetPos.y = trayRect.anchoredPosition.y;
+
+        // Play the addicting mechanical UI sound
+        if (audioSource != null)
+        {
+            audioSource.PlayOneShot(ProceduralAudioGen.GenerateTrayLatch(isOpen));
+        }
 
         // Re-enable button after animation completes
         Invoke(nameof(EnableButton), animationDuration);
