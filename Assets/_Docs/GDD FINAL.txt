@@ -1,0 +1,106 @@
+GAME DESIGN DOCUMENT: THE PROXY
+1. GAME OVERVIEW
+Genre: 2D Top-Down Survival Horror / System Management
+Platform: PC (Mouse & Keyboard)
+Core Player Fantasy: You are an isolated corporate custodian trapped inside a failing automated freighter. Survival depends on managing a collapsing digital system while being hunted by a bio-mechanical entity, where every decision trades safety for progress.
+Design Pillars
+Inventory = Health = Risk: The inventory is a live, vulnerable, spatial puzzle. Engaging with it broadcasts your location.
+The Symbiotic Burden: The "Corruption" is an AI that helps you navigate but actively wants to consume you. You trade space for power.
+Graduated Escalation: Mistakes compound, systems degrade, and enemies adapt.
+Tools, Not Weapons: Combat delays and repositions; it never eliminates the threat.
+
+2. NARRATIVE & WORLD BUILDING
+Setting: The USC Wayfarer, a fully automated Aether-Core Corporation freighter suffering a catastrophic hardware meltdown.
+Player Character: Kaelen, a disposable, minimum-wage Junior Systems Custodian sent to do a manual reset to save the corporation money.
+The M.E.T. Rig (The Data Pad)
+Kaelen is equipped with an Aether-Core Matter Engram Translator (M.E.T. Rig). It uses Quantum-Enthalpy Digitization to break physical items down into data and store them in a "Matter Buffer" to save manual labor.
+The Vulnerability: Translating matter takes immense power. When the inventory is opened, the suit magnetically clamps Kaelen's boots to the floor to prevent misalignment, rooting the player in place. The Rig's cooling fans scream, deafening the player to ambient noise, and it emits a massive electromagnetic flare.
+The Symbiote: MOTHER-v4
+MOTHER is the ship's central AI. Her servers melted during a payload breach. To survive, she is hiding inside the empty "cargo space" of Kaelen's M.E.T. Rig, manifesting physically on the grid as Corruption.
+The Bandwidth Rule: MOTHER requires "System Bandwidth" to overwrite Kaelen's corporate firewalls. Every row of Corruption grants her more bandwidth. If she hits 10 rows, she achieves a "Kernel Panic" and fully assimilates Kaelen.
+Adaptive Personality: * Low Corruption (Rows 0–1): Clinical, helpful, detached. Standard AI protocols.
+Mid Corruption (Rows 2–5): Manipulative. ("You need me to survive this. Let me in.")
+High Corruption (Rows 6–9): Possessive, hostile. Actively discourages you from Cleaning and fabricates fake audio cues.
+The Hunter: The Proxy
+The Proxy is The Previous Host—the ship's original Corporate Overseer. MOTHER attempted to upload herself into them, but the download crashed at 15%, warping the human into a feral, quadrupedal cyborg with a glitching terminal mask for a face.
+Motivation: It is a walking, corrupted Ethernet cable running a broken protocol. It hunts the M.E.T. Rig's electromagnetic flares.
+The Attack: It does not want to eat Kaelen; it wants to physically jack its exposed spinal cables into Kaelen's suit to finish MOTHER's upload. Taking a hit represents tearing yourself away, causing a massive system shock (+1 layer of Corruption).
+
+3. CORE GAMEPLAY LOOP
+Explore: Navigate the ship, gathering critical bulky items (Keys, Tools) that force you to make hard inventory choices.
+Manage (The Danger Window): Open the M.E.T. Rig to use items. You are rooted in place, your hearing is compromised, and your signal alerts the Proxy.
+Bargain: Use MOTHER's abilities to survive, voluntarily accepting Corruption in exchange for tactical advantages.
+Endure & Clean: The grid fills with Corruption. You must Clean it (a massive vulnerability window) or suffer tiered system failures.
+
+4. INVENTORY & SPATIAL MANAGEMENT
+The UI is a full-screen, heavy terminal overlay obscuring 90% of the screen. You rely on peripheral blur, directional audio, and a haptic heartbeat indicator to gauge the Proxy's proximity.
+The Grid System
+Size: 10 × 10 Grid (Row Index 0 to 9, where 9 is the top). 100 slots total.
+Manual Placement & Rotation: You place items exactly where you want them. You can rotate items to optimize space.
+Data Gravity (Post-Clean Only): Items do not slowly fall like Tetris. However, when you execute a Clean to remove corruption, the system defragments: all items instantly snap down to fill the empty space below them. This removes tedious UI dragging.
+Bulky Progression (Forced Engagement)
+Progression requires massive inventory sacrifices.
+Master Keys: 3×3 grid (9 slots each).
+Fusion Welder (Required for some doors): 2×3 grid (6 slots).
+Batteries: 1×2 grid.
+
+5. CORRUPTION & THE SYMBIOTE TOOLKIT
+Corruption manifests as dead blocks rising from the bottom (Row Index 0).
+Dynamic Corruption Growth
+Corruption grows via System Strain:
+Taking a Hit: +1 Row (System Shock).
+Sprinting: Slowly builds an invisible meter; extended sprinting adds +1 Row.
+Inventory Open Time: Leaving the M.E.T. Rig open too long accelerates corruption buildup.
+The Symbiote Toolkit (Active Corruption)
+You can voluntarily trigger MOTHER's abilities at the cost of instant Corruption:
+Override (+1 Row): Instantly unlock a high-tier security door.
+Sonar (+1 Row): Reveal the Proxy's exact location on the mini-map for 5 seconds.
+Signal Mask (+2 Rows): Jam your Rig for 8 seconds, allowing you to organize your inventory without triggering the Proxy's Hunt state.
+The Buffer Zone
+Rows 0 and 1 are the "Free Buffer." They take up physical space but do not trigger MOTHER's aggressive personality shifts or penalty thresholds.
+
+6. SYSTEM CRUSH, EJECTION & PENALTIES
+When a new corruption row spawns at Row Index 0, all items shift UP by 1 Row.
+Ejection & Priority Locks
+The Top Boundary: Row Index 9.
+Ejection: Unlocked items pushed past Row 9 are ejected into the physical game world. (Master Keys and quest items respawn at their original spawn point).
+Priority Locks: You can lock up to 2 essential items. Locked items cannot be ejected; they halt at Row 9.
+Tiered Crush Penalty
+If rising Corruption crushes a Locked item against the ceiling (Row 9), the system begins to fail gradually:
+Tier 1 (First Contact): Movement speed reduced by 20%.
+Tier 2 (Sustained 5s): Audio hallucinations (fake Proxy static/footsteps) begin.
+Tier 3 (Sustained 10s): Sprint stamina drain increased by 100%.
+
+7. DETECTION & ENEMY AI
+Graduated Detection
+Opening the inventory creates a Signal Spike.
+Proxy Very Far: Investigates the exact coordinates of the spike.
+Proxy Far: Delayed Hunt. You have 2–5 seconds of safe UI time before it locks onto your moving position.
+Proxy Nearby: Immediate Hunt. It charges your location.
+Faraday Zones (Safe Rooms)
+Rare, shielded Server Maintenance Shafts. The magnetic dampeners block your Rig's signal. You can open your inventory here indefinitely without alerting the Proxy.
+Enemy Adaptation (Stun Resistance)
+The Proxy learns. If you use the Stunner:
+1st Stun: 3-second duration.
+2nd Stun (within 60s): 1.5-second duration.
+3rd Stun (within 60s): Fails completely (Immune).
+Result: You must mix Stunner usage with breaking line-of-sight using the Repulsor.
+
+8. CLEAN PROTOCOLS & COMBAT TOOLS
+The Clean System
+Standard Clean: Takes 4.5 seconds. Removes Row 0. Leaves you highly vulnerable.
+Strict Resolution Order: 1. Corruption Shifts -> 2. Ejections/Crushes Calculate -> 3. Clean is Permitted.
+Emergency Clean (Panic Button): One-time use per save-station. Instantly purges 3 rows of Corruption, but permanently destroys 2 random inventory grid slots for the rest of the run.
+Tactical Tools
+ARC-Pulse Stunner: Stuns Proxy. Cost: Consumes 1 Battery.
+K-80 Repulsor: Knocks Proxy back 6–8 units to break line-of-sight. Cost: Pneumatic charge (10-second cooldown, no battery).
+
+9. ENDGAME STATES
+The Last Stand (Kernel Panic Mode)
+If Corruption hits Row 10, time slows down for exactly 3 seconds. You have one final window to trigger an Emergency Clean or use a Stunner. If you fail, the assimilation animation plays (Game Over).
+Multiple Endings
+Triggered when inserting the final Master Key on the Command Deck:
+Kernel Panic (Bad - 7 to 9 Rows): MOTHER completes the overwrite. Kaelen becomes the new Proxy.
+Partitioned Survivor (Good - 2 to 6 Rows): Kaelen survives, but MOTHER lives in their rig permanently.
+Zero-Sector Purge (True - 0 to 1 Row): Kaelen escapes entirely human, but surviving the final sequence without MOTHER's abilities was a brutal trial.
+

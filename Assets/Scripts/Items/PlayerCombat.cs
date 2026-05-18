@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class PlayerCombat : MonoBehaviour
 {
@@ -61,6 +62,9 @@ public class PlayerCombat : MonoBehaviour
         if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
         {
             if (isRigOpen) return;
+
+            // Prevent firing weapon when clicking on other UI elements (like Dialogue or Menus)
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
             FireActiveWeapon();
         }

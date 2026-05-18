@@ -44,22 +44,22 @@ public class UIMotherLog : MonoBehaviour
         // 1. STABLE (0% - 20% Corruption)
         else if (corruptionLevel <= 0.2f)
         {
-            labelText.text = "SYMBIOTIC LINK // MOTHER-V4";
-            contentText.text = "> Connection stable. All systems nominal.\n> <color=#00ffcc><b>Awaiting directives, Custodian.</b></color>";
+            labelText.text = "SYMBIOTIC LINK // CLINICAL";
+            contentText.text = "> Connection stable. Bandwidth nominal.\n> <color=#00ffcc><b>Awaiting directives, Custodian.</b></color>";
             isDead = false;
         }
-        // 2. WARNING (20% - 60% Corruption)
+        // 2. WARNING (20% - 50% Corruption)
         else if (corruptionLevel <= 0.6f)
         {
-            labelText.text = "<color=#ffaa00>SYMBIOTIC LINK // WARNING</color>";
-            contentText.text = "> Proximity alert. Massive anomaly detected on Nav-Link.\n> <color=#ffaa00><b>Minimize digitization noise immediately.</b></color>";
+            labelText.text = "<color=#ffaa00>SYMBIOTIC LINK // MANIPULATIVE</color>";
+            contentText.text = "> You need me to survive this, Kaelen.\n> <color=#ffaa00><b>Let me in. The vessel approaches.</b></color>";
             isDead = false;
         }
         // 3. CRITICAL (60%+ Corruption)
         else
         {
-            labelText.text = "<color=red>SYMBIOTIC LINK // CRITICAL</color>";
-            contentText.text = "> <color=red><b>CRITICAL: ENTITY IS IN VISUAL RANGE.</b></color>\n> Host survival probability: 4.2%";
+            labelText.text = "<color=red>SYMBIOTIC LINK // POSSESSIVE</color>";
+            contentText.text = "> <color=red><b>Stop fighting it. We are finally one.</b></color>\n> Purging organic resistance...";
             isDead = false;
         }
     }

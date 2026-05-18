@@ -22,6 +22,8 @@ public class MetRigManager : MonoBehaviour
     private float signalMaskTimer = 0f;
 
     private ProxyAI proxyAI;
+    private AudioSource rigAudioSource;
+    private Coroutine fanNoiseRoutine;
 
     void Start()
     {
@@ -32,6 +34,9 @@ public class MetRigManager : MonoBehaviour
         }
 
         proxyAI = FindAnyObjectByType<ProxyAI>();
+
+        rigAudioSource = gameObject.AddComponent<AudioSource>();
+        rigAudioSource.volume = 0.6f;
     }
 
     void Update()
@@ -60,6 +65,13 @@ public class MetRigManager : MonoBehaviour
             {
                 isSignalMasked = false;
                 Debug.Log("SIGNAL MASK: Deactivated - Signal leaking again.");
+                
+                // Immediately alert the Proxy if the inventory is still open!
+                if (isRigOpen && proxyAI != null && !inFaradayZone)
+                {
+                    float distance = Vector2.Distance(transform.position, proxyAI.transform.position);
+                    proxyAI.OnSignalSpike(true, distance);
+                }
             }
         }
     }
@@ -74,7 +86,31 @@ public class MetRigManager : MonoBehaviour
         }
 
         isRigOpen = !isRigOpen;
-        terminalOverlayUI.SetActive(isRigOpen);
+
+        if (isRigOpen)
+        {
+            bool wasInactive = !terminalOverlayUI.activeSelf;
+            terminalOverlayUI.SetActive(true);
+            
+            // If it was mid-closing animation, force it to reverse and open!
+            if (!wasInactive)
+            {
+                MetRigAnimator animator = terminalOverlayUI.GetComponent<MetRigAnimator>();
+                if (animator != null) animator.PlayOpenAnimation();
+                
+                // LORE UPDATE: The heavy cooling fans scream, masking ambient noise!
+                if (fanNoiseRoutine != null) StopCoroutine(fanNoiseRoutine);
+                fanNoiseRoutine = StartCoroutine(FanNoiseLoop());
+            }
+        }
+        else
+        {
+            MetRigAnimator animator = terminalOverlayUI.GetComponent<MetRigAnimator>();
+            if (animator != null) animator.CloseInventoryWithAnimation();
+            else terminalOverlayUI.SetActive(false);
+            
+            if (fanNoiseRoutine != null) StopCoroutine(fanNoiseRoutine);
+        }
 
         if (playerController != null)
         {
@@ -104,16 +140,6 @@ public class MetRigManager : MonoBehaviour
                 }
             }
         }
-        else
-        {
-            if (inventoryManager != null)
-            {
-                if (inventoryManager.gridExt != null && inventoryManager.gridExt.parent != null)
-                {
-                    inventoryManager.gridExt.parent.gameObject.SetActive(false);
-                }
-            }
-        }
 
         // Console Warnings based on where you are standing
         if (isRigOpen && !inFaradayZone && !isSignalMasked)
@@ -127,6 +153,16 @@ public class MetRigManager : MonoBehaviour
         else if (isRigOpen && isSignalMasked)
         {
             Debug.Log("<color=yellow>SIGNAL MASK ACTIVE:</color> M.E.T. Rig opened safely. Signal jammed.");
+        }
+    }
+
+    private System.Collections.IEnumerator FanNoiseLoop()
+    {
+        // Continuously pump loud pneumatic hiss while the rig is open
+        while (isRigOpen)
+        {
+            if (rigAudioSource != null) rigAudioSource.PlayOneShot(ProceduralAudioGen.GenerateHiss(1.5f));
+            yield return new WaitForSecondsRealtime(1.0f);
         }
     }
 

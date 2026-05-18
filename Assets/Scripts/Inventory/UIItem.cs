@@ -26,6 +26,7 @@ public class UIItem : MonoBehaviour
         {
             // THE FIX: Stop the transparent pixels of the gun from blocking the empty space!
             displayImage.raycastTarget = false;
+            displayImage.enabled = true;
 
             displayImage.sprite = data.icon;
             displayImage.preserveAspect = true; 
@@ -38,6 +39,10 @@ public class UIItem : MonoBehaviour
                 iconRect.offsetMin = Vector2.zero;   
                 iconRect.offsetMax = Vector2.zero; 
             }
+        }
+        else if (displayImage != null)
+        {
+            displayImage.enabled = false;
         }
 
         DraggableItem drag = GetComponent<DraggableItem>();
@@ -64,8 +69,9 @@ public class UIItem : MonoBehaviour
         generatedBackgroundBlocks.Clear();
 
         // --- HOLOGRAPHIC M.E.T. RIG COLORS ---
-        Color fillNormal = new Color(0f, 0.4f, 0.4f, 0.5f); // Translucent Dark Teal
-        Color outlineNormal = new Color(0f, 1f, 1f, 0.8f);  // Bright Neon Cyan
+        bool isCorruption = myData != null && myData.itemID == "CRPT";
+        Color fillNormal = isCorruption ? new Color(0.5f, 0f, 0f, 0.8f) : new Color(0f, 0.4f, 0.4f, 0.5f); // Translucent Dark Teal (or Dark Red)
+        Color outlineNormal = isCorruption ? new Color(0.8f, 0f, 0f, 0.9f) : new Color(0f, 1f, 1f, 0.8f);  // Bright Neon Cyan (or Bright Red)
 
         for (int y = 0; y < activeFootprint.height; y++)
         {
@@ -130,6 +136,7 @@ public class UIItem : MonoBehaviour
         {
             // Detect if DraggableItem is trying to flash the hidden background red
             bool isPulsingRed = backgroundImage.color.r > 0.5f && backgroundImage.color.g < 0.5f;
+            bool isCorruption = myData != null && myData.itemID == "CRPT";
 
             foreach (GameObject block in generatedBackgroundBlocks)
             {
@@ -147,7 +154,26 @@ public class UIItem : MonoBehaviour
 
                     if (outlineImg != null && fillImg != null)
                     {
-                        if (isPulsingRed)
+                        if (isCorruption)
+                        {
+                            // Glitch effect for MOTHER-v4 Corruption blocks!
+                            if (Random.value > 0.92f)
+                            {
+                                float rand = Random.value;
+                                fillImg.color = rand > 0.5f ? new Color(1f, 0f, 0f, 0.9f) : new Color(0.1f, 0f, 0f, 0.8f);
+                                outlineImg.color = rand > 0.8f ? Color.white : new Color(1f, 0.2f, 0.2f, 0.5f);
+                                
+                                // Randomly stretch the block to simulate UI tearing
+                                outlineImg.rectTransform.localScale = new Vector3(Random.Range(0.9f, 1.1f), Random.Range(0.8f, 1.2f), 1f);
+                            }
+                            else
+                            {
+                                fillImg.color = new Color(0.5f, 0f, 0f, 0.8f); 
+                                outlineImg.color = new Color(0.8f, 0f, 0f, 0.9f); 
+                                outlineImg.rectTransform.localScale = Vector3.one;
+                            }
+                        }
+                        else if (isPulsingRed)
                         {
                             fillImg.color = new Color(0.8f, 0f, 0f, 0.6f); // Warning Red Fill
                             outlineImg.color = Color.red;                  // Warning Red Outline

@@ -68,7 +68,7 @@ Ejection & Priority Locks
 Tiered Crush Penalty
 If rising Corruption crushes a Locked item against the ceiling (Row 9), the system begins to fail gradually:
 •	Tier 1 (First Contact): Movement speed reduced by 20%.
-•	Tier 2 (Sustained 5s): Audio hallucinations (fake Proxy static/footsteps) begin.
+•	Tier 2 (Sustained 5s): Severe system strain warning. M.E.T. Rig stability becomes critical.
 •	Tier 3 (Sustained 10s): Sprint stamina drain increased by 100%.
 ________________________________________
 7. DETECTION & ENEMY AI
@@ -253,4 +253,3 @@ o	The Catch: Using the M.E.T. Rig to download the log creates a 2-second Signal 
 4. Placement Strategy
 •	Safe Drops: Place the first few logs in the early tutorial zones or inside the shielded "Faraday Zones" so the player learns how to read them safely.
 •	Bait Drops: Later in the game, place terminals in highly dangerous, open areas. The flickering amber light will tempt the player, forcing them to decide: "Is learning the lore worth standing still in the dark for 10 seconds?"
-

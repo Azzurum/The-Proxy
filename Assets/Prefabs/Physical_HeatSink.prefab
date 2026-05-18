@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 4857985225602303170}
   - component: {fileID: 3714164653208834608}
   - component: {fileID: -8074009055145235908}
+  - component: {fileID: -2601842893800499761}
   m_Layer: 0
   m_Name: Physical_HeatSink
   m_TagString: Interactable
@@ -130,7 +131,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.4613333, y: 2.4666667}
+    oldSize: {x: 6.1440005, y: 2.775}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -138,3 +139,16 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 5.4613333, y: 2.4666667}
   m_EdgeRadius: 0
+--- !u!114 &-2601842893800499761
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5409114262848259494}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4192955ed148432498abeccd88d069bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhysicalItem
+  itemData: {fileID: 11400000, guid: 33b5717496c070a4b90088f65f1bf03e, type: 2}

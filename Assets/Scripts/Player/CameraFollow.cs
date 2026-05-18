@@ -21,23 +21,32 @@ public class CameraFollow : MonoBehaviour
 
     void Start()
     {
-        // 1. Find the target if it wasn't assigned in the Inspector
         if (target == null)
         {
-            GameObject player = GameObject.Find("Player_Kaelen");
-            if (player != null) target = player.transform;
+            FindTarget();
         }
+    }
 
-        // 2. Instantly teleport camera to target
-        // This prevents the "sliding" effect when the game first starts.
-        if (target != null)
+    private void FindTarget()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null) player = GameObject.Find("Player_Kaelen");
+        if (player == null) player = GameObject.Find("Player"); // Added another common fallback name
+        
+        if (player != null) 
         {
+            target = player.transform;
+            // Instantly teleport camera to target the moment we find them to prevent "sliding" from the void
             transform.position = target.position + offset;
         }
     }
 
     void LateUpdate()
     {
+        // If the target is missing (or hasn't spawned into the world yet), keep looking!
+        if (target == null)
+            FindTarget();
+
         if (target != null)
         {
             // Target position including our Z-depth offset

@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 5933602418110307804}
   - component: {fileID: 7987242015892815003}
   - component: {fileID: 6682535592423888324}
+  - component: {fileID: 5954778593301061075}
   m_Layer: 0
   m_Name: Physical_FusionWelder
   m_TagString: Interactable
@@ -128,9 +129,9 @@ BoxCollider2D:
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
   m_SpriteTilingProperty:
-    border: {x: 0, y: 0, z: 0, w: 0}
+    border: {x: 0, y: 0, z: 0, w: 0.048750173}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.277778, y: 3.3733454}
+    oldSize: {x: 5.9375005, y: 3.7950137}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -138,3 +139,16 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 5.277778, y: 3.3733454}
   m_EdgeRadius: 0
+--- !u!114 &5954778593301061075
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7892096067537900711}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4192955ed148432498abeccd88d069bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhysicalItem
+  itemData: {fileID: 11400000, guid: 4182023563914d9488275b0badd9401e, type: 2}

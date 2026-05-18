@@ -4,13 +4,13 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float moveSpeed = 5f;
-    public float sprintSpeed = 8f;
+    public float moveSpeed = 4.0f; // Base walking speed
+    public float sprintSpeed = 6.5f; // Fast burst to gain distance
     public float sprintMeterThreshold = 5f; 
 
     [Header("Sprint Decay")]
-    public float baseDecayRate = 0.25f; // Drastically reduced for survival horror pacing
-    public float idleDecayMultiplier = 1.2f; // Slightly rewards standing still, but still takes a long time
+    public float baseDecayRate = 0.08f; // Recover faster (takes ~1 minute while walking)
+    public float idleDecayMultiplier = 2.0f; // Greatly rewards standing perfectly still to catch your breath
     public float thresholdIncrease = 2f; 
 
     [Header("Crush Penalty")]
@@ -49,6 +49,10 @@ public class PlayerController : MonoBehaviour
         if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
         currentThreshold = sprintMeterThreshold;
         baseScale = Mathf.Abs(transform.localScale.x);
+
+        // FORCE the survival horror pacing (Overrides any old values saved in the Unity Inspector!)
+        baseDecayRate = 0.08f;
+        idleDecayMultiplier = 2.0f;
     }
 
     void Update()
@@ -101,7 +105,10 @@ public class PlayerController : MonoBehaviour
 
         if (isSprinting)
         {
-            sprintMeter += Time.deltaTime;
+            // LORE UPDATE: Tier 3 Crush Penalty doubles sprint stamina drain!
+            float strainRate = (inventoryManager != null && inventoryManager.CrushTier >= 3) ? 2.0f : 1.0f;
+            
+            sprintMeter += Time.deltaTime * strainRate;
             if (sprintMeter >= currentThreshold && !corruptionAddedThisCycle)
             {
                 inventoryManager.AddCorruptionRow();
@@ -119,7 +126,7 @@ public class PlayerController : MonoBehaviour
             {
                 corruptionAddedThisCycle = false;
             }
-            if (sprintMeter <= currentThreshold * 0.5f)
+            if (sprintMeter <= currentThreshold * 0.95f)
             {
                 isMovementLocked = false;
             }

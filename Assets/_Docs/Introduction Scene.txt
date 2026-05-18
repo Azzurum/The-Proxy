@@ -1,0 +1,54 @@
+The Final Intro Script
+Line 1 (DIRECTOR OF ORBITAL LOGISTICS):
+"Custodian. The <color=#FFB300>USC Wayfarer missed its standard orbital check-in. It is currently experiencing a localized comms blackout."
+Line 2 (KAELEN):
+"Uh... right. The Wayfarer. Wait, is that one of the big deep-space freighters? I usually just clean the lunar transit hubs."
+Line 3 (DIRECTOR OF ORBITAL LOGISTICS):
+"Your previous assignments are irrelevant. It is a Class-A hauler, and Aether-Core is not authorizing the budget for a rescue tug. You are cheaper."
+Line 4 (KAELEN):
+"Hey, I just scrub filters and mop decks. What am I supposed to do about a blackout on a Class-A?"
+Line 5 (DIRECTOR OF ORBITAL LOGISTICS):
+"You will dock your craft, walk to the server room, and perform a manual reset on the router. It is unskilled labor."
+Line 6 (KAELEN):
+"What about the crew? Don't those haulers have, like, a whole team on board? Can't one of them just flip the switch?"
+Line 7 (DIRECTOR OF ORBITAL LOGISTICS):
+"There is a biological monitoring crew of exactly fifty personnel. They are likely locked out of the mainframe due to a routine fault."
+Line 8 (KAELEN):
+"Fifty people are locked out of their own ship, and you're sending a Junior Custodian?"
+Line 9 (DIRECTOR OF ORBITAL LOGISTICS):
+"Do not question corporate logistics, Kaelen. Your job is to reboot the system and wait for them to buy you a drink."
+Line 10 (KAELEN):
+"Right. Okay. And my gear? Am I getting hazard pay? A security escort?"
+Line 11 (DIRECTOR OF ORBITAL LOGISTICS):
+"You are receiving something far more valuable. You have been temporarily issued an Aether-Core <color=#FFB300>M.E.T. Rig."
+Line 12 (KAELEN):
+"A what? It looks like a heavy diving suit glued to a server rack. The cooling fans are deafening."
+Line 13 (DIRECTOR OF ORBITAL LOGISTICS):
+"It is a Matter Engram Translator. It uses Quantum-Enthalpy Digitization to store physical matter as data."
+Line 14 (KAELEN):
+"Speak English, please. I make nine credits an hour."
+Line 15 (DIRECTOR OF ORBITAL LOGISTICS):
+"It means you can carry heavy objects in a digital inventory. It is a multi-million credit piece of proprietary hardware."
+Line 16 (DIRECTOR OF ORBITAL LOGISTICS):
+"Let me be absolutely clear, Custodian. The <color=#FFB300>M.E.T. Rig is worth exponentially more than your life insurance payout."
+Line 17 (KAELEN):
+"Wait, what? Are you saying if I die out there..."
+Line 18 (DIRECTOR OF ORBITAL LOGISTICS):
+"If you encounter a catastrophic hazard, protocol dictates you shield the Rig with your body to prevent hardware damage."
+Line 19 (DIRECTOR OF ORBITAL LOGISTICS):
+"Get in. Do not scratch the <color=#FFB300>M.E.T. Rig. Reboot the system, and do not fail us."
+Line 20 (KAELEN):
+"..."
+
+IF THE PLAYER CHOOSES TO REFUSE THE JOB IN THE TWO CHOICES GIVEN THIS SCRIPT WILL APPEAR (This will be the Ending 4 of the Game):
+
+Line 1 (KAELEN):
+"You want me to walk onto a Class-A derelict with a fifty-man dead crew? No. I quit. Keep your nine credits an hour"
+Line 2 (DIRECTOR OF ORBITAL LOGISTICS):
+"You misunderstand the nature of your contract, Custodian. Aether-Core owns the oxygen scrubbers in your transit hub."
+Line 3 (DIRECTOR OF ORBITAL LOGISTICS):
+"Your employment is terminated. Security will escort you to the airlock. Do not expect a severance package."
+Line 4 (System):
+"<color=#E63946>SYSTEM ARCHIVE // EMPLOYEE 8449-K TERMINATED. LOCKING HUB DOORS."
+
+IF THE PLAYER ACCEPTS HE WILL JUST BE TELEPORTED TO level_1 scene

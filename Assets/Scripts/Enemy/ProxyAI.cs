@@ -27,14 +27,15 @@ public class ProxyAI : MonoBehaviour
     private Vector2 wanderTarget;
     private float wanderWaitTimer = 0f;
     public float searchRadius = 4f; 
+    public Transform[] patrolWaypoints;
 
     [Header("Perception System")]
     public float hearingRadius = 6f;
     private Vector3 previousPlayerPos;
 
     [Header("Movement Stats")]
-    public float baseSpeed = 2.0f;
-    public float sprintSpeed = 6.0f;
+    public float baseSpeed = 2.5f; // Patrol speed (slower than Kaelen)
+    public float sprintSpeed = 4.6f; // Hunt speed (Slightly faster than Kaelen, DbD Killer pace!)
     private float currentSpeed;
 
     [Header("Stun Resistance")]
@@ -63,7 +64,6 @@ public class ProxyAI : MonoBehaviour
     private Vector2 moveTarget;
     private bool hasMoveTarget = false;
     private Coroutine delayedHuntCoroutine;
-    private float preAttackSpeed;
 
     // Components & Managers
     private Animator animator;
@@ -102,7 +102,10 @@ public class ProxyAI : MonoBehaviour
         // Auto-find player if not assigned
         if (targetPlayer == null)
         {
-            GameObject player = GameObject.Find("Player_Kaelen");
+            // Use the tag to safely find the player regardless of the GameObject's name
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player == null) player = GameObject.Find("Player_Kaelen");
+            
             if (player != null) targetPlayer = player.transform;
         }
 
@@ -134,8 +137,7 @@ public class ProxyAI : MonoBehaviour
         switch (currentState)
         {
             case AIState.Hunting:
-                bool isSignalEmitting = (metRigManager != null && metRigManager.isRigOpen && !metRigManager.inFaradayZone);
-                if (isSignalEmitting)
+                if (isSignalEmpowered || isPlayerInMeleeRange)
                 {
                     lastKnownPosition = targetPlayer.position;
                     SetMoveTarget(targetPlayer.position, sprintSpeed);
@@ -145,7 +147,7 @@ public class ProxyAI : MonoBehaviour
                     // Signal lost! Keep running to the last known point, but downgrade to Investigate once reached
                     if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
                     {
-                        ChangeState(AIState.Wandering);
+                        ChangeState(AIState.Investigating);
                     }
                 }
                 break;
@@ -154,7 +156,7 @@ public class ProxyAI : MonoBehaviour
                 if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
                 {
                     stateTimer += Time.deltaTime;
-                    if (stateTimer >= 1f) // Organic Pause: Stand at the location and "look around" for 1 second!
+                    if (stateTimer >= 1f && !isPlayerInMeleeRange) // Organic Pause: Stand at the location and "look around" for 1 second!
                     {
                         ChangeState(AIState.Wandering);
                     }
@@ -331,7 +333,6 @@ public class ProxyAI : MonoBehaviour
         canAttack = false;
         hasMoveTarget = false; // Stop moving
         
-        preAttackSpeed = currentSpeed;
         currentSpeed = 0f;
 
         // Snap direction to face the player right before triggering the attack animation
@@ -391,7 +392,14 @@ public class ProxyAI : MonoBehaviour
     {
         if (currentState == AIState.Attacking)
         {
-            ChangeState(AIState.Investigating); // Return to searching for the player
+            if (isSignalEmpowered || isPlayerInMeleeRange)
+            {
+                ChangeState(AIState.Hunting); // Keep the pressure on!
+            }
+            else
+            {
+                ChangeState(AIState.Investigating); // Return to searching for the player
+            }
         }
         StartCoroutine(RecoveryRoutine());
     }
@@ -422,29 +430,7 @@ public class ProxyAI : MonoBehaviour
             ScreenEffectManager.Instance.TriggerFlash(new Color(1f, 0f, 0f, 0.6f), 0.3f);
         }
 
-        // 1. Forcefully abort any dragged item so it doesn't glitch out
-        if (DraggableItem.itemBeingDragged != null)
-        {
-            DraggableItem.itemBeingDragged.AbortDrag();
-        }
-
-        // 2. Forcefully close the M.E.T. Rig and External Storage (Lockers)
-        if (metRigManager != null && metRigManager.isRigOpen)
-        {
-            metRigManager.CloseRig();
-        }
-
-        // 3. Forcefully close the Inspector if it is open
-        if (ItemInspector.Instance != null)
-        {
-            ItemInspector.Instance.CloseInspector();
-        }
-
-        // 4. Forcefully close any external Terminals or Logs the player might be reading
-        GameObject syncTerminalOverlay = GameObject.Find("Canvas_SyncTerminal");
-        if (syncTerminalOverlay != null) syncTerminalOverlay.SetActive(false);
-
-        // 5. Inject the corruption damage
+        // Inject the corruption damage
         if (inventoryManager != null)
         {
             inventoryManager.AddCorruptionRow();
@@ -601,8 +587,45 @@ public class ProxyAI : MonoBehaviour
 
     private void PickNewWanderTarget()
     {
-        Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
-        wanderTarget = lastKnownPosition + randomDirection;
+        // If you assigned specific patrol waypoints, pick the closest one!
+        if (patrolWaypoints != null && patrolWaypoints.Length > 0)
+        {
+            Transform closestWaypoint = null;
+            float closestDistance = float.MaxValue;
+            Vector2 currentPosition = transform.position;
+
+            foreach (Transform waypoint in patrolWaypoints)
+            {
+                if (waypoint == null) continue;
+
+                float distance = Vector2.Distance(currentPosition, waypoint.position);
+
+                // Ignore the waypoint we are currently standing on so it actually moves!
+                if (distance < 1.0f) continue;
+
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestWaypoint = waypoint;
+                }
+            }
+
+            if (closestWaypoint != null)
+            {
+                wanderTarget = closestWaypoint.position;
+            }
+            else
+            {
+                // Failsafe if it couldn't find a valid one
+                wanderTarget = patrolWaypoints[Random.Range(0, patrolWaypoints.Length)].position;
+            }
+        }
+        else // Fallback: Just wander blindly using math if no waypoints exist
+        {
+            Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
+            wanderTarget = lastKnownPosition + randomDirection;
+        }
+
         wanderWaitTimer = Random.Range(1f, 3f);
         stateTimer = 0f;
         SetMoveTarget(wanderTarget, baseSpeed);

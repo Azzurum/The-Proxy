@@ -14,6 +14,10 @@ public class FloatingPrompt : MonoBehaviour
     private Vector3 _startPos;
     private float _targetAlpha = 0f;
 
+    private Transform _dynamicTarget;
+    private Vector3 _dynamicOffset;
+    private bool _isDynamic = false;
+
     void Start()
     {
         // 1. Remember exactly where we placed it in the scene
@@ -33,8 +37,19 @@ public class FloatingPrompt : MonoBehaviour
 
     void Update()
     {
-        // 1. The Bobbing Math (Uses Sine waves for a perfect, organic hover)
-        transform.localPosition = _startPos + new Vector3(0, Mathf.Sin(Time.time * floatSpeed) * floatHeight, 0);
+        // 1. The Bobbing Math 
+        Vector3 bobbingOffset = new Vector3(0, Mathf.Sin(Time.time * floatSpeed) * floatHeight, 0);
+        
+        if (_dynamicTarget != null)
+        {
+            // Snap to a target (like items on the floor)
+            transform.position = _dynamicTarget.position + _dynamicOffset + bobbingOffset;
+        }
+        else if (!_isDynamic)
+        {
+            // Original logic: bob relative to starting position (for Terminals)
+            transform.localPosition = _startPos + bobbingOffset;
+        }
 
         // 2. The Fading Math (Smoothly blends the alpha transparency)
         if (textMesh != null)
@@ -48,4 +63,22 @@ public class FloatingPrompt : MonoBehaviour
     // These two commands act as the light switches for the prompt!
     public void ShowPrompt() => _targetAlpha = 1f;
     public void HidePrompt() => _targetAlpha = 0f;
+
+    // Allows the player script to dynamically snap this prompt to items
+    public void SetDynamicTarget(Transform target, Vector3 offset)
+    {
+        _isDynamic = true;
+        _dynamicTarget = target;
+        _dynamicOffset = offset;
+    }
+
+    // Changes the color of the text while preserving its current transparency fade
+    public void SetPromptColor(Color newColor)
+    {
+        if (textMesh != null)
+        {
+            newColor.a = textMesh.color.a;
+            textMesh.color = newColor;
+        }
+    }
 }

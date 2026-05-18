@@ -257,4 +257,187 @@ public static class ProceduralAudioGen
         clipCache[key] = clip;
         return clip;
     }
+
+    // Generates a satisfying mechanical switch/tray latch sound
+    public static AudioClip GenerateTrayLatch(bool opening)
+    {
+        string key = $"TrayLatch_{opening}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * 0.1f);
+        float[] samples = new float[sampleCount];
+        
+        float startFreq = opening ? 800f : 1200f;
+        float endFreq = opening ? 1200f : 800f;
+        float phase = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / sampleCount;
+            float env = Mathf.Exp(-t * 20f); // Fast decay for a crisp mechanical click
+            
+            float currentFreq = Mathf.Lerp(startFreq, endFreq, t);
+            phase += currentFreq * 2f * Mathf.PI / SampleRate;
+            
+            samples[i] = Mathf.Sin(phase) * env * 0.6f * globalVolume;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcTrayLatch", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
+    // ==========================================
+    // SURVIVAL HORROR ADDITIONS
+    // ==========================================
+
+    // Generates a deep, double-thump heartbeat (Great for the Stress/Panic system)
+    public static AudioClip GenerateHeartbeat(float duration = 1.0f)
+    {
+        string key = $"Heartbeat_{duration}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        float phase = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+            
+            // Create two distinct thumps per beat using math envelopes
+            float thump1 = Mathf.Max(0, 1f - t * 8f); // Sharp decay for first thump
+            float thump2 = t > 0.25f ? Mathf.Max(0, 1f - (t - 0.25f) * 6f) : 0f; // Second thump at 0.25s
+            float envelope = thump1 + thump2;
+            
+            // Low frequency that drops slightly as the thump fades
+            float freq = 60f - 30f * envelope; 
+            phase += 2f * Mathf.PI * freq / SampleRate;
+            
+            samples[i] = Mathf.Sin(phase) * envelope * globalVolume * 0.8f; // Deep bass
+        }
+
+        AudioClip clip = AudioClip.Create("ProcHeartbeat", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
+    // Generates a sweeping emergency siren (Great for reactor meltdowns or Kernel Panic)
+    public static AudioClip GenerateAlarm(float duration = 2.0f)
+    {
+        string key = $"Alarm_{duration}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        float phase = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+            
+            // FM Synthesis: Sweep the frequency up and down continuously at 1.5Hz
+            float freq = 800f + 400f * Mathf.Sin(2f * Mathf.PI * 1.5f * t); 
+            phase += 2f * Mathf.PI * freq / SampleRate;
+            
+            samples[i] = Mathf.Sin(phase) * globalVolume * 0.4f;
+            
+            // Taper the extreme edges to prevent speaker popping
+            if (i < 1000) samples[i] *= i / 1000f;
+            if (i > sampleCount - 1000) samples[i] *= (sampleCount - i) / 1000f;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcAlarm", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
+    // Generates a heavy, gravelly footstep (Great for the Proxy walking)
+    public static AudioClip GenerateFootstep(float duration = 0.2f)
+    {
+        string key = $"Footstep_{duration}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        float phase = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+            float envelope = Mathf.Exp(-t * 25f); // Extremely fast decay (like a real impact)
+            
+            // The Highs: White noise to simulate gravel, boot scuffing, or metal scraping
+            float noise = Random.Range(-1f, 1f) * 0.2f; 
+            
+            // The Lows: A pitch-dropping thud for the weight of the step
+            float freq = 120f * Mathf.Exp(-t * 20f); 
+            phase += 2f * Mathf.PI * freq / SampleRate;
+            float thump = Mathf.Sin(phase) * 0.8f;
+            
+            // Mix them together
+            samples[i] = (thump + noise) * envelope * globalVolume;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcFootstep", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
+    // Generates a creepy, breathy "pssst" whisper (Great for psychological horror)
+    public static AudioClip GenerateWhisper(float duration = 0.6f)
+    {
+        string key = $"Whisper_{duration}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        
+        float lastNoise = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / sampleCount;
+            
+            float env = 0f;
+            float sampleVal = 0f;
+
+            if (t < 0.08f) 
+            {
+                // "P" sound: broadband noise + low plosive
+                env = 1f - (t / 0.08f);
+                float noise = Random.Range(-1f, 1f);
+                float plosive = Mathf.Sin(2f * Mathf.PI * 100f * t);
+                sampleVal = (noise * 0.4f + plosive * 0.6f) * env;
+            }
+            else if (t < 0.15f)
+            {
+                // Brief silence/gap between P and sss
+                sampleVal = 0f;
+            }
+            else
+            {
+                // "Ssss" sound: high-pass noise with a swelling envelope
+                float sTime = (t - 0.15f) / 0.85f; // 0 to 1 over the S part
+                env = Mathf.Pow(Mathf.Sin(sTime * Mathf.PI), 0.5f); // Swell and fade
+                
+                float currentNoise = Random.Range(-1f, 1f);
+                float highPassNoise = (currentNoise - lastNoise) * 0.5f;
+                lastNoise = currentNoise;
+                
+                sampleVal = highPassNoise * env;
+            }
+
+            samples[i] = sampleVal * globalVolume * 0.6f;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcWhisper", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
 }
