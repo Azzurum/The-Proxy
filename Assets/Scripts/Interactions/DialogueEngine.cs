@@ -269,6 +269,9 @@ public class DialogueEngine : MonoBehaviour
     // Tiny fraction of a second delay when skipping so portraits have time to visually swap
     IEnumerator SkipDelayTrigger() { yield return new WaitForSeconds(0.1f); AdvanceDialogue(); }
 
+    [Header("Player Control Integration")]
+    public GameObject playerObject;
+
     public void EndDialogue()
     {
         isDialogueActive = false;
@@ -277,6 +280,20 @@ public class DialogueEngine : MonoBehaviour
         if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
         if (ambientDust != null) ambientDust.SetActive(false);
         if (vignetteOverlay != null) vignetteOverlay.SetActive(false);
+
+        if (playerObject != null)
+        {
+            playerObject.SetActive(true);
+            Debug.Log("Dialogue complete! Player_Kaelen is now active and free to roam.");
+
+            // Core Camera Tracking
+            CameraFollow camScript = Camera.main.GetComponent<CameraFollow>();
+            if (camScript != null)
+            {
+                camScript.target = playerObject.transform;
+                Camera.main.transform.position = playerObject.transform.position + camScript.offset;
+            }
+        }
     }
 
     // ==========================================
