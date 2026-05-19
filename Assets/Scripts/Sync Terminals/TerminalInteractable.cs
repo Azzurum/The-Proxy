@@ -3,23 +3,28 @@ using UnityEngine;
 public class TerminalInteractable : MonoBehaviour
 {
     [Header("Terminal Data")]
-    public TerminalLogData assignedLog; 
-    public SyncTerminalUI uiManager;    
+    public TerminalLogData assignedLog;
+    public SyncTerminalUI uiManager;
 
     [Header("Visuals")]
-    public FloatingPrompt promptText; // NEW: We add a slot for your floating 'E'
+    public FloatingPrompt promptText;
 
     private bool _isPlayerNear = false;
     private GameObject _playerRef;
 
     private void Update()
     {
+        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        if (tracker == null || tracker.GetCurrentObjective() < 2)
+            return;
+
         if (_isPlayerNear && Input.GetKeyDown(KeyCode.E) && !uiManager.terminalCanvas.gameObject.activeInHierarchy)
         {
             uiManager.OpenTerminal(assignedLog, _playerRef);
-            
-            // Optional Polish: Hide the 'E' while Kaelen is reading the terminal
-            if (promptText != null) promptText.HidePrompt();
+
+            if (promptText != null)
+                promptText.HidePrompt();
+
         }
     }
 
@@ -29,9 +34,13 @@ public class TerminalInteractable : MonoBehaviour
         {
             _isPlayerNear = true;
             _playerRef = collision.gameObject;
-            
-            // NEW: Fade the prompt IN when Kaelen gets close
-            if (promptText != null) promptText.ShowPrompt(); 
+
+            QuestTracker tracker = FindObjectOfType<QuestTracker>();
+            if (tracker != null && tracker.GetCurrentObjective() == 2)
+            {
+                if (promptText != null)
+                    promptText.ShowPrompt();
+            }
         }
     }
 
@@ -41,9 +50,9 @@ public class TerminalInteractable : MonoBehaviour
         {
             _isPlayerNear = false;
             _playerRef = null;
-            
-            // NEW: Fade the prompt OUT when Kaelen walks away
-            if (promptText != null) promptText.HidePrompt(); 
+
+            if (promptText != null)
+                promptText.HidePrompt();
         }
     }
 }

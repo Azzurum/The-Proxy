@@ -297,6 +297,13 @@ public class DialogueEngine : MonoBehaviour
                 Camera.main.transform.position = playerObject.transform.position + camScript.offset;
             }
         }
+
+        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        if (tracker != null && tracker.GetCurrentObjective() == 1)
+        {
+            tracker.AdvanceObjective(2, "Access the Sync-Terminal");
+        }
+
     }
 
     // ==========================================

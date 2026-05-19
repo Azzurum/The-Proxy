@@ -211,7 +211,6 @@ GameObject:
   - component: {fileID: 1987596217792991211}
   - component: {fileID: 2246544452860130480}
   - component: {fileID: 5016960084946752658}
-  - component: {fileID: 3921060510970198539}
   m_Layer: 0
   m_Name: Prop_SyncTerminal
   m_TagString: Untagged
@@ -340,17 +339,3 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1.6994019}
   m_EdgeRadius: 0
---- !u!114 &3921060510970198539
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5407802654617706348}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 33c9fe1b005bb3048a942d2634471618, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TerminalInteractable
-  assignedLog: {fileID: 11400000, guid: 7492a43ae71b2cd45a3a1d5a180f3156, type: 2}
-  uiManager: {fileID: 0}

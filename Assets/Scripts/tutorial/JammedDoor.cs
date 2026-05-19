@@ -10,7 +10,7 @@ public class JammedDoor : MonoBehaviour
     public DialogueNode[] doorDialogueNodes;
 
     [Header("Hold Settings")]
-    public float holdDuration = 1.0f; // How long to hold E (1 second)
+    public float holdDuration = 1.0f;
     private float holdTimer = 0f;
 
     private AudioSource audioSource;
@@ -29,14 +29,12 @@ public class JammedDoor : MonoBehaviour
     {
         if (isPlayerInZone && !hasTriggeredMonologue)
         {
-            if (Input.GetKey(KeyCode.E))
+            if (Input.GetKey(KeyCode.E) || Input.GetButton("Submit"))
             {
                 holdTimer += Time.deltaTime;
-                Debug.Log("Holding E... current time: " + holdTimer); // ALERT 1
 
                 if (holdTimer >= holdDuration)
                 {
-                    Debug.Log("Hold complete! Running TriggerDoorFailure()..."); // ALERT 2
                     TriggerDoorFailure();
                 }
             }
@@ -50,7 +48,7 @@ public class JammedDoor : MonoBehaviour
 
     private void TriggerDoorFailure()
     {
-        holdTimer = 0f; // Reset timer safely
+        holdTimer = 0f;
 
         if (audioSource != null && audioSource.clip != null)
         {
@@ -61,9 +59,9 @@ public class JammedDoor : MonoBehaviour
         {
             hasTriggeredMonologue = true;
 
-            if (interactionPromptCanvas != null) interactionPromptCanvas.SetActive(false);
+            if (interactionPromptCanvas != null)
+                interactionPromptCanvas.SetActive(false);
 
-            // Safer Player search: First try name, then try Tag!
             GameObject player = GameObject.Find("Player_Kaelen");
             if (player == null) player = GameObject.FindWithTag("Player");
 
@@ -78,7 +76,7 @@ public class JammedDoor : MonoBehaviour
         if (other.CompareTag("Player") && !hasTriggeredMonologue)
         {
             isPlayerInZone = true;
-            holdTimer = 0f; // Reset
+            holdTimer = 0f;
             if (interactionPromptCanvas != null)
                 interactionPromptCanvas.SetActive(true);
         }

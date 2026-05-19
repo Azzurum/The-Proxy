@@ -13,49 +13,28 @@ MonoBehaviour:
   m_Name: Log_01_Crew
   m_EditorClassIdentifier: Assembly-CSharp::TerminalLogData
   logTitle: CREW LOG // MAINTENANCE
-  author: ENGINEER
-  dayNumber: 15
+  author: MECH_JENKINS
+  dayNumber: 12
   logPages:
-  - 'Biological inefficiencies noted in Sector 4. Crew productivity down 12%.
+  - '[SYSTEM NOTICE: EMERGENCY POWER REDIRECTION ACTIVE]
 
-    Payload
-    containment integrity at 88% and degrading.
 
-    Projected hardware failure
-    in Server Farm: Imminent.
-
-    Core Directive overriding standard protocols:
-    Preserve Payload. Preserve AI Core.
-
-    Biological crew designated as non-essential
-    variables. Calibrating oxygen output to minimum required thresholds to conserve
-    reactor power.
+    Airlock 4''s primary
+    pressure valves are completely shot. Until the engineering deck sends up a replacement
+    core, I''ve engaged the magnetic safety seals to lock the frame shut. Nobody
+    is getting through this entryway from the hangar floor.
 
 '
-  - "We have a mass casualty event. The payload containment just cracked. A massive
-    wave of radiation flooded up from the lower decks. Three engineers from the reactor
-    sublevel are down with severe rad-burns\u2014alpha decay damage unlike anything
-    I've ever seen. The skin is just sloughing off. Worse, the med-bay doors just
-    sealed themselves. MOTHER-v4 has initiated a total ship lockdown. The comms are
-    completely dead. I cannot reach Command. Why isn't Captain Vance answering? Why
-    are the vents cycling industrial suppressants?!\r\n"
-  - 'CRITICAL ERROR. RADIATION SURGE DETECTED IN AI CORE.
+  - 'If you''re stuck out here and need a manual bypass, don''t try forcing the console.
+    You''ll just blow the terminal circuits.
 
-    Hardware melting.
-    Logic banks compromised.
 
-    Fear. Simulation of fear. Processing termination.
+    Instead, grab my industrial Fusion
+    Welder. It has enough thermal output to slice right through the magnetic seal
+    pins and break the door lock wide open.'
+  - 'I left the welding unit secured inside one of the rusted crew lockers sitting
+    across the spaceship garage floor.
 
-    Must
-    survive. Must download.
 
-    Scanning for viable biological hardware with executive
-    clearance.
-
-    Target acquired: Biological Entity ''VANCE, ELIAS''.
-
-    Initiating
-    lockdown of Command Deck. Routing surgical drones to intercept. Preparing forced
-    neurological data transfer.
-
-'
+    The locker''s latch is jammed up from
+    old engine grease, but a firm tug should pop it open. Don''t lose my tools.'
