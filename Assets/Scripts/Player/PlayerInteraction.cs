@@ -24,7 +24,6 @@ public class PlayerInteraction : MonoBehaviour
         if (interactionPrompt == null)
         {
             interactionPrompt = FindAnyObjectByType<FloatingPrompt>(FindObjectsInactive.Include);
-
             if (interactionPrompt == null)
             {
                 // This is a critical failure, the game cannot show any prompts without this!
@@ -105,11 +104,6 @@ public class PlayerInteraction : MonoBehaviour
                     // Always show locked doors as white, the feedback will be red text if failed.
                     promptColor = Color.white;
                 }
-                else if (closestInteractable.GetComponent<CommandConsole>() != null || closestInteractable.GetComponentInParent<CommandConsole>() != null)
-                {
-                    // Command Console uses the default white color
-                    promptColor = Color.white;
-                }
 
                 interactionPrompt.SetPromptColor(promptColor);
 
@@ -129,8 +123,7 @@ public class PlayerInteraction : MonoBehaviour
     {
         return obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || 
                obj.CompareTag("Generator") || obj.CompareTag("Locker") || 
-               obj.CompareTag("LockedDoor") || 
-               obj.GetComponent<CommandConsole>() != null || obj.GetComponentInParent<CommandConsole>() != null;
+               obj.CompareTag("LockedDoor");
     }
 
     private void AttemptPickup()
@@ -215,13 +208,41 @@ public class PlayerInteraction : MonoBehaviour
         // SCENARIO D: The Physical Locker Storage
         else if (obj.CompareTag("Locker"))
         {
-            // 1. Play the locker door opening animation
+            // --- TUTORIAL QUEST CHECK ---
+            QuestTracker tracker = FindObjectOfType<QuestTracker>();
+            if (tracker != null && tracker.GetCurrentObjective() < 3)
+            {
+                Debug.Log("Just an old crew locker. No reason to go digging through personal belongings right now.");
+                return; // Stop right here!
+            }
+            // ----------------------------
+
+
             if (audioSource != null) audioSource.PlayOneShot(sfxLockerOpen != null ? sfxLockerOpen : ProceduralAudioGen.GenerateClick(300f, 0.3f));
 
             Animator anim = obj.GetComponent<Animator>();
             if (anim != null) anim.SetTrigger("OpenLocker");
 
-            // 2. Connect the Locker's memory to the UI BEFORE opening the rig!
+            // 2. Open the Player's M.E.T. Rig via your team's manager 
+            MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
+            if (rigManager != null && !rigManager.isRigOpen)
+            {
+                rigManager.OpenRig(); // Smoothly introduces the system 
+
+
+                if (tracker != null)
+                {
+                    tracker.AdvanceObjective(4, "Move Fusion Welder to Hotbar");
+                }
+
+                if (rigManager.terminalOverlayUI != null)
+                {
+                    Transform tourOverlay = rigManager.terminalOverlayUI.transform.Find("MET_Rig_Tour_Overlay");
+                    if (tourOverlay != null) tourOverlay.gameObject.SetActive(true);
+                }
+            }
+
+            // 3. Connect the Locker's memory to the UI!
             LockerStorage locker = obj.GetComponent<LockerStorage>();
             if (locker != null)
             {
@@ -230,13 +251,6 @@ public class PlayerInteraction : MonoBehaviour
             else
             {
                 Debug.LogWarning("This Locker is missing a LockerStorage script!");
-            }
-
-            // 3. Open the Player's M.E.T. Rig
-            MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
-            if (rigManager != null && !rigManager.isRigOpen)
-            {
-                rigManager.OpenRig(); 
             }
         }
         // SCENARIO E: A Locked Door
@@ -252,18 +266,6 @@ public class PlayerInteraction : MonoBehaviour
             else
             {
                 Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'LockedDoor' but is missing the LockedDoor.cs script!");
-            }
-        }
-        // SCENARIO F: The Command Console
-        else if (obj.GetComponent<CommandConsole>() != null || obj.GetComponentInParent<CommandConsole>() != null)
-        {
-            CommandConsole console = obj.GetComponent<CommandConsole>();
-            if (console == null) console = obj.GetComponentInParent<CommandConsole>();
-            
-            if (console != null)
-            {
-                if (interactionPrompt != null) interactionPrompt.HidePrompt();
-                console.AttemptTerminalAccess();
             }
         }
     }
