@@ -168,27 +168,27 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (itemData != null && itemData.itemID == "CRPT") return; 
+        if (itemData != null && itemData.itemID == "CRPT") return;
 
         itemBeingDragged = this;
-        ejectedFromRig = false; 
+        ejectedFromRig = false;
         dropAccepted = false;
         parentAfterDrag = transform.parent;
         originalParent = transform.parent;
-        originalAnchoredPosition = rectTransform.anchoredPosition; 
+        originalAnchoredPosition = rectTransform.anchoredPosition;
 
         transform.SetParent(canvas.transform, true);
         transform.SetAsLastSibling();
-        
+
         rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
         rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
 
         Vector3 cleanPos = rectTransform.localPosition;
-        cleanPos.z = 0f; 
+        cleanPos.z = 0f;
         rectTransform.localPosition = cleanPos;
-        
+
         UpdateVisualSize();
-        UpdateDragPosition(eventData); 
+        UpdateDragPosition(eventData);
 
         InventoryManager manager = FindAnyObjectByType<InventoryManager>();
         if (manager != null) manager.SyncDataFromUI();
@@ -196,12 +196,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Canvas myCanvas = GetComponent<Canvas>();
         if (myCanvas != null) myCanvas.sortingOrder = 20;
 
-        // THE FIX: Disable raycasts on ALL items so they don't hijack your mouse!
-        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
-        foreach (DraggableItem item in allItems)
-        {
-            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = false;
-        }
+        // --- ADD THIS LINE TO FIX RAYCAST BLOCKING ---
+        if (canvasGroup != null) canvasGroup.blocksRaycasts = false;
+        // ---------------------------------------------
 
         canvasGroup.alpha = 0.8f;
         SetRotationHintVisible(true);
@@ -233,13 +230,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null && itemData.itemID == "CRPT") return;
 
         itemBeingDragged = null;
-        
-        // THE FIX: Turn raycasts back on for ALL items so you can click them again!
-        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
-        foreach (DraggableItem item in allItems)
-        {
-            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = true;
-        }
+
+        if (canvasGroup != null) canvasGroup.blocksRaycasts = true;
 
         canvasGroup.alpha = 1f;
 
@@ -253,20 +245,30 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             return;
         }
 
-        if (dropAccepted && parentAfterDrag != null) 
+        if (dropAccepted && parentAfterDrag != null)
         {
+            // --- ADDED: Check if the target is a Hotbar Quick Slot! ---
+            HotbarSlot hotbarSlot = parentAfterDrag.GetComponent<HotbarSlot>();
+            if (hotbarSlot != null)
+            {
+                // If it's a hotbar slot, bypass the complex Tetris grid cell math entirely!
+                StartSmoothPlacement(parentAfterDrag);
+                return;
+            }
+
+            // --- Existing Tetris grid checking logic continues normally ---
             InventorySlot hoverSlot = parentAfterDrag.GetComponent<InventorySlot>();
             if (hoverSlot != null && footprint != null)
             {
                 int offsetX = -Mathf.FloorToInt(footprint.width / 2f);
                 int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
-                
+
                 int targetX = hoverSlot.slotCoordinate.x + offsetX;
                 int targetY = hoverSlot.slotCoordinate.y + offsetY;
-                
+
                 Transform gridTransform = hoverSlot.transform.parent;
-                int cols = 5; 
-                
+                int cols = 5;
+
                 int targetIndex = targetY * cols + targetX;
                 if (targetIndex >= 0 && targetIndex < gridTransform.childCount)
                 {

@@ -216,6 +216,33 @@ Transform:
   - {fileID: 1307531834}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &105989349 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8833019300803031913, guid: e678948b21bf07f4b8c4d4ec870c4784, type: 3}
+  m_PrefabInstance: {fileID: 1307531832}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
+--- !u!224 &105989350 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 2594010550198830246, guid: e678948b21bf07f4b8c4d4ec870c4784, type: 3}
+  m_PrefabInstance: {fileID: 1307531832}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &105989351 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1411494052921669480, guid: e678948b21bf07f4b8c4d4ec870c4784, type: 3}
+  m_PrefabInstance: {fileID: 1307531832}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
 --- !u!1 &107660199
 GameObject:
   m_ObjectHideFlags: 0
@@ -312,6 +339,14 @@ PrefabInstance:
       propertyPath: player
       value: 
       objectReference: {fileID: 5722633599621355396}
+    - target: {fileID: 3259751516724384224, guid: 70573b64811e9314d88ba8682e1ccb71, type: 3}
+      propertyPath: edgeArrow
+      value: 
+      objectReference: {fileID: 105989350}
+    - target: {fileID: 3259751516724384224, guid: 70573b64811e9314d88ba8682e1ccb71, type: 3}
+      propertyPath: telemetryText
+      value: 
+      objectReference: {fileID: 105989349}
     - target: {fileID: 6174054357644713056, guid: 70573b64811e9314d88ba8682e1ccb71, type: 3}
       propertyPath: m_LocalPosition.x
       value: -8.04154
@@ -5913,6 +5948,10 @@ PrefabInstance:
       propertyPath: gridRight
       value: 
       objectReference: {fileID: 1307531835}
+    - target: {fileID: 4440145888711611201, guid: d3d7738f06e800945ac03591835165be, type: 3}
+      propertyPath: uiInspectIcon
+      value: 
+      objectReference: {fileID: 105989351}
     - target: {fileID: 4440145888711611201, guid: d3d7738f06e800945ac03591835165be, type: 3}
       propertyPath: isSystemActive
       value: 0
@@ -16615,6 +16654,10 @@ PrefabInstance:
     - target: {fileID: 1882200975344590136, guid: e678948b21bf07f4b8c4d4ec870c4784, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -22.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 2144001818624862754, guid: e678948b21bf07f4b8c4d4ec870c4784, type: 3}
+      propertyPath: m_RaycastTarget
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2384402095122482065, guid: e678948b21bf07f4b8c4d4ec870c4784, type: 3}
       propertyPath: m_AnchorMax.y
