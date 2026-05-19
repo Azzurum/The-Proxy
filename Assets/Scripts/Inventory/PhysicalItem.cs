@@ -11,6 +11,8 @@ public class PhysicalItem : MonoBehaviour
     public Vector3 TargetPosition { get; private set; }
 
     private SpriteRenderer spriteRenderer;
+    private AudioSource audioSource;
+    private Coroutine decoyRoutine;
 
     void Awake()
     {
@@ -24,6 +26,13 @@ public class PhysicalItem : MonoBehaviour
         
         // Force it onto the Player sorting layer so it doesn't spawn behind the floor!
         if (spriteRenderer != null) spriteRenderer.sortingLayerName = "Player";
+
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null) 
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.spatialBlend = 0.6f; // Give it a bit of 3D spatial presence in the world
+        }
     }
 
     void Update()
@@ -73,13 +82,66 @@ public class PhysicalItem : MonoBehaviour
         transform.rotation = targetRot;
         IsBouncing = false;
 
-        AudioSource audio = GetComponent<AudioSource>();
-        if (audio == null) 
-        {
-            audio = gameObject.AddComponent<AudioSource>();
-            audio.spatialBlend = 0.6f; // Give it a bit of 3D spatial presence in the world
-        }
         // Play a low, dull thud when the item hits the ground
-        audio.PlayOneShot(ProceduralAudioGen.GenerateClick(150f, 0.08f));
+        if (audioSource != null) audioSource.PlayOneShot(ProceduralAudioGen.GenerateClick(150f, 0.08f));
+
+        // --- DECOY LOGIC ---
+        // If this item is a Decoy, start the blinking and sound effect!
+        if (itemData != null && (itemData.itemID.Contains("DECOY") || itemData.itemName.ToLower().Contains("decoy")))
+        {
+            if (decoyRoutine != null) StopCoroutine(decoyRoutine);
+            decoyRoutine = StartCoroutine(DecoyActiveRoutine());
+
+            // Alert the Proxy to come investigate this exact spot!
+            ProxyAI proxy = FindAnyObjectByType<ProxyAI>();
+            if (proxy != null)
+            {
+                proxy.DistractToLocation(transform.position, 15f); // Distract for 15 seconds
+            }
+        }
+    }
+
+    private System.Collections.IEnumerator DecoyActiveRoutine()
+    {
+        // Generate a soft, non-annoying radar beep
+        AudioClip softBeep = GenerateSoftBeep();
+        
+        Color baseColor = Color.white;
+        Color glowColor = new Color(0f, 1f, 1f, 1f); // Cyan glow
+
+        while (true)
+        {
+            // 1. Play the soft beep
+            if (audioSource != null)
+            {
+                audioSource.pitch = 1f;
+                audioSource.PlayOneShot(softBeep, 0.2f); // 20% volume so it's not annoying!
+            }
+
+            // 2. Flash the sprite cyan quickly
+            if (spriteRenderer != null) spriteRenderer.color = glowColor;
+            yield return new WaitForSeconds(0.1f);
+            if (spriteRenderer != null) spriteRenderer.color = baseColor;
+            
+            // 3. Wait for the next radar ping (1.5 seconds)
+            yield return new WaitForSeconds(1.4f);
+        }
+    }
+
+    private AudioClip GenerateSoftBeep()
+    {
+        int sampleRate = 44100;
+        float duration = 0.15f;
+        AudioClip clip = AudioClip.Create("DecoyBeep", (int)(sampleRate * duration), 1, sampleRate, false);
+        float[] samples = new float[clip.samples];
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = (float)i / sampleRate;
+            float wave = Mathf.Sin(t * Mathf.PI * 2f * 600f); // 600Hz is a smooth, gentle tone
+            float envelope = Mathf.Sin(t * Mathf.PI / duration); // Smooth fade in/out so it doesn't "click" or hurt the ears
+            samples[i] = wave * envelope * 0.5f; 
+        }
+        clip.SetData(samples, 0);
+        return clip;
     }
 }

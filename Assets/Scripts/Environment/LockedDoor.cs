@@ -90,7 +90,7 @@ public class LockedDoor : MonoBehaviour
             // FAILURE!
             Debug.Log($"Door is locked. Requires {requiredItemID}.");
             if (audioSource != null && sfxUnlockFail != null) audioSource.PlayOneShot(sfxUnlockFail);
-            if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog("ACCESS DENIED", Color.red, $"Requires: {requiredItemID}");
+            if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog($"Requires {requiredItemID}", Color.red, "ACCESS DENIED");
         }
     }
 }

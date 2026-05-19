@@ -539,11 +539,11 @@ public class ProxyAI : MonoBehaviour
 
         while (Vector2.Distance(myPos2D, targetPosition) > 0.1f)
         {
-            myPos2D = Vector2.MoveTowards(myPos2D, targetPosition, knockbackSpeed * Time.deltaTime);
+            myPos2D = Vector2.MoveTowards(myPos2D, targetPosition, knockbackSpeed * Time.fixedDeltaTime);
             if (rb != null) rb.MovePosition(myPos2D);
             else transform.position = new Vector3(myPos2D.x, myPos2D.y, transform.position.z);
             
-            yield return null;
+            yield return new WaitForFixedUpdate();
         }
         if (currentState == AIState.KnockedBack)
         {

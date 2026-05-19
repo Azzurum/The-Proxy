@@ -98,7 +98,11 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             rectTransform.localEulerAngles = Vector3.zero; 
             
             // STRICTLY use the new Tetris logic! No standard Images!
-            if (uiItem != null) uiItem.SetTetrisGridVisibility(false);
+            if (uiItem != null) 
+            {
+                uiItem.SetTetrisGridVisibility(false);
+                if (uiItem.displayImage != null) uiItem.displayImage.raycastTarget = true; // FIX: Make it clickable in hotbar!
+            }
 
             if (itemBeingDragged != this)
             {
@@ -112,7 +116,11 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         // --- GRID AWARENESS ---
         // STRICTLY use the new Tetris logic! No standard Images!
-        if (uiItem != null) uiItem.SetTetrisGridVisibility(true); 
+        if (uiItem != null) 
+        {
+            uiItem.SetTetrisGridVisibility(true); 
+            if (uiItem.displayImage != null) uiItem.displayImage.raycastTarget = false; // FIX: Restore transparency click-through in main grid
+        }
 
         rectTransform.sizeDelta = new Vector2(baseFp.width * cellSize, baseFp.height * cellSize);
         rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? -90f : 0f);
@@ -177,6 +185,17 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         originalParent = transform.parent;
         originalAnchoredPosition = rectTransform.anchoredPosition; 
 
+        // If we are being dragged from a hotbar slot, we need to tell it we've left.
+        // This is critical for allowing the item to be dropped back into the main grid.
+        if (originalParent != null)
+        {
+            HotbarSlot slot = originalParent.GetComponent<HotbarSlot>();
+            if (slot != null)
+            {
+                slot.DetachItem();
+            }
+        }
+
         transform.SetParent(canvas.transform, true);
         transform.SetAsLastSibling();
         
@@ -196,12 +215,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Canvas myCanvas = GetComponent<Canvas>();
         if (myCanvas != null) myCanvas.sortingOrder = 20;
 
-        // THE FIX: Disable raycasts on ALL items so they don't hijack your mouse!
-        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
-        foreach (DraggableItem item in allItems)
-        {
-            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = false;
-        }
+        // THE FIX: Disable raycasts purely on the dragged item so you can drop it onto slots
+        if (canvasGroup != null) canvasGroup.blocksRaycasts = false;
 
         canvasGroup.alpha = 0.8f;
         SetRotationHintVisible(true);
@@ -234,12 +249,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         itemBeingDragged = null;
         
-        // THE FIX: Turn raycasts back on for ALL items so you can click them again!
-        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
-        foreach (DraggableItem item in allItems)
-        {
-            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = true;
-        }
+        // THE FIX: Turn raycasts back on for this item
+        if (canvasGroup != null) canvasGroup.blocksRaycasts = true;
 
         canvasGroup.alpha = 1f;
 
@@ -360,6 +371,13 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
         if (myCanvas != null && slot != null) myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? 1 : 5;
+
+        // FAILSAFE: If the drag was rejected, make sure the Hotbar remembers we came back!
+        HotbarSlot hotbarSlot = targetParent.GetComponent<HotbarSlot>();
+        if (hotbarSlot != null)
+        {
+            hotbarSlot.containedItem = this;
+        }
         
         InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
         if (inventoryManager != null) inventoryManager.SyncDataFromUI();
@@ -494,11 +512,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         itemBeingDragged = null;
         
-        DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
-        foreach (DraggableItem item in allItems)
-        {
-            if (item.canvasGroup != null) item.canvasGroup.blocksRaycasts = true;
-        }
+        if (canvasGroup != null) canvasGroup.blocksRaycasts = true;
 
         canvasGroup.alpha = 1f;
         ClearAllSlotHighlights();
@@ -531,6 +545,13 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
             rectTransform.anchoredPosition = originalAnchoredPosition;
             rectTransform.localScale = Vector3.one; 
+        }
+
+        // FAILSAFE: If the inventory forcefully aborted our drag (like taking a hit from the Proxy)
+        if (originalParent != null)
+        {
+            HotbarSlot hotbarSlot = originalParent.GetComponent<HotbarSlot>();
+            if (hotbarSlot != null) hotbarSlot.containedItem = this;
         }
         
         UpdateVisualSize(); 

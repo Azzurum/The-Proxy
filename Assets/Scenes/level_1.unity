@@ -13463,6 +13463,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   target: {fileID: 0}
+  cutsceneStartingTarget: {fileID: 0}
   offset: {x: 0, y: 0, z: -10}
   smoothTime: 0.15
 --- !u!1 &1083281925
@@ -22407,6 +22408,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5722633599453805812, guid: c908b6e95346c2e4c8f4e424bb5bbd1b, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7875437750931186344, guid: c908b6e95346c2e4c8f4e424bb5bbd1b, type: 3}
+      propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []

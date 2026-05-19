@@ -641,7 +641,7 @@ public class InventoryManager : MonoBehaviour
 
                 UIItem uiItem = itemObj.GetComponent<UIItem>();
 
-                if (uiItem != null) uiItem.Initialize(data, currentCellSize);
+                if (uiItem != null) uiItem.Initialize(data, currentCellSize, isRotated);
                 
                 DraggableItem dragItem = itemObj.GetComponent<DraggableItem>();
 
@@ -1292,8 +1292,7 @@ public class InventoryManager : MonoBehaviour
                     UIItem uiItem = newObj.GetComponent<UIItem>();
                     if (uiItem != null) 
                     {
-                        foundData.isRotated = savedItem.isRotated; 
-                        uiItem.Initialize(foundData, currentCellSize); 
+                        uiItem.Initialize(foundData, currentCellSize, savedItem.isRotated); 
                     }
 
                     DraggableItem dragItem = newObj.GetComponent<DraggableItem>();

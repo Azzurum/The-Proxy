@@ -94,7 +94,6 @@ public class LockerStorage : MonoBehaviour
                 ItemData foundItem = inventoryManager.itemDatabase.Find(x => x.itemID == id);
                 if (foundItem != null)
                 {
-                    foundItem.isRotated = isRotated;
                     gridSlots[i] = foundItem;
                 }
                 else gridSlots[i] = null;
@@ -115,8 +114,8 @@ public class LockerStorage : MonoBehaviour
         for (int attempt = 0; attempt < 20; attempt++)
         {
             // Pick a random anchor coordinate
-            int startX = Random.Range(0, 6 - w);
-            int startY = Random.Range(0, 6 - h);
+            int startX = Random.Range(0, Mathf.Max(1, 6 - w));
+            int startY = Random.Range(0, Mathf.Max(1, 6 - h));
 
             bool spaceFree = true;
 
