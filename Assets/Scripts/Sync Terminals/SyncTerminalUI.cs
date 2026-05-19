@@ -105,6 +105,12 @@ public class SyncTerminalUI : MonoBehaviour
             if (rb != null) rb.bodyType = RigidbodyType2D.Dynamic;
         }
 
+        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        if (tracker != null)
+        {
+            tracker.AdvanceObjective(3, "Search lockers for Fusion Welder");
+        }
+
         terminalCanvas.gameObject.SetActive(false);
     }
 

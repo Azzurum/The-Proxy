@@ -96,14 +96,9 @@ public class DialogueEngine : MonoBehaviour
     private bool isSkipping = false; 
     private string _conversationHistory = "";
     private bool _showChoicesAtEnd = false;
-    private float _inputCooldown = 0f;
-    private bool _isInitialized = false;
 
     void Start()
     {
-        if (_isInitialized) return;
-        _isInitialized = true;
-
         // Immediate Failsafes for when a scene restarts
         isDialogueActive = false;
         isSkipping = false;
@@ -130,13 +125,11 @@ public class DialogueEngine : MonoBehaviour
         portraitLeft.UpdateLerp();
         portraitRight.UpdateLerp();
 
-        if (_inputCooldown > 0f) _inputCooldown -= Time.deltaTime;
-
         bool isMenuOpen = (logPanel != null && logPanel.activeInHierarchy) ||
                           (configPanel != null && configPanel.activeInHierarchy) ||
                           (choicePanel != null && choicePanel.activeInHierarchy);
 
-        if (dialogueCanvas.activeInHierarchy && !isMenuOpen && _inputCooldown <= 0f)
+        if (dialogueCanvas.activeInHierarchy && !isMenuOpen)
         {
             bool pressedKey = Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return);
             bool isOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
@@ -154,11 +147,8 @@ public class DialogueEngine : MonoBehaviour
 
     public void StartDialogue(DialogueNode[] conversation, bool showChoices = false)
     {
-        if (!_isInitialized) Start(); // Ensure Start doesn't overwrite us later!
-
         if (conversation == null || conversation.Length == 0) return;
 
-        _inputCooldown = 0.2f; // Prevent instantly skipping on the frame it opens
         _showChoicesAtEnd = showChoices;
         isDialogueActive = true;
         currentConversation = conversation;
@@ -184,8 +174,6 @@ public class DialogueEngine : MonoBehaviour
 
     private void AdvanceDialogue()
     {
-        if (currentConversation == null) return;
-
         if (isTyping)
         {
             // Instantly finish the line
@@ -234,52 +222,10 @@ public class DialogueEngine : MonoBehaviour
 
         _conversationHistory += "<color=#FFB300>> " + node.speakerName + "</color>\n" + node.dialogueText + "\n\n";
 
-        // Detect if the speaker is screaming (MOTHER + All Caps + Contains Actual Letters)
-        bool isScreaming = node.speakerName.Trim().ToUpper() == "MOTHER" &&
-                           node.dialogueText.Length > 5 && 
-                           node.dialogueText == node.dialogueText.ToUpper() && 
-                           node.dialogueText != node.dialogueText.ToLower();
-
-        CameraFollow cam = null;
-        if (isScreaming) 
-        {
-            cam = FindAnyObjectByType<CameraFollow>();
-            
-            // Play a loud static glitch sound when they scream!
-            AudioSource audio = GetComponent<AudioSource>();
-            if (audio == null) audio = gameObject.AddComponent<AudioSource>();
-            audio.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2.5f), 1.0f);
-        }
-
-        string textToType = node.dialogueText;
-
-        // Apply "Ransom Note" Glitch Effect
-        // We check for '<' to ensure we don't accidentally break any existing Rich Text tags you might add later!
-        if (isScreaming && !textToType.Contains("<"))
-        {
-            string corruptedText = "";
-            foreach (char c in textToType)
-            {
-                if (char.IsWhiteSpace(c)) 
-                {
-                    corruptedText += c;
-                }
-                else
-                {
-                    float rand = Random.value;
-                    if (rand > 0.90f) corruptedText += $"<color=#ff003c><size=130%>{c}</size></color>"; // Massive Red
-                    else if (rand > 0.80f) corruptedText += $"<color=#777777><size=70%>{c}</size></color>"; // Tiny Grey
-                    else if (rand > 0.77f) corruptedText += $"<color=#ff003c>█</color>"; // Pure Glitch Block
-                    else corruptedText += c; // Normal
-                }
-            }
-            textToType = corruptedText;
-        }
-
         isTyping = true;
         if (dialogueText != null)
         {
-            dialogueText.text = textToType;
+            dialogueText.text = node.dialogueText;
             dialogueText.maxVisibleCharacters = 0;
             dialogueText.ForceMeshUpdate();
 
@@ -288,22 +234,8 @@ public class DialogueEngine : MonoBehaviour
             {
                 dialogueText.maxVisibleCharacters = i;
                 
-                // Re-trigger the shake as they type so it feels like the voice is rattling the screen!
-                if (isScreaming && cam != null && i % 2 == 0)
-                {
-                    cam.TriggerShake(0.15f, 0.35f); // Short, violent vibration
-                }
-
-                // Drive at 20x speed if skipping is active. If screaming, randomize typing for a glitchy effect!
-                float currentDelay = typingSpeed;
-                if (isSkipping) currentDelay = typingSpeed / 20f;
-                else if (isScreaming) 
-                {
-                    currentDelay = typingSpeed * Random.Range(0.5f, 3.5f);
-                    if (Random.value > 0.9f) currentDelay = typingSpeed * 8f; // Occasional heavy stutter
-                }
-                
-                yield return new WaitForSeconds(currentDelay);
+                // Drive at 10x speed if skipping is active
+                yield return new WaitForSeconds(isSkipping ? (typingSpeed / 20f) : typingSpeed);
             }
         }
         isTyping = false;
@@ -339,7 +271,7 @@ public class DialogueEngine : MonoBehaviour
 
     [Header("Player Control Integration")]
     public GameObject playerObject;
-
+    public GameObject questTrackerText;
     public void EndDialogue()
     {
         isDialogueActive = false;
@@ -352,6 +284,9 @@ public class DialogueEngine : MonoBehaviour
         if (playerObject != null)
         {
             playerObject.SetActive(true);
+
+            if (questTrackerText != null) questTrackerText.SetActive(true);
+
             Debug.Log("Dialogue complete! Player_Kaelen is now active and free to roam.");
 
             // Core Camera Tracking
@@ -362,6 +297,13 @@ public class DialogueEngine : MonoBehaviour
                 Camera.main.transform.position = playerObject.transform.position + camScript.offset;
             }
         }
+
+        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        if (tracker != null && tracker.GetCurrentObjective() == 1)
+        {
+            tracker.AdvanceObjective(2, "Access the Sync-Terminal");
+        }
+
     }
 
     // ==========================================
