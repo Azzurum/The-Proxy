@@ -173,17 +173,38 @@ public class PlayerInteraction : MonoBehaviour
         // SCENARIO D: The Physical Locker Storage
         else if (obj.CompareTag("Locker"))
         {
-            // 1. Play the locker door opening animation
+            // --- TUTORIAL QUEST CHECK ---
+            QuestTracker tracker = FindObjectOfType<QuestTracker>();
+            if (tracker != null && tracker.GetCurrentObjective() < 3)
+            {
+                Debug.Log("Just an old crew locker. No reason to go digging through personal belongings right now.");
+                return; // Stop right here!
+            }
+            // ----------------------------
+
+
             if (audioSource != null) audioSource.PlayOneShot(sfxLockerOpen != null ? sfxLockerOpen : ProceduralAudioGen.GenerateClick(300f, 0.3f));
 
             Animator anim = obj.GetComponent<Animator>();
             if (anim != null) anim.SetTrigger("OpenLocker");
 
-            // 2. Open the Player's M.E.T. Rig
+            // 2. Open the Player's M.E.T. Rig via your team's manager 
             MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
             if (rigManager != null && !rigManager.isRigOpen)
             {
-                rigManager.OpenRig(); 
+                rigManager.OpenRig(); // Smoothly introduces the system 
+
+
+                if (tracker != null)
+                {
+                    tracker.AdvanceObjective(4, "Move Fusion Welder to Hotbar");
+                }
+
+                if (rigManager.terminalOverlayUI != null)
+                {
+                    Transform tourOverlay = rigManager.terminalOverlayUI.transform.Find("MET_Rig_Tour_Overlay");
+                    if (tourOverlay != null) tourOverlay.gameObject.SetActive(true);
+                }
             }
 
             // 3. Connect the Locker's memory to the UI!

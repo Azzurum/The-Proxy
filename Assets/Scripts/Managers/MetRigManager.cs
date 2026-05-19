@@ -216,6 +216,14 @@ public class MetRigManager : MonoBehaviour
         {
             ToggleRig();
         }
+
+        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        if (tracker != null && tracker.GetCurrentObjective() == 4)
+        {
+            // Advance tracker to Phase 4: Application & Progression
+            tracker.AdvanceObjective(5, "Weld the Airlock Door");
+        }
+
     }
 
     public void OpenRig()
