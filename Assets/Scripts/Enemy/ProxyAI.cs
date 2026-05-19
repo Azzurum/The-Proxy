@@ -50,6 +50,7 @@ public class ProxyAI : MonoBehaviour
     [SerializeField] private float delayedHuntSeconds = 2f;
     [SerializeField] private float signalSpeedMultiplier = 1.2f; // 20% buff when Rig is open
     private bool isSignalEmpowered = false; // Tracks if the Proxy is enraged by the open inventory
+    private bool isEnraged = false; // Permanent hunt mode for the Meltdown sequence
 
     [Header("Knockback")]
     [SerializeField] private float knockbackSpeed = 25f;
@@ -146,7 +147,7 @@ public class ProxyAI : MonoBehaviour
         switch (currentState)
         {
             case AIState.Hunting:
-                if (isSignalEmpowered || isPlayerInMeleeRange)
+                if (isSignalEmpowered || isPlayerInMeleeRange || isEnraged)
                 {
                     lastKnownPosition = targetPlayer.position;
                     SetMoveTarget(targetPlayer.position, sprintSpeed);
@@ -295,6 +296,8 @@ public class ProxyAI : MonoBehaviour
 
     public void OnSignalSpike(bool isListening, float distance)
     {
+        if (isEnraged) return; // Cannot drop the signal during a meltdown!
+
         isSignalEmpowered = isListening; // Activates the 20% buff while the signal is active!
 
         if (isListening && distance >= 0)
@@ -707,5 +710,13 @@ public class ProxyAI : MonoBehaviour
             // Dynamically scale animation speed based on movement speed.
             animator.speed = Mathf.Max(1f, currentSpeed / baseSpeed) * activeMultiplier;
         }
+    }
+
+    // Triggered by the Meltdown Manager in the escape scene
+    public void TriggerEnragedHunt()
+    {
+        isEnraged = true;
+        isSignalEmpowered = true; // Grants the 20% speed buff permanently
+        ChangeState(AIState.Hunting);
     }
 }

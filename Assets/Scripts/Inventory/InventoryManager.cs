@@ -7,6 +7,8 @@ using UnityEngine.SceneManagement;
 
 public class InventoryManager : MonoBehaviour
 {
+    public static InventoryManager Instance { get; private set; }
+
     [Header("Data & Layout Architecture")]
     public InventoryState inventoryState;
     public Transform gridLeft;
@@ -61,11 +63,22 @@ public class InventoryManager : MonoBehaviour
     private float jumpscareCooldown = 45f; // Initial cooldown before first jumpscare
 
     [Header("Game Over State")]
+    public bool suppressGameOver = false;
     private bool isGameOverSequenceStarted = false;
 
     [Header("Locker State")]
     public bool isInteractingWithLocker = false;
     private LockerStorage activeLocker = null; // Track the locker currently being viewed
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+    }
 
     void Start()
     {
@@ -151,7 +164,8 @@ public class InventoryManager : MonoBehaviour
                 systemShockProgressBar.value = 1f - (shockTimer / shockInterval);
             }
 
-            if (HasHallucinations)
+            // Pause the hallucination system entirely while Kaelen is in a conversation!
+            if (HasHallucinations && !DialogueEngine.isDialogueActive)
             {
                 if (jumpscareCooldown > 0f) jumpscareCooldown -= Time.deltaTime;
                 hallucinationCooldown -= Time.deltaTime;
@@ -187,8 +201,8 @@ public class InventoryManager : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.C)) ExecuteCleanProtocol();
 
-        // DEBUG: Press H to instantly test the Hallucination Jumpscare!
-        if (Input.GetKeyDown(KeyCode.H)) StartCoroutine(FakeProxyJumpscareRoutine());
+        // DEBUG: Press H to instantly test the Hallucination Jumpscare (prevented during dialogue)!
+        if (Input.GetKeyDown(KeyCode.H) && !DialogueEngine.isDialogueActive) StartCoroutine(FakeProxyJumpscareRoutine());
     }
 
     // ==========================================
@@ -664,6 +678,7 @@ public class InventoryManager : MonoBehaviour
 
     private void CheckForGameOver()
     {
+        if (suppressGameOver) return;
         // If it's not fully corrupted, OR we are already dying, do nothing.
         if (!IsInventoryFullyCorrupted() || isGameOverSequenceStarted) return;
         
@@ -1131,6 +1146,22 @@ public class InventoryManager : MonoBehaviour
     // ==========================================
     // SAVE SYSTEM EXPORT & IMPORT LOGIC
     // ==========================================
+
+    public int CurrentCorruptionRows
+    {
+        get
+        {
+            int count = 0;
+            if (inventoryState != null && inventoryState.mainGridSlots != null)
+            {
+                foreach (ItemData item in inventoryState.mainGridSlots)
+                {
+                    if (item == corruptionData) count++;
+                }
+            }
+            return count / 10;
+        }
+    }
 
     public float GetCorruptionPercentage()
     {

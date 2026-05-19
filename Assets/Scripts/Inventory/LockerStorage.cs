@@ -17,6 +17,10 @@ public class LockerStorage : MonoBehaviour
     public int maxItems = 3;
     public List<ItemData> lootPool = new List<ItemData>();
 
+    [Header("Debug")]
+    [Tooltip("Check this to ignore Save Data and force generate new loot every time the game starts. (Uncheck for final build!)")]
+    public bool forceRerollLoot = false;
+
     void Awake()
     {
         // Ensure the list is exactly 25 slots so the UI grid math never breaks
@@ -25,31 +29,38 @@ public class LockerStorage : MonoBehaviour
 
     void Start()
     {
+        // Delay the generation by 1 frame to guarantee InventoryManager is fully awake!
+        StartCoroutine(DelayedInitialization());
+    }
+
+    private System.Collections.IEnumerator DelayedInitialization()
+    {
+        yield return null; 
+        
         if (string.IsNullOrEmpty(lockerID))
         {
             Debug.LogWarning($"<color=yellow>LOCKER WARNING:</color> A Locker on this map has an empty LockerID! It will not save.");
         }
 
-        // 1. Try to load the locker's state from the hard drive.
-        // If no save exists (first time playing), it will return false and run the generation block.
-        if (!LoadLockerState())
+        if (forceRerollLoot || !LoadLockerState())
         {
-            // If the box is checked, generate random loot!
             if (randomizeLoot && lootPool != null && lootPool.Count > 0)
             {
-                // Clear any pre-existing items first
                 for (int i = 0; i < gridSlots.Count; i++) gridSlots[i] = null;
 
                 int amountToSpawn = Random.Range(minItems, maxItems + 1);
 
                 for (int i = 0; i < amountToSpawn; i++)
                 {
-                    ItemData randomItem = lootPool[Random.Range(0, lootPool.Count)];
-                    TryPlaceRandomly(randomItem);
+                    // Safely grab a random item that is NOT null!
+                    ItemData randomItem = null;
+                    int safetyCheck = 0;
+                    while (randomItem == null && safetyCheck < 10) { randomItem = lootPool[Random.Range(0, lootPool.Count)]; safetyCheck++; }
+                    
+                    if (randomItem != null) TryPlaceRandomly(randomItem);
                 }
             }
             
-            // Save this newly generated (or manually placed) setup so it remembers it forever!
             SaveLockerState();
         }
     }

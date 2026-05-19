@@ -24,6 +24,7 @@ public class PlayerInteraction : MonoBehaviour
         if (interactionPrompt == null)
         {
             interactionPrompt = FindAnyObjectByType<FloatingPrompt>(FindObjectsInactive.Include);
+
             if (interactionPrompt == null)
             {
                 // This is a critical failure, the game cannot show any prompts without this!
@@ -104,6 +105,11 @@ public class PlayerInteraction : MonoBehaviour
                     // Always show locked doors as white, the feedback will be red text if failed.
                     promptColor = Color.white;
                 }
+                else if (closestInteractable.GetComponent<CommandConsole>() != null || closestInteractable.GetComponentInParent<CommandConsole>() != null)
+                {
+                    // Command Console uses the default white color
+                    promptColor = Color.white;
+                }
 
                 interactionPrompt.SetPromptColor(promptColor);
 
@@ -123,7 +129,8 @@ public class PlayerInteraction : MonoBehaviour
     {
         return obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || 
                obj.CompareTag("Generator") || obj.CompareTag("Locker") || 
-               obj.CompareTag("LockedDoor");
+               obj.CompareTag("LockedDoor") || 
+               obj.GetComponent<CommandConsole>() != null || obj.GetComponentInParent<CommandConsole>() != null;
     }
 
     private void AttemptPickup()
@@ -214,14 +221,7 @@ public class PlayerInteraction : MonoBehaviour
             Animator anim = obj.GetComponent<Animator>();
             if (anim != null) anim.SetTrigger("OpenLocker");
 
-            // 2. Open the Player's M.E.T. Rig
-            MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
-            if (rigManager != null && !rigManager.isRigOpen)
-            {
-                rigManager.OpenRig(); 
-            }
-
-            // 3. Connect the Locker's memory to the UI!
+            // 2. Connect the Locker's memory to the UI BEFORE opening the rig!
             LockerStorage locker = obj.GetComponent<LockerStorage>();
             if (locker != null)
             {
@@ -230,6 +230,13 @@ public class PlayerInteraction : MonoBehaviour
             else
             {
                 Debug.LogWarning("This Locker is missing a LockerStorage script!");
+            }
+
+            // 3. Open the Player's M.E.T. Rig
+            MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
+            if (rigManager != null && !rigManager.isRigOpen)
+            {
+                rigManager.OpenRig(); 
             }
         }
         // SCENARIO E: A Locked Door
@@ -245,6 +252,18 @@ public class PlayerInteraction : MonoBehaviour
             else
             {
                 Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'LockedDoor' but is missing the LockedDoor.cs script!");
+            }
+        }
+        // SCENARIO F: The Command Console
+        else if (obj.GetComponent<CommandConsole>() != null || obj.GetComponentInParent<CommandConsole>() != null)
+        {
+            CommandConsole console = obj.GetComponent<CommandConsole>();
+            if (console == null) console = obj.GetComponentInParent<CommandConsole>();
+            
+            if (console != null)
+            {
+                if (interactionPrompt != null) interactionPrompt.HidePrompt();
+                console.AttemptTerminalAccess();
             }
         }
     }
