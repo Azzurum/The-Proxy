@@ -586,11 +586,12 @@ public class InventoryManager : MonoBehaviour
 
             if (data != null)
             {
+                bool isRotated = false;
+                
                 if (data != corruptionData)
                 {
                     if (spawnedMask[y * columns + x]) continue;
 
-                    bool isRotated = false;
                     ItemFootprint fp = data.GetFootprint();
                     if (fp != null)
                     {
