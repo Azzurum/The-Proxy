@@ -38,12 +38,24 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
 
         DraggableItem draggedItem = DraggableItem.itemBeingDragged;
 
-        // Only accept the drop if we are currently empty
         if (draggedItem != null && containedItem == null)
         {
             draggedItem.dropAccepted = true;
-            draggedItem.parentAfterDrag = this.transform; // Make this slot the parent!
+            draggedItem.parentAfterDrag = this.transform;
             containedItem = draggedItem;
+
+            // --- ADD THIS TUTORIAL UPDATE CODE NOW ---
+            if (containedItem.itemData != null && containedItem.itemData.itemID == "TOOL-WELD")
+            {
+                QuestTracker tracker = FindObjectOfType<QuestTracker>();
+                if (tracker != null && tracker.GetCurrentObjective() == 4)
+                {
+                    // Advance objective to index 5: "Weld the Airlock Door"
+                    tracker.AdvanceObjective(5, "Weld the Airlock Door");
+                    Debug.Log("<color=green>TUTORIAL SUCCESS:</color> Welder placed in hotbar. Objective updated!");
+                }
+            }
+            // ----------------------------------------
 
             if (slotNumber == 1 && HotbarManager.Instance != null)
             {
