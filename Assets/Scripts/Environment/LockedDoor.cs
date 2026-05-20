@@ -13,7 +13,6 @@ public class LockedDoor : MonoBehaviour
     public Animator doorAnimator;
     [Tooltip("The exact case-sensitive name of the Trigger parameter in your Animator.")]
     public string openTriggerName = "Open";
-    private BoxCollider2D doorCollider;
     private AudioSource audioSource;
 
     [Header("Depth Sorting")]
@@ -30,7 +29,6 @@ public class LockedDoor : MonoBehaviour
 
     void Start()
     {
-        doorCollider = GetComponent<BoxCollider2D>();
         audioSource = GetComponent<AudioSource>();
 
         // AUTO-WIRING: Grab the Animator just in case it wasn't dragged into the Inspector!
@@ -79,8 +77,12 @@ public class LockedDoor : MonoBehaviour
             if (audioSource != null && sfxUnlockSuccess != null) audioSource.PlayOneShot(sfxUnlockSuccess);
             if (doorAnimator != null) doorAnimator.SetTrigger(openTriggerName);
 
-            // Disable the physical barrier so Kaelen can walk through
-            doorCollider.enabled = false;
+            // Disable ALL physical barriers (both trigger and solid colliders, even on children) so Kaelen can walk through
+            Collider2D[] allColliders = GetComponentsInChildren<Collider2D>();
+            foreach (Collider2D col in allColliders)
+            {
+                col.enabled = false;
+            }
             
             // Make it non-interactable from now on
             gameObject.tag = "Untagged";

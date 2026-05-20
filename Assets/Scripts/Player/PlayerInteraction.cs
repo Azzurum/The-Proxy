@@ -209,7 +209,7 @@ public class PlayerInteraction : MonoBehaviour
         else if (obj.CompareTag("Locker"))
         {
             // --- TUTORIAL QUEST CHECK ---
-            QuestTracker tracker = FindObjectOfType<QuestTracker>();
+            QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
             if (tracker != null && tracker.GetCurrentObjective() < 3)
             {
                 Debug.Log("Just an old crew locker. No reason to go digging through personal belongings right now.");

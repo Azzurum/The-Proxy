@@ -96,15 +96,17 @@ public class DialogueEngine : MonoBehaviour
     private bool isSkipping = false; 
     private string _conversationHistory = "";
     private bool _showChoicesAtEnd = false;
+    private float _dialogueStartTime = 0f;
 
-    void Start()
+    void Awake()
     {
         // Immediate Failsafes for when a scene restarts
         isDialogueActive = false;
         isSkipping = false;
         isAutoMode = false;
 
-        if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
+        // Do not disable our own game object in Awake, it interferes with external activation scripts!
+        if (dialogueCanvas != null && dialogueCanvas != this.gameObject) dialogueCanvas.SetActive(false);
         if (logPanel != null) logPanel.SetActive(false);
         if (configPanel != null) configPanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
@@ -129,7 +131,8 @@ public class DialogueEngine : MonoBehaviour
                           (configPanel != null && configPanel.activeInHierarchy) ||
                           (choicePanel != null && choicePanel.activeInHierarchy);
 
-        if (dialogueCanvas.activeInHierarchy && !isMenuOpen)
+        // FIX: Prevent ghost DialogueEngines from stealing input! Only the one with an active conversation should respond.
+        if (isDialogueActive && currentConversation != null && dialogueCanvas.activeInHierarchy && !isMenuOpen && Time.time > _dialogueStartTime + 0.1f)
         {
             bool pressedKey = Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return);
             bool isOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
@@ -149,6 +152,7 @@ public class DialogueEngine : MonoBehaviour
     {
         if (conversation == null || conversation.Length == 0) return;
 
+        _dialogueStartTime = Time.time;
         _showChoicesAtEnd = showChoices;
         isDialogueActive = true;
         currentConversation = conversation;
@@ -161,7 +165,18 @@ public class DialogueEngine : MonoBehaviour
         if (autoButtonText != null) autoButtonText.color = Color.white;
         if (skipButtonText != null) skipButtonText.color = Color.white;
 
+        if (dialogueCanvas == null) dialogueCanvas = this.gameObject;
         if (dialogueCanvas != null) dialogueCanvas.SetActive(true);
+
+        // BRUTE FORCE VISIBILITY: Safely bring the UI to the front of the screen
+        dialogueCanvas.transform.SetAsLastSibling();
+        
+        CanvasGroup cg = dialogueCanvas.GetComponent<CanvasGroup>();
+        if (cg == null) cg = dialogueCanvas.AddComponent<CanvasGroup>();
+        cg.alpha = 1f;
+        cg.interactable = true;
+        cg.blocksRaycasts = true;
+
         if (ambientDust != null) ambientDust.SetActive(true);
         if (vignetteOverlay != null) vignetteOverlay.SetActive(true);
 
@@ -178,7 +193,7 @@ public class DialogueEngine : MonoBehaviour
         {
             // Instantly finish the line
             if (typingCoroutine != null) StopCoroutine(typingCoroutine);
-            if (dialogueText != null) dialogueText.maxVisibleCharacters = dialogueText.textInfo.characterCount;
+            if (dialogueText != null && dialogueText.textInfo != null) dialogueText.maxVisibleCharacters = dialogueText.textInfo.characterCount;
             isTyping = false;
             
             // If we are fast-forwarding, instantly jump to the next line
@@ -222,10 +237,44 @@ public class DialogueEngine : MonoBehaviour
 
         _conversationHistory += "<color=#FFB300>> " + node.speakerName + "</color>\n" + node.dialogueText + "\n\n";
 
+        // Detect if the speaker is screaming (MOTHER + All Caps + Contains Actual Letters)
+        bool isScreaming = node.speakerName.Trim().ToUpper() == "MOTHER" &&
+                           node.dialogueText.Length > 5 && 
+                           node.dialogueText == node.dialogueText.ToUpper() && 
+                           node.dialogueText != node.dialogueText.ToLower();
+
+        CameraFollow cam = null;
+        if (isScreaming) 
+        {
+            cam = FindAnyObjectByType<CameraFollow>();
+            
+            // Play a loud static glitch sound when they scream!
+            AudioSource audio = GetComponent<AudioSource>();
+            if (audio == null) audio = gameObject.AddComponent<AudioSource>();
+            audio.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2.5f), 1.0f);
+        }
+
+        string textToType = node.dialogueText;
+
+        // Apply "Ransom Note" Glitch Effect
+        if (isScreaming && !textToType.Contains("<"))
+        {
+            string corruptedText = "";
+            foreach (char c in textToType)
+            {
+                if (char.IsWhiteSpace(c)) corruptedText += c;
+                else if (Random.value > 0.90f) corruptedText += $"<color=#ff003c><size=130%>{c}</size></color>";
+                else if (Random.value > 0.80f) corruptedText += $"<color=#777777><size=70%>{c}</size></color>";
+                else if (Random.value > 0.77f) corruptedText += $"<color=#ff003c>█</color>";
+                else corruptedText += c;
+            }
+            textToType = corruptedText;
+        }
+
         isTyping = true;
         if (dialogueText != null)
         {
-            dialogueText.text = node.dialogueText;
+            dialogueText.text = textToType;
             dialogueText.maxVisibleCharacters = 0;
             dialogueText.ForceMeshUpdate();
 
@@ -234,8 +283,22 @@ public class DialogueEngine : MonoBehaviour
             {
                 dialogueText.maxVisibleCharacters = i;
                 
-                // Drive at 10x speed if skipping is active
-                yield return new WaitForSeconds(isSkipping ? (typingSpeed / 20f) : typingSpeed);
+                // Re-trigger the shake as they type so it feels like the voice is rattling the screen!
+                if (isScreaming && cam != null && i % 2 == 0)
+                {
+                    cam.TriggerShake(0.15f, 0.35f); 
+                }
+
+                // Randomize typing for a glitchy effect if screaming
+                float currentDelay = typingSpeed;
+                if (isSkipping) currentDelay = typingSpeed / 20f;
+                else if (isScreaming) 
+                {
+                    currentDelay = typingSpeed * Random.Range(0.5f, 3.5f);
+                    if (Random.value > 0.9f) currentDelay = typingSpeed * 8f;
+                }
+                
+                yield return new WaitForSeconds(currentDelay);
             }
         }
         isTyping = false;
@@ -277,6 +340,7 @@ public class DialogueEngine : MonoBehaviour
         isDialogueActive = false;
         isAutoMode = false;
         isSkipping = false;
+        currentConversation = null; // Clear memory so it doesn't accidentally steal input later!
         if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
         if (ambientDust != null) ambientDust.SetActive(false);
         if (vignetteOverlay != null) vignetteOverlay.SetActive(false);
@@ -284,6 +348,9 @@ public class DialogueEngine : MonoBehaviour
         if (playerObject != null)
         {
             playerObject.SetActive(true);
+            
+            PlayerController pc = playerObject.GetComponent<PlayerController>();
+            if (pc != null) pc.enabled = true;
 
             if (questTrackerText != null) questTrackerText.SetActive(true);
 
@@ -298,7 +365,7 @@ public class DialogueEngine : MonoBehaviour
             }
         }
 
-        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
         if (tracker != null && tracker.GetCurrentObjective() == 1)
         {
             tracker.AdvanceObjective(2, "Access the Sync-Terminal");

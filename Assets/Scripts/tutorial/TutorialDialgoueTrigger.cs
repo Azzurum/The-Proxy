@@ -14,6 +14,14 @@ public class TutorialDialogueTrigger : MonoBehaviour
     {
         if (dialogueEngine != null && introductionConversation != null && introductionConversation.Length > 0)
         {
+            // 1. Lock the player so they can't move during the intro
+            PlayerController pc = FindAnyObjectByType<PlayerController>();
+            if (pc != null) pc.enabled = false;
+
+            // 2. Make sure the Dialogue UI is turned on
+            if (!dialogueEngine.gameObject.activeSelf) dialogueEngine.gameObject.SetActive(true);
+
+            // 3. Play the conversation
             dialogueEngine.StartDialogue(introductionConversation, false);
         }
         else

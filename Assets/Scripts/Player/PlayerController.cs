@@ -56,6 +56,12 @@ public class PlayerController : MonoBehaviour
         rb.gravityScale = 0f;
         rb.freezeRotation = true;
 
+        // ADD FRICTIONLESS MATERIAL TO PREVENT GETTING STUCK ON WALLS
+        PhysicsMaterial2D slipMat = new PhysicsMaterial2D("PlayerSlip");
+        slipMat.friction = 0f;
+        slipMat.bounciness = 0f;
+        rb.sharedMaterial = slipMat;
+
         inventoryManager = FindAnyObjectByType<InventoryManager>();
         screenEffect = FindAnyObjectByType<ScreenEffectManager>();
         audioSource = GetComponent<AudioSource>();

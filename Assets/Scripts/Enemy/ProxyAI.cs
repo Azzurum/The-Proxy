@@ -21,21 +21,18 @@ public class ProxyAI : MonoBehaviour
 
     [Header("AI State Machine")]
     public AIState currentState = AIState.Idle;
-    public int maxWandersBeforeIdle = 3;
     private float stateTimer = 0f;
-    private int wanderCount = 0;
     private Vector2 wanderTarget;
     private float wanderWaitTimer = 0f;
-    public float searchRadius = 4f; 
-    public Transform[] patrolWaypoints;
+    public float searchRadius = 12f; // Increased significantly for aggressive searching
 
     [Header("Perception System")]
-    public float hearingRadius = 6f;
+    public float hearingRadius = 14f; // Can hear you from further away
     private Vector3 previousPlayerPos;
 
     [Header("Movement Stats")]
-    public float baseSpeed = 2.5f; // Patrol speed (slower than Kaelen)
-    public float sprintSpeed = 4.6f; // Hunt speed (Slightly faster than Kaelen, DbD Killer pace!)
+    public float baseSpeed = 3.5f; // Buffed patrol speed
+    public float sprintSpeed = 5.5f; // Buffed sprint speed
     private float currentSpeed;
 
     [Header("Stun Resistance")]
@@ -44,9 +41,7 @@ public class ProxyAI : MonoBehaviour
     private float memoryResetTime = 60f;
 
     [Header("Signal Response")]
-    [SerializeField] private float immediateSignalDistance = 3f;
     [SerializeField] private float delayedSignalDistance = 10f;
-    [SerializeField] private float investigateSignalDistance = 20f;
     [SerializeField] private float delayedHuntSeconds = 2f;
     [SerializeField] private float signalSpeedMultiplier = 1.2f; // 20% buff when Rig is open
     private bool isSignalEmpowered = false; // Tracks if the Proxy is enraged by the open inventory
@@ -65,6 +60,27 @@ public class ProxyAI : MonoBehaviour
     private Vector2 moveTarget;
     private bool hasMoveTarget = false;
     private Coroutine delayedHuntCoroutine;
+
+    [Header("Sixth Sense (Passive Tracking)")]
+    public float minSixthSenseTime = 20f;
+    public float maxSixthSenseTime = 60f;
+    private float sixthSenseTimer = 0f;
+
+    [Header("Dynamic Avoidance (Whiskers)")]
+    public float whiskerLength = 1.5f;
+    public float whiskerAngle = 25f;
+    public int whiskerCount = 4; // 4 Pairs = 8 angled whiskers + 1 forward
+    public float proxyWidth = 0.25f; // Reduced so the AI knows it can squeeze through tight gaps!
+    public LayerMask obstacleMask;
+
+    [Header("Stuck Detection & Teleport")]
+    public float stuckDistanceThreshold = 0.5f;
+    public float stuckTimeLimit = 1.0f;
+    public float teleportFailsafeLimit = 4.0f;
+    private Vector2 _stuckCheckPos;
+    private float _stuckTimer = 0f;
+    private float _totalStuckTime = 0f;
+    private float _avoidanceBias = 1f; // Remembers which side it chose to avoid glitching
 
     // Components & Managers
     [Header("Depth Sorting")]
@@ -109,6 +125,12 @@ public class ProxyAI : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.freezeRotation = true;
 
+        // ADD FRICTIONLESS MATERIAL TO SLIDE OFF WALLS
+        PhysicsMaterial2D slipMat = new PhysicsMaterial2D("ProxySlip");
+        slipMat.friction = 0f;
+        slipMat.bounciness = 0f;
+        rb.sharedMaterial = slipMat;
+
         // Auto-find player if not assigned
         if (targetPlayer == null)
         {
@@ -127,6 +149,23 @@ public class ProxyAI : MonoBehaviour
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
+
+        // PURE CODE SETUP: Automatically target all layers EXCEPT 'Ignore Raycast' so you don't have to configure anything!
+        if (obstacleMask.value == 0)
+        {
+            obstacleMask = ~LayerMask.GetMask("Ignore Raycast");
+        }
+
+        if (targetPlayer != null)
+        {
+            lastKnownPosition = targetPlayer.position;
+        }
+        
+        _stuckCheckPos = transform.position;
+
+        // Initialize the first random ping
+        sixthSenseTimer = Random.Range(minSixthSenseTime, maxSixthSenseTime);
+        ChangeState(AIState.Wandering); // Force the Proxy to start prowling immediately!
     }
 
     void Update()
@@ -135,6 +174,7 @@ public class ProxyAI : MonoBehaviour
 
         ManageStunMemory();
         UpdatePerception();
+        UpdateSixthSense();
 
         // Global Attack Trigger Check
         if (isPlayerInMeleeRange && canAttack && CanInterruptState(AIState.Attacking))
@@ -150,12 +190,22 @@ public class ProxyAI : MonoBehaviour
                 if (isSignalEmpowered || isPlayerInMeleeRange || isEnraged)
                 {
                     lastKnownPosition = targetPlayer.position;
-                    SetMoveTarget(targetPlayer.position, sprintSpeed);
+                    
+                    // Prevent the Proxy from violently pinning Kaelen against a wall while waiting for its attack cooldown!
+                    if (isPlayerInMeleeRange && !canAttack)
+                    {
+                        hasMoveTarget = false;
+                        UpdateAnimatorDirection(targetPlayer.position);
+                    }
+                    else
+                    {
+                        SetMoveTarget(targetPlayer.position, sprintSpeed);
+                    }
                 }
                 else
                 {
                     // Signal lost! Keep running to the last known point, but downgrade to Investigate once reached
-                    if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
+                    if (!hasMoveTarget)
                     {
                         ChangeState(AIState.Investigating);
                     }
@@ -163,10 +213,10 @@ public class ProxyAI : MonoBehaviour
                 break;
 
             case AIState.Investigating:
-                if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
+                if (!hasMoveTarget)
                 {
                     stateTimer += Time.deltaTime;
-                    if (stateTimer >= 1f && !isPlayerInMeleeRange) // Organic Pause: Stand at the location and "look around" for 1 second!
+                    if (stateTimer >= 0.3f && !isPlayerInMeleeRange) // Organic Pause: Barely hesitate before sweeping!
                     {
                         ChangeState(AIState.Wandering);
                     }
@@ -174,16 +224,12 @@ public class ProxyAI : MonoBehaviour
                 break;
 
             case AIState.Wandering:
-                if (Vector2.Distance(transform.position, moveTarget) <= 0.1f)
+                if (!hasMoveTarget)
                 {
                     stateTimer += Time.deltaTime;
                     if (stateTimer >= wanderWaitTimer)
                     {
-                        wanderCount++;
-                        
-                        // If the monster searched the area 3 times and found nothing, it gives up and idles.
-                        if (wanderCount >= maxWandersBeforeIdle) ChangeState(AIState.Idle);
-                        else PickNewWanderTarget();
+                        PickNewWanderTarget(); // Never idles. It will tear the ship apart looking for you.
                     }
                 }
                 break;
@@ -220,7 +266,6 @@ public class ProxyAI : MonoBehaviour
             case AIState.Idle:
                 hasMoveTarget = false;
                 currentSpeed = 0f;
-                wanderCount = 0;
                 break;
                 
             case AIState.Hunting:
@@ -274,10 +319,34 @@ public class ProxyAI : MonoBehaviour
             }
             else if (currentState == AIState.Hunting)
             {
-                SetMoveTarget(targetPlayer.position, sprintSpeed);
+                if (!(isPlayerInMeleeRange && !canAttack))
+                {
+                    SetMoveTarget(targetPlayer.position, sprintSpeed);
+                }
             }
         }
         previousPlayerPos = targetPlayer.position;
+    }
+
+    private void UpdateSixthSense()
+    {
+        if (isEnraged || currentState == AIState.Hunting) return; // Skip if it already knows where you are
+
+        sixthSenseTimer -= Time.deltaTime;
+        if (sixthSenseTimer <= 0f)
+        {
+            // Ping the player's exact location and reset the random timer!
+            lastKnownPosition = targetPlayer.position;
+            hasLastKnownPosition = true;
+            sixthSenseTimer = Random.Range(minSixthSenseTime, maxSixthSenseTime);
+
+            Debug.Log("<color=magenta>PROXY AI: Sixth sense ping! Sweeping Kaelen's current area.</color>");
+
+            if (CanInterruptState(AIState.Investigating))
+            {
+                ChangeState(AIState.Investigating);
+            }
+        }
     }
 
     // --- EXTERNAL COMBAT TRIGGERS ---
@@ -484,6 +553,17 @@ public class ProxyAI : MonoBehaviour
         if (collision.gameObject.CompareTag("Player")) isPlayerInMeleeRange = false;
     }
 
+    // Support for the enlarged Trigger Hitbox!
+    private void OnTriggerEnter2D(Collider2D collider)
+    {
+        if (collider.CompareTag("Player")) isPlayerInMeleeRange = true;
+    }
+
+    private void OnTriggerExit2D(Collider2D collider)
+    {
+        if (collider.CompareTag("Player")) isPlayerInMeleeRange = false;
+    }
+
     // --- DEFENSIVE REACTIONS ---
 
     public void ApplyStun()
@@ -584,17 +664,44 @@ public class ProxyAI : MonoBehaviour
         // Apply the 20% speed buff if the M.E.T. Rig is emitting a signal
         float activeSpeed = isSignalEmpowered ? currentSpeed * signalSpeedMultiplier : currentSpeed;
         Vector2 currentPosition = rb != null ? rb.position : (Vector2)transform.position;
-        Vector2 newPosition = Vector2.MoveTowards(currentPosition, moveTarget, activeSpeed * Time.fixedDeltaTime);
+        Vector2 targetDirection = (moveTarget - currentPosition).normalized;
+        
+        // --- CUSTOM DYNAMIC AVOIDANCE (WHISKERS) ---
+        Vector2 safeDirection = GetAvoidanceDirection(currentPosition, targetDirection);
+        Vector2 newPosition = currentPosition + (safeDirection * activeSpeed * Time.fixedDeltaTime);
         
         if (rb != null) rb.MovePosition(newPosition);
         else transform.position = new Vector3(newPosition.x, newPosition.y, transform.position.z);
         
-        if (Vector2.Distance(currentPosition, moveTarget) <= 0.05f)
+        // --- IMPROVED STUCK DETECTION & TELEPORT FAILSAFE ---
+        _stuckTimer += Time.fixedDeltaTime;
+        if (_stuckTimer >= stuckTimeLimit)
+        {
+            if (Vector2.Distance(currentPosition, _stuckCheckPos) < stuckDistanceThreshold)
+            {
+                _totalStuckTime += _stuckTimer;
+                hasMoveTarget = false; // Give up and pick a new path
+
+                if (_totalStuckTime >= teleportFailsafeLimit)
+                {
+                    Debug.Log("<color=orange>PROXY AI: Stuck for too long. Teleporting to open area!</color>");
+                    TeleportToOpenArea();
+                    _totalStuckTime = 0f;
+                }
+            }
+            else _totalStuckTime = 0f; // Successfully moving!
+            
+            _stuckCheckPos = currentPosition;
+            _stuckTimer = 0f;
+        }
+
+        // Forgiving arrival radius (0.5f) since avoidance might make us arrive slightly off-center
+        if (Vector2.Distance(currentPosition, moveTarget) <= 0.5f)
         {
             hasMoveTarget = false;
         }
 
-        UpdateAnimatorDirection(moveTarget);
+        UpdateAnimatorDirection(currentPosition + safeDirection);
     }
 
     private void SetMoveTarget(Vector2 target, float speed)
@@ -607,46 +714,11 @@ public class ProxyAI : MonoBehaviour
 
     private void PickNewWanderTarget()
     {
-        // If you assigned specific patrol waypoints, pick the closest one!
-        if (patrolWaypoints != null && patrolWaypoints.Length > 0)
-        {
-            Transform closestWaypoint = null;
-            float closestDistance = float.MaxValue;
-            Vector2 currentPosition = transform.position;
+        // We don't use waypoints anymore. The Proxy dynamically picks points around the last known location.
+        Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
+        wanderTarget = lastKnownPosition + randomDirection;
 
-            foreach (Transform waypoint in patrolWaypoints)
-            {
-                if (waypoint == null) continue;
-
-                float distance = Vector2.Distance(currentPosition, waypoint.position);
-
-                // Ignore the waypoint we are currently standing on so it actually moves!
-                if (distance < 1.0f) continue;
-
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                    closestWaypoint = waypoint;
-                }
-            }
-
-            if (closestWaypoint != null)
-            {
-                wanderTarget = closestWaypoint.position;
-            }
-            else
-            {
-                // Failsafe if it couldn't find a valid one
-                wanderTarget = patrolWaypoints[Random.Range(0, patrolWaypoints.Length)].position;
-            }
-        }
-        else // Fallback: Just wander blindly using math if no waypoints exist
-        {
-            Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
-            wanderTarget = lastKnownPosition + randomDirection;
-        }
-
-        wanderWaitTimer = Random.Range(1f, 3f);
+        wanderWaitTimer = Random.Range(0.2f, 1f); // Very little hesitation between sweeps
         stateTimer = 0f;
         SetMoveTarget(wanderTarget, baseSpeed);
     }
@@ -718,5 +790,209 @@ public class ProxyAI : MonoBehaviour
         isEnraged = true;
         isSignalEmpowered = true; // Grants the 20% speed buff permanently
         ChangeState(AIState.Hunting);
+    }
+
+    // Triggered by cinematic directors to force an attack animation toward a specific point
+    public void TriggerCinematicAttack(Vector3 targetPosition)
+    {
+        if (animator == null) return;
+        
+        Vector2 dir = (targetPosition - transform.position).normalized;
+        
+        if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
+        {
+            animator.SetFloat("Direction", 1f); // Side
+            if (spriteRenderer != null) spriteRenderer.flipX = dir.x < 0;
+        }
+        else
+        {
+            if (dir.y > 0)
+            {
+                animator.SetFloat("Direction", 1f); // Up uses Side animation
+                if (spriteRenderer != null)
+                {
+                    if (dir.x < -0.01f) spriteRenderer.flipX = true;
+                    else if (dir.x > 0.01f) spriteRenderer.flipX = false;
+                }
+            }
+            else
+            {
+                animator.SetFloat("Direction", 0f); // Down
+                if (spriteRenderer != null) spriteRenderer.flipX = false;
+            }
+        }
+        
+        animator.speed = 1f; // Force normal playback speed just in case
+        animator.SetTrigger("Attack");
+    }
+
+    // Forces the Proxy to look in a specific direction (useful for idling in cinematics)
+    public void ForceLookDirection(Vector2 dir)
+    {
+        if (animator == null) return;
+        
+        if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
+        {
+            animator.SetFloat("Direction", 1f); // Side
+            if (spriteRenderer != null) spriteRenderer.flipX = dir.x < 0;
+        }
+        else
+        {
+            if (dir.y > 0)
+            {
+                animator.SetFloat("Direction", 1f); // Up uses Side animation
+                if (spriteRenderer != null)
+                {
+                    if (dir.x < -0.01f) spriteRenderer.flipX = true;
+                    else if (dir.x > 0.01f) spriteRenderer.flipX = false;
+                }
+            }
+            else
+            {
+                animator.SetFloat("Direction", 0f); // Down
+                if (spriteRenderer != null) spriteRenderer.flipX = false;
+            }
+        }
+    }
+
+    // ==========================================
+    // DYNAMIC AVOIDANCE LOGIC (WHISKERS)
+    // ==========================================
+
+    private Vector2 GetAvoidanceDirection(Vector2 currentPos, Vector2 targetDir)
+    {
+        if (IsPathClear(currentPos, proxyWidth, targetDir, whiskerLength)) 
+        {
+            _avoidanceBias = 1f; // Reset bias when path is completely clear
+            return targetDir;
+        }
+
+        for (int i = 1; i <= whiskerCount; i++)
+        {
+            float currentAngle = whiskerAngle * i;
+
+            // Try the biased side first to prevent rapid left/right oscillation
+            Vector2 biasedDir = RotateVector(targetDir, currentAngle * _avoidanceBias);
+            if (IsPathClear(currentPos, proxyWidth, biasedDir, whiskerLength)) return biasedDir;
+
+            // Try the opposite side if the biased side is blocked
+            Vector2 oppositeDir = RotateVector(targetDir, currentAngle * -_avoidanceBias);
+            if (IsPathClear(currentPos, proxyWidth, oppositeDir, whiskerLength)) 
+            {
+                _avoidanceBias = -_avoidanceBias; // Swap bias!
+                return oppositeDir;
+            }
+        }
+
+        // Failsafe: Slide along the wall smoothly
+        RaycastHit2D hit = DoRaycast(currentPos, proxyWidth, targetDir, whiskerLength);
+        if (hit.collider != null)
+        {
+            Vector2 slideDir = Vector2.Perpendicular(hit.normal).normalized;
+            if (Vector2.Dot(slideDir, targetDir) < 0) slideDir = -slideDir;
+            return slideDir;
+        }
+
+        return targetDir;
+    }
+
+    private bool IsPathClear(Vector2 origin, float radius, Vector2 direction, float distance)
+    {
+        return DoRaycast(origin, radius, direction, distance).collider == null;
+    }
+
+    private RaycastHit2D DoRaycast(Vector2 origin, float radius, Vector2 direction, float distance)
+    {
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, radius, direction, distance, obstacleMask);
+        foreach (var hit in hits)
+        {
+            // Ignore ourselves, triggers (combat hitboxes), and the player!
+            if (hit.collider.gameObject != this.gameObject && !hit.collider.isTrigger && !hit.collider.CompareTag("Player"))
+            {
+                return hit; // We found a solid wall!
+            }
+        }
+        return new RaycastHit2D(); // Returns empty
+    }
+
+    private Vector2 RotateVector(Vector2 v, float angleDegrees)
+    {
+        float rad = angleDegrees * Mathf.Deg2Rad;
+        float s = Mathf.Sin(rad);
+        float c = Mathf.Cos(rad);
+        return new Vector2(v.x * c - v.y * s, v.x * s + v.y * c);
+    }
+
+    private void TeleportToOpenArea()
+    {
+        if (targetPlayer == null) return;
+
+        Vector2 playerPos = targetPlayer.position;
+        Vector2 bestSpot = transform.position; // Default to current position
+        bool spotFound = false;
+
+        // We want to teleport out of sight if possible, but MUST have line of sight TO THE PLAYER 
+        // This guarantees the spot is inside the map and not behind an outer wall or in the void!
+        for (float dist = 10f; dist >= 1.5f; dist -= 1.5f)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * 45f * Mathf.Deg2Rad;
+                Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                Vector2 testPos = playerPos + (dir * dist);
+
+                // 1. Is there a clear line of sight from the Player to this spot?
+                RaycastHit2D losHit = Physics2D.Raycast(playerPos, dir, dist, obstacleMask);
+                
+                if (losHit.collider == null) 
+                {
+                    // 2. Is the spot physically large enough to fit the Proxy?
+                    Collider2D spaceHit = Physics2D.OverlapCircle(testPos, proxyWidth + 0.1f, obstacleMask);
+                    
+                    if (spaceHit == null)
+                    {
+                        bestSpot = testPos;
+                        spotFound = true;
+                        break;
+                    }
+                }
+            }
+            if (spotFound) break;
+        }
+
+        if (spotFound)
+        {
+            if (rb != null) rb.position = bestSpot;
+            transform.position = new Vector3(bestSpot.x, bestSpot.y, transform.position.z);
+            hasMoveTarget = false; // Reset movement memory
+            UpdateAnimatorDirection(playerPos);
+        }
+    }
+
+    // Draws the whiskers in the Unity Editor when you select the Proxy!
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, searchRadius);
+        
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, hearingRadius);
+        
+        if (Application.isPlaying && hasMoveTarget)
+        {
+            Vector2 currentPos = transform.position;
+            Vector2 targetDir = (moveTarget - currentPos).normalized;
+            
+            Gizmos.color = Color.green;
+            Gizmos.DrawRay(currentPos, targetDir * whiskerLength);
+
+            Gizmos.color = Color.cyan;
+            for (int i = 1; i <= whiskerCount; i++)
+            {
+                float currentAngle = whiskerAngle * i;
+                Gizmos.DrawRay(currentPos, RotateVector(targetDir, currentAngle) * whiskerLength);
+                Gizmos.DrawRay(currentPos, RotateVector(targetDir, -currentAngle) * whiskerLength);
+            }
+        }
     }
 }

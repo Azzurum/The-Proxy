@@ -34,7 +34,7 @@ public class JammedDoor : MonoBehaviour
     {
         if (isPlayerInZone && !isDoorOpen)
         {
-            QuestTracker tracker = FindObjectOfType<QuestTracker>();
+            QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
 
             // --- STATE A: FIRST TIME TRYING DOOR (PHASE 2) ---
             if (!hasTriggeredMonologue)

@@ -16,6 +16,7 @@ public class CommandConsole : MonoBehaviour
     public string escapeSceneName = "level_escape";
     public string creditsSceneName = "credits_scene";
     public string ending1SceneName = "Ending1_Scene";
+    public FloatingPrompt interactionPrompt;
 
     [Header("Cinematic Integrations")]
     public DialogueEngine dialogueEngine;
@@ -23,6 +24,33 @@ public class CommandConsole : MonoBehaviour
     public DialogueNode[] motherPurgeDialogue;
 
     private bool isEndgameTriggered = false;
+    private bool _isPlayerInRange = false;
+
+    void Update()
+    {
+        if (_isPlayerInRange && !isEndgameTriggered && (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Return)))
+        {
+            AttemptTerminalAccess();
+        }
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.CompareTag("Player") && !isEndgameTriggered)
+        {
+            _isPlayerInRange = true;
+            if (interactionPrompt != null) interactionPrompt.ShowPrompt();
+        }
+    }
+
+    private void OnTriggerExit2D(Collider2D collision)
+    {
+        if (collision.CompareTag("Player"))
+        {
+            _isPlayerInRange = false;
+            if (interactionPrompt != null) interactionPrompt.HidePrompt();
+        }
+    }
 
     public void AttemptTerminalAccess()
     {
@@ -39,6 +67,7 @@ public class CommandConsole : MonoBehaviour
             // Turn off the collider so the 'E' prompt permanently disappears during the cinematic!
             Collider2D col = GetComponent<Collider2D>();
             if (col != null) col.enabled = false;
+            if (interactionPrompt != null) interactionPrompt.HidePrompt();
             
             EvaluateEndgame();
         }
@@ -56,6 +85,12 @@ public class CommandConsole : MonoBehaviour
 
     private void EvaluateEndgame()
     {
+        // RUNTIME FAILSAFE: If Unity forgot the dialogue data, fill it instantly!
+        if (motherBetrayalDialogue == null || motherBetrayalDialogue.Length == 0 || motherPurgeDialogue == null || motherPurgeDialogue.Length == 0)
+        {
+            AutoFillDialogue();
+        }
+
         int corruptionRows = InventoryManager.Instance.CurrentCorruptionRows;
         
         Debug.Log($"Command Console Accessed. Current Corruption: {corruptionRows}");
@@ -86,11 +121,22 @@ public class CommandConsole : MonoBehaviour
         // 2. Play the Visual Novel Betrayal Dialogue
         if (dialogueEngine != null && motherBetrayalDialogue != null && motherBetrayalDialogue.Length > 0)
         {
-            // Auto-fix: Try to turn the Dialogue Engine on automatically
-            if (!dialogueEngine.gameObject.activeSelf)
+            // RUNTIME FAILSAFE: Check if the user accidentally dragged the Prefab from the Project window!
+            if (!dialogueEngine.gameObject.scene.IsValid())
             {
-                dialogueEngine.gameObject.SetActive(true);
+                Debug.LogError("<color=red>[CRITICAL ERROR]</color> You assigned the Dialogue Engine from the PROJECT FOLDER! You must drag 'UI_AetherCore_Terminal' from the HIERARCHY into the Command Console inspector.");
             }
+
+            // Auto-fix: Ensure the Dialogue Engine and all its parents (like the Canvas) are active
+            Transform currentUI = dialogueEngine.transform;
+            while (currentUI != null)
+            {
+                currentUI.gameObject.SetActive(true);
+                currentUI = currentUI.parent;
+            }
+
+            // Failsafe: Force the engine active one last time just in case Awake() disabled it!
+            dialogueEngine.gameObject.SetActive(true);
 
             // Failsafe: If it is STILL not active in the hierarchy, it means a parent is disabled or it's a Project Prefab!
             if (!dialogueEngine.gameObject.activeInHierarchy)
@@ -162,7 +208,22 @@ public class CommandConsole : MonoBehaviour
         // 2. Play the Panic Dialogue
         if (dialogueEngine != null && motherPurgeDialogue != null && motherPurgeDialogue.Length > 0)
         {
-            if (!dialogueEngine.gameObject.activeSelf) dialogueEngine.gameObject.SetActive(true);
+            // RUNTIME FAILSAFE: Check if the user accidentally dragged the Prefab from the Project window!
+            if (!dialogueEngine.gameObject.scene.IsValid())
+            {
+                Debug.LogError("<color=red>[CRITICAL ERROR]</color> You assigned the Dialogue Engine from the PROJECT FOLDER! You must drag 'UI_AetherCore_Terminal' from the HIERARCHY into the Command Console inspector.");
+            }
+
+            // Auto-fix: Ensure the Dialogue Engine and all its parents are active
+            Transform currentUI = dialogueEngine.transform;
+            while (currentUI != null)
+            {
+                currentUI.gameObject.SetActive(true);
+                currentUI = currentUI.parent;
+            }
+
+            // Failsafe: Force the engine active one last time just in case Awake() disabled it!
+            dialogueEngine.gameObject.SetActive(true);
 
             if (!dialogueEngine.gameObject.activeInHierarchy)
             {

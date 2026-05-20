@@ -231,7 +231,7 @@ public class MetRigManager : MonoBehaviour
             ToggleRig();
         }
 
-        QuestTracker tracker = FindObjectOfType<QuestTracker>();
+        QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
         if (tracker != null && tracker.GetCurrentObjective() == 4)
         {
             // Advance tracker to Phase 4: Application & Progression

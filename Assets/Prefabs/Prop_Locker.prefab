@@ -284,7 +284,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 11
+  m_SortingOrder: 5
   m_MaskInteraction: 0
   m_Sprite: {fileID: 6271934284165565715, guid: 4315a0395b313b342be042ba2deead4b, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -391,6 +391,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: f8e6ac679de9bfb448c1b88f424ee2d3, type: 2}
   - {fileID: 11400000, guid: f5f891fadaab1bd43816e52757750f1e, type: 2}
   - {fileID: 11400000, guid: 33b5717496c070a4b90088f65f1bf03e, type: 2}
+  forceRerollLoot: 0
 --- !u!61 &3782787559611330692
 BoxCollider2D:
   m_ObjectHideFlags: 0

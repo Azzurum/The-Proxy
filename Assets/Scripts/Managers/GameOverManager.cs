@@ -122,6 +122,10 @@ public class GameOverManager : MonoBehaviour
         textOverridePrompt.SetActive(false);
         voidBackground.SetActive(false);
 
+        // Stop all background music so the Game Over ambiance shines!
+        BGMManager bgm = FindAnyObjectByType<BGMManager>();
+        if (bgm != null) bgm.StopMusic();
+
         yield return new WaitForSecondsRealtime(0.1f); 
         
         yield return new WaitForEndOfFrame();
