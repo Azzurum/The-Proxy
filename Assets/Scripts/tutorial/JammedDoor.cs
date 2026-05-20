@@ -147,6 +147,12 @@ public class JammedDoor : MonoBehaviour
             audioSource.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime());
         }
 
+        DoorTransition transition = GetComponentInChildren<DoorTransition>(true);
+        if (transition != null)
+        {
+            transition.gameObject.SetActive(true);
+        }
+
         // 3. Move the tracker forward to Phase 5: The Symbiote's Introduction!
         if (tracker != null)
         {

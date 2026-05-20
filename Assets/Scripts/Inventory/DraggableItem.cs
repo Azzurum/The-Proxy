@@ -46,7 +46,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         canvas = GetComponentInParent<Canvas>()?.rootCanvas;
         layoutElement = GetComponent<LayoutElement>();
         uiItem = GetComponent<UIItem>();
-        
+
         if (layoutElement != null) layoutElement.ignoreLayout = true;
         CreateRotationHint();
     }
@@ -56,8 +56,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemData != null)
         {
             itemName = itemData.itemName;
-            itemDescription = itemData.description; 
-            isRotated = itemData.isRotated; 
+            itemDescription = itemData.description;
+            isRotated = itemData.isRotated;
         }
         UpdateVisualSize();
     }
@@ -95,9 +95,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (inHotbar)
         {
             rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
-            rectTransform.localEulerAngles = Vector3.zero; 
-            
-            // STRICTLY use the new Tetris logic! No standard Images!
+            rectTransform.localEulerAngles = Vector3.zero;
+
             if (uiItem != null) uiItem.SetTetrisGridVisibility(false);
 
             if (itemBeingDragged != this)
@@ -107,12 +106,11 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
                 rectTransform.anchoredPosition = Vector2.zero;
                 rectTransform.localScale = Vector3.one;
             }
-            return; 
+            return;
         }
 
         // --- GRID AWARENESS ---
-        // STRICTLY use the new Tetris logic! No standard Images!
-        if (uiItem != null) uiItem.SetTetrisGridVisibility(true); 
+        if (uiItem != null) uiItem.SetTetrisGridVisibility(true);
 
         rectTransform.sizeDelta = new Vector2(baseFp.width * cellSize, baseFp.height * cellSize);
         rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? -90f : 0f);
@@ -132,8 +130,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private void RotateItem()
     {
         isRotated = !isRotated;
-        if (itemData != null) itemData.isRotated = isRotated; 
-        
+        if (itemData != null) itemData.isRotated = isRotated;
+
         UpdateVisualSize();
 
         if (itemBeingDragged == this)
@@ -144,7 +142,6 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        // --- LEFT CLICK: INSPECT ---
         if (eventData.button == PointerEventData.InputButton.Left)
         {
             if (UIInspectorManager.Instance != null && itemData != null)
@@ -152,15 +149,13 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
             InventoryManager manager = FindAnyObjectByType<InventoryManager>();
             if (manager != null && itemData != null)
-                manager.SetInspectionIcon(itemData.icon); 
+                manager.SetInspectionIcon(itemData.icon);
         }
-        // --- RIGHT CLICK: USE ITEM ---
         else if (eventData.button == PointerEventData.InputButton.Right)
         {
             ItemUsageManager usageManager = FindAnyObjectByType<ItemUsageManager>();
             if (usageManager != null && itemData != null)
             {
-                // Send the item data, AND the physical UI object in case it's a consumable that needs to be destroyed
                 usageManager.ExecuteItem(itemData, gameObject);
             }
         }
@@ -194,11 +189,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (manager != null) manager.SyncDataFromUI();
 
         Canvas myCanvas = GetComponent<Canvas>();
-        if (myCanvas != null) myCanvas.sortingOrder = 20;
+        if (myCanvas != null) myCanvas.sortingOrder = 40; // High default float priority during drag
 
-        // --- ADD THIS LINE TO FIX RAYCAST BLOCKING ---
         if (canvasGroup != null) canvasGroup.blocksRaycasts = false;
-        // ---------------------------------------------
 
         canvasGroup.alpha = 0.8f;
         SetRotationHintVisible(true);
@@ -213,7 +206,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private void UpdateDragPosition(PointerEventData eventData)
     {
         if (canvas == null) return;
-        
+
         Vector2 pointerPos = eventData != null ? eventData.position : (Vector2)Input.mousePosition;
 
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
@@ -247,16 +240,30 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         if (dropAccepted && parentAfterDrag != null)
         {
-            // --- ADDED: Check if the target is a Hotbar Quick Slot! ---
             HotbarSlot hotbarSlot = parentAfterDrag.GetComponent<HotbarSlot>();
             if (hotbarSlot != null)
             {
-                // If it's a hotbar slot, bypass the complex Tetris grid cell math entirely!
+                // --- ADD THIS CRITICAL LINE TO FORCE DATA SYNCHRONIZATION ---
+                hotbarSlot.containedItem = this;
+
+                // If your team's code uses an external UIItem tracker, sync that too:
+                this.dropAccepted = true;
+
+                // 2. FORCE the HotbarManager to instantly register slot index 0!
+                HotbarManager hotbar = FindAnyObjectByType<HotbarManager>();
+                if (hotbar != null)
+                {
+                    // Directly assign the slot object into the tracking array
+                    hotbar.quickSlots[0] = hotbarSlot;
+
+                    // Manually trigger the equipment code so you don't even have to press 1!
+                    hotbar.EquipSlot(1);
+                }
+
                 StartSmoothPlacement(parentAfterDrag);
                 return;
             }
 
-            // --- Existing Tetris grid checking logic continues normally ---
             InventorySlot hoverSlot = parentAfterDrag.GetComponent<InventorySlot>();
             if (hoverSlot != null && footprint != null)
             {
@@ -280,16 +287,16 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         else StartRejectedReturn();
     }
 
-    private Vector2 GetTargetAnchoredPosition() 
-    { 
+    private Vector2 GetTargetAnchoredPosition()
+    {
         if (parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null)
         {
-            return Vector2.zero; 
+            return Vector2.zero;
         }
 
         float visualWidth = footprint.width * cellSize;
         float visualHeight = footprint.height * cellSize;
-        return new Vector2(visualWidth / 2f, -(visualHeight / 2f)); 
+        return new Vector2(visualWidth / 2f, -(visualHeight / 2f));
     }
 
     private void StartSmoothPlacement(Transform targetParent)
@@ -309,8 +316,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     {
         if (rectTransform == null) yield break;
 
-        transform.SetParent(targetParent, true); 
-        
+        transform.SetParent(targetParent, true);
+
         if (targetParent.GetComponent<HotbarSlot>() != null)
         {
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -322,8 +329,8 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             rectTransform.anchorMax = new Vector2(0f, 1f);
         }
 
-        Vector2 startAnchored = rectTransform.anchoredPosition; 
-        Vector3 startScale = rectTransform.localScale; 
+        Vector2 startAnchored = rectTransform.anchoredPosition;
+        Vector3 startScale = rectTransform.localScale;
 
         Vector3 cleanPos = rectTransform.localPosition;
         cleanPos.z = 0f;
@@ -340,7 +347,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             timer += Time.deltaTime;
             float t = Mathf.SmoothStep(0f, 1f, timer / duration);
             float shake = Mathf.Sin(timer * 40f) * shakeMagnitude * (1f - t);
-            
+
             rectTransform.anchoredPosition = Vector2.Lerp(startAnchored, targetAnchoredPosition, t) + new Vector2(shake, Mathf.Abs(shake) * 0.5f);
             rectTransform.localScale = Vector3.Lerp(startScale, Vector3.one, t);
 
@@ -353,18 +360,20 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         }
 
         rectTransform.anchoredPosition = targetAnchoredPosition;
-        rectTransform.localScale = Vector3.one; 
+        rectTransform.localScale = Vector3.one;
         if (uiItem != null && uiItem.backgroundImage != null) uiItem.backgroundImage.color = originalColor;
-        
-        UpdateVisualSize(); 
+
+        UpdateVisualSize();
         animateCoroutine = null;
 
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
-        if (myCanvas != null && slot != null) myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? 1 : 5;
-
-        InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
-        if (inventoryManager != null) inventoryManager.SyncDataFromUI();
+        if (myCanvas != null && slot != null)
+        {
+            Canvas rootCanvas = GetComponentInParent<Canvas>()?.rootCanvas;
+            int baseOrder = (rootCanvas != null) ? rootCanvas.sortingOrder : 0;
+            myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
+        }
     }
 
     private System.Collections.IEnumerator SmoothMoveToParent(Transform targetParent, Vector2 targetAnchoredPosition, float duration)
@@ -372,7 +381,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (rectTransform == null) yield break;
 
         transform.SetParent(targetParent, true);
-        
+
         if (targetParent.GetComponent<HotbarSlot>() != null)
         {
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -397,22 +406,28 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         {
             timer += Time.deltaTime;
             float t = Mathf.SmoothStep(0f, 1f, timer / duration);
-            
+
             rectTransform.anchoredPosition = Vector2.Lerp(startAnchored, targetAnchoredPosition, t);
             rectTransform.localScale = Vector3.Lerp(startScale, Vector3.one, t);
-            
+
             yield return null;
         }
 
         rectTransform.anchoredPosition = targetAnchoredPosition;
-        rectTransform.localScale = Vector3.one; 
-        
-        UpdateVisualSize(); 
+        rectTransform.localScale = Vector3.one;
+
+        UpdateVisualSize();
         animateCoroutine = null;
 
+        // --- DYNAMIC LAYER SORTING INTEGRATED HERE TOO ---
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
-        if (myCanvas != null && slot != null) myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? 1 : 5;
+        if (myCanvas != null && slot != null)
+        {
+            Canvas rootCanvas = GetComponentInParent<Canvas>()?.rootCanvas;
+            int baseOrder = (rootCanvas != null) ? rootCanvas.sortingOrder : 0;
+            myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
+        }
 
         InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
         if (inventoryManager != null) inventoryManager.SyncDataFromUI();
@@ -427,7 +442,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
 
         List<Vector2Int> footprintCells = footprint.GetOccupiedCells();
-        foreach (Vector2Int cell in footprintCells) 
+        foreach (Vector2Int cell in footprintCells)
         {
             occupied.Add(new Vector2Int(gridPosition.x + offsetX + cell.x, gridPosition.y + offsetY + cell.y));
         }
@@ -495,7 +510,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemBeingDragged != this) return;
 
         itemBeingDragged = null;
-        
+
         DraggableItem[] allItems = FindObjectsByType<DraggableItem>(FindObjectsInactive.Exclude);
         foreach (DraggableItem item in allItems)
         {
@@ -515,7 +530,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (originalParent != null)
         {
             transform.SetParent(originalParent, true);
-            
+
             if (originalParent.GetComponent<HotbarSlot>() != null)
             {
                 rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -532,9 +547,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             rectTransform.localPosition = cleanPos;
 
             rectTransform.anchoredPosition = originalAnchoredPosition;
-            rectTransform.localScale = Vector3.one; 
+            rectTransform.localScale = Vector3.one;
         }
-        
-        UpdateVisualSize(); 
+
+        UpdateVisualSize();
     }
 }
