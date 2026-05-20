@@ -39,10 +39,23 @@ public class PlayerController : MonoBehaviour
     private float currentThreshold;
     private bool isMovementLocked = false;
     private float baseScale;
+    
+    [Header("Depth Sorting")]
+    [Tooltip("The Unity Sorting Layer used to dynamically sort depth.")]
+    public string sortingLayerName = "Player";
+    public float depthOffset = -0.5f; // Where Kaelen's feet are relative to his center
+    private SpriteRenderer spriteRenderer;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        
+        // PHYSICS FAILSAFE: Force the player to be Dynamic so they physically slam into walls!
+        // (If they are accidentally set to Kinematic, they will ghost through the servers)
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.gravityScale = 0f;
+        rb.freezeRotation = true;
+
         inventoryManager = FindAnyObjectByType<InventoryManager>();
         screenEffect = FindAnyObjectByType<ScreenEffectManager>();
         audioSource = GetComponent<AudioSource>();
@@ -53,6 +66,9 @@ public class PlayerController : MonoBehaviour
         // FORCE the survival horror pacing (Overrides any old values saved in the Unity Inspector!)
         baseDecayRate = 0.08f;
         idleDecayMultiplier = 2.0f;
+
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (spriteRenderer != null) spriteRenderer.sortingLayerName = sortingLayerName;
     }
 
     void Update()
@@ -139,10 +155,19 @@ public class PlayerController : MonoBehaviour
         {
             audioSource.PlayOneShot(breathingClip);
         }
+
+        // DYNAMIC DEPTH SORTING: Update sorting order based on Y position so Kaelen can walk behind things!
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
+        }
     }
 
     void FixedUpdate()
     {
+        // Cancel out any physical forces so Kaelen doesn't slide when hit
+        rb.linearVelocity = Vector2.zero;
+
         // Force stop if movement is locked
         if (isMovementLocked)
         {

@@ -21,6 +21,8 @@ public class CameraFollow : MonoBehaviour
     private float shakeTimeRemaining = 0f;
     private float currentShakeMagnitude = 0f;
 
+    private Vector3 currentTrackedPosition;
+
     void Start()
     {
         // 1. If the player isn't active yet, snap immediately to our cutscene anchor!
@@ -38,6 +40,8 @@ public class CameraFollow : MonoBehaviour
         {
             transform.position = target.position + offset;
         }
+
+        currentTrackedPosition = transform.position;
     }
 
     void LateUpdate()
@@ -66,19 +70,20 @@ public class CameraFollow : MonoBehaviour
         }
 
         // Calculate standard smooth tracking position
-        Vector3 destination = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
+        currentTrackedPosition = Vector3.SmoothDamp(currentTrackedPosition, targetPosition, ref velocity, smoothTime);
+        Vector3 finalPosition = currentTrackedPosition;
 
         // 3. Process Screen Shake / Kinetic Tremor modifications if active
         if (shakeTimeRemaining > 0f)
         {
             Vector2 randomShake = Random.insideUnitCircle * currentShakeMagnitude;
-            destination.x += randomShake.x;
-            destination.y += randomShake.y;
+            finalPosition.x += randomShake.x;
+            finalPosition.y += randomShake.y;
 
             shakeTimeRemaining -= Time.deltaTime;
         }
 
-        transform.position = destination;
+        transform.position = finalPosition;
     }
 
     // Helper method to look for the player safely

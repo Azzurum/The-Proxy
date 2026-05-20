@@ -17,21 +17,41 @@ public class FloatingPrompt : MonoBehaviour
     private Transform _dynamicTarget;
     private Vector3 _dynamicOffset;
     private bool _isDynamic = false;
+    private TMP_Text _textComponent;
 
     void Start()
     {
         // 1. Remember exactly where we placed it in the scene
         _startPos = transform.localPosition;
 
-        // 2. Automatically grab the TextMeshPro component if you forgot to drag it in
-        if (textMesh == null) textMesh = GetComponent<TextMeshPro>();
+        // 2. Automatically grab the Text component (supports both 3D text and Canvas UI text)
+        if (textMesh != null) _textComponent = textMesh;
+        else _textComponent = GetComponent<TMP_Text>();
 
         // 3. Force it to be completely invisible when the game starts
-        if (textMesh != null)
+        if (_textComponent != null)
         {
-            Color c = textMesh.color;
+            Color c = _textComponent.color;
             c.a = 0f;
-            textMesh.color = c;
+            _textComponent.color = c;
+
+            // FIX: Force the floating text to render OVER the tilemaps!
+            MeshRenderer mr = _textComponent.GetComponent<MeshRenderer>();
+            if (mr != null)
+            {
+                // FIX: Force it to the absolute max front so it never gets lost behind a tilemap!
+                mr.sortingOrder = 32000;           
+            }
+            else
+            {
+                // If it's Canvas UI instead of 3D text, we force the Canvas to the front!
+                Canvas parentCanvas = _textComponent.canvas;
+                if (parentCanvas != null) { parentCanvas.overrideSorting = true; parentCanvas.sortingOrder = 50; }
+            }
+        }
+        else
+        {
+            Debug.LogError($"<color=red>[ERROR]</color> FloatingPrompt on '{gameObject.name}' cannot find a TextMeshPro component!");
         }
     }
 
@@ -52,16 +72,22 @@ public class FloatingPrompt : MonoBehaviour
         }
 
         // 2. The Fading Math (Smoothly blends the alpha transparency)
-        if (textMesh != null)
+        if (_textComponent != null)
         {
-            Color c = textMesh.color;
+            Color c = _textComponent.color;
             c.a = Mathf.Lerp(c.a, _targetAlpha, Time.deltaTime * fadeSpeed);
-            textMesh.color = c;
+            _textComponent.color = c;
         }
     }
 
     // These two commands act as the light switches for the prompt!
-    public void ShowPrompt() => _targetAlpha = 1f;
+    public void ShowPrompt() 
+    { 
+        _targetAlpha = 1f; 
+        // Force it to wake up if the object was accidentally unchecked in the inspector!
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
+    }
+
     public void HidePrompt() => _targetAlpha = 0f;
 
     // Allows the player script to dynamically snap this prompt to items
@@ -75,10 +101,10 @@ public class FloatingPrompt : MonoBehaviour
     // Changes the color of the text while preserving its current transparency fade
     public void SetPromptColor(Color newColor)
     {
-        if (textMesh != null)
+        if (_textComponent != null)
         {
-            newColor.a = textMesh.color.a;
-            textMesh.color = newColor;
+            newColor.a = _textComponent.color.a;
+            _textComponent.color = newColor;
         }
     }
 }

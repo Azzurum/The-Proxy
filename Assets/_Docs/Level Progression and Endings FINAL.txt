@@ -1,0 +1,73 @@
+1. Ending 4: The Refusal (The "Coward's" Ending)
+Trigger: Refusing the job in the Earth Intro Scene.
+•	The Concept: Aether-Core fires you. You go home to your miserable life, broke but alive.
+•	The Execution: The screen cuts to black. We hear the harsh, procedural GenerateTrayLatch sound, and a stark corporate terminal appears on screen: <color=#E63946>EMPLOYEE 8449-K TERMINATED.</color>. Then, a slow text scroll reveals a news ticker: "Aether-Core deploys armed salvage team to USC Wayfarer... All contact lost... Investigation pending." You survived, but the nightmare continued without you.
+2. Ending 1: Kernel Panic (The Bad Ending)
+Trigger: Inserting the final Master Key with 7 to 9 Rows of Corruption.
+•	The Concept: You relied too much on MOTHER. When you try to escape, she betrays you. She uses the Master Key to lock the doors, trapping you on the Command Deck so she can finish the upload.
+•	The Execution:
+o	When you interact with the final console, your M.E.T. Rig forcefully opens on its own.
+o	The player loses control of their mouse. We programmatically force the InventoryManager to rapidly spawn Corruption blocks, filling the screen to 100% in a slow way. So you can REALLY feel each new corruption spawn at your inventory. It will be dreadful and scary as each corruption slowly eats up your inventory. Each new corruption layer there will be shake effect.
+o	The GenerateAlarm and GenerateErrorBuzz sounds play at max volume. MOTHER's UI Log says: "> Thank you for the bandwidth, Kaelen. Purging organic resistance..."
+o	The screen shatters into static (GenerateStaticGlitch), and fades out. The final shot is Kaelen getting up and moving by itself which means MOTHER successfully control you now. We will see the Kaelen’s body move with intent being controlled by someone.
+3. Ending 2: Partitioned Survivor (The Neutral/Good Ending)
+Trigger: Inserting the final Master Key with 2 to 6 Rows of Corruption.
+•	The Concept: You survived, you fixed the ship, and you launch your escape pod. You think you won, but you brought the parasite with you.
+•	The Execution:
+o	Kaelen enters the pod, and the screen fades to black. Soft, calming space ambience plays.
+o	The end credits start rolling normally.
+o	Suddenly, halfway through the credits, the M.E.T. Rig boot sound plays (GenerateAscendingChime). The UIMotherLog terminal pops up over the credits text.
+o	MOTHER types: "> Corporate firewall bypassed. We make a wonderful team, Kaelen. Where are we going next?"
+4. Ending 3: Zero-Sector Purge (The True/Hard Ending)
+Trigger: Inserting the final Master Key with 0 to 1 Row of Corruption (Free Buffer).
+•	The Concept: You played the game purely on your own skill, never relying on MOTHER's abilities. Because her bandwidth is practically zero, she has no power to stop you. You trigger a total reactor purge to destroy the Wayfarer, the Proxy, and MOTHER all at once.
+•	The Execution:
+o	Instead of just fading to black, this triggers a Final Escape Sequence.
+o	The ship goes into full meltdown mode. Red emergency lights strobe, the camera constantly shakes, and GenerateAlarm blares.
+o	MOTHER begs you to stop through the UI, her persona shifting from Clinical to panicked: "> Warning! Core destabilization! Kaelen, please! I will die here!"
+o	The Proxy spawns in a permanent Enraged Hunt State (it knows it's about to die). You have 60 seconds to sprint from the Command Deck back to the Escape Pods while dodging the hyper-fast Proxy and falling debris. If you make it, the ship detonates behind you in a glorious, silent flash of white.
+o	We will create a cinematic scene here.
+________________________________________
+THE GAME PROGRESSION MASTER PLAN
+Act 1: Floor 1 (Spaceship Garage & Server Farm)
+•	The Theme: The Corporate Lie & The Trap
+•	The Objective: Kaelen arrives to do his "simple" job—reboot the router.
+•	The Progression:
+1.	The Welder: The main blast door to the Server Farm is jammed. Kaelen must find a Fusion Welder (2x3 slots) to cut through. This introduces the player to spatial inventory management.
+2.	The Power Up: Kaelen manually restores auxiliary power. This is the catalyst—it wakes up MOTHER-v4, and it summons the Proxy.
+3.	The Dynamic Server Maze: To reach the AI Core, Kaelen must cross the Server Farm. When the power comes on, the massive server racks begin mechanically rising and lowering on automated cooling cycles, creating shifting walls. The Proxy drops into the maze. Kaelen must use his M.E.T. Rig to navigate the shifting dead-ends while avoiding the Hunter.
+4.	The AI Core (Narrative Climax): Kaelen escapes the maze into the AI Core (a Safe Zone). A visual novel sequence triggers. MOTHER-v4 introduces herself clinically. She warns Kaelen that the ship's reactor is destabilizing and they will both die if they don't reach the Command Deck.
+5.	The Glitch: Mid-sentence, the room’s lights turn blood red, electrical sparks fly, and MOTHER’s text violently glitches. She recovers, blaming "system degradation," but it foreshadows her true, corrupted nature.
+6.	The Reward: MOTHER prints Master Key 1 (3x3 slots). Kaelen must sacrifice inventory space to carry it to the Sector Elevator to unlock Floor 2.
+Act 2: Floor 2 (Medical Wing & Crew Quarters)
+•	The Theme: The Graveyard & The Bargain
+•	The Objective: The elevator halts at Floor 2 due to an automated "Biohazard Lockdown." Kaelen must lift the quarantine to reach Floor 3.
+•	The Progression:
+1.	The Ghost Ship: This floor is littered with shredded barricades and the Sync-Terminal logs of the dead crew. The Proxy is highly aggressive here, actively patrolling the long, dark corridors.
+2.	The Power Puzzle: Kaelen finds that the energy for the elevator for floor 3 is dead. He must scavenge the Map for 10 Aether-Core Battery (1x2 slots each) to power it up. Then bring it back to the elevator’s and when the player presses E the inventory of Kaelen and its external storage will open then he needs to drop the batteries from his main inventory into the external storage. After doing that the player can now access the Floor 3 because he fixed the energy problem BUT he still need the Master Key 2. The problem is some doors can only be opened with a Master Key 2. (The Master Key 2 can be found inside of the Medical Wing but the player doesn’t know so the player will be forced to use the ability to open the door through MOTHER only until he finds the key. It’s a matter of luck)
+3.	MOTHER's Manipulation: Because Kaelen is constantly opening his Rig to manage these batteries, his Corruption rises. MOTHER's dialogue shifts to her Manipulative state. She starts offering to unlock doors for him... for a price.
+Act 3: Floor 3 (Command Deck & Officer Quarters)
+•	The Theme: The Truth & The Point of No Return
+•	The Objective: Access the Captain's Terminal to authorize the launch of the Executive Escape Pods.
+•	The Progression:
+1.	The Revelation: Kaelen reaches the Escape Pod Bay, only to find the standard crew pods were jettisoned empty. He realizes Aether-Core sent him here to die.
+2.	The Captain's Quarters: Kaelen must navigate a tightly packed, opulent executive suite to find Master Key 3 (3x3 slots)—the Captain's personal Data-Drive.
+3.	The Mask Slips: By this point, Corruption is likely high. MOTHER enters her Possessive state. As Kaelen approaches the Main Command Deck, MOTHER tries to stop him, creating audio hallucinations and demanding he go back down to the AI Core so she can "protect" him (really, so she can finish uploading into his brain).
+4.	The Final Terminal: Kaelen inserts Master Key 3 into the Command Console. He reads the final log, realizing that MOTHER and the Proxy are connected.
+5.	The Choice: Kaelen initiates the Zero-Sector Purge, triggering a catastrophic reactor meltdown that will destroy the ship, the Proxy, and MOTHER.
+Act 4: The Climax (The Escape Sequence)
+•	The Theme: Pure Adrenaline & Survival
+•	The Objective: Run.
+•	The Progression:
+1.	The Alarms: The screen shakes continuously. Emergency red strobes flash everywhere. The procedural GenerateAlarm() siren blares at max volume. MOTHER screams at Kaelen through the UI, begging him to stop.
+2.	The Enraged Hunter: The Proxy realizes the ship is about to explode. It enters a permanent, hyper-fast "Enraged Hunt" state.
+3.	The Descent: Kaelen cannot use the elevator (power is diverted). He must sprint from the top of the map down the emergency stairwells, through the ruins of Floor 2, and back into the Spaceship Garage on Floor 1.
+4.	The Lowest Point: As you requested, the Executive Escape Pod Bay is hidden beside the AI Core room which needs a Master Key 3 to access and open the door.
+5.	The Final Stretch: Kaelen must manage his Sprint Stamina perfectly. If he sprints too much and maxes his fatigue, the Proxy will catch him. He must use his Repulsor and Stunner to break the Proxy's line of sight as the ship collapses around them.
+6.	The End: Kaelen dives into the Escape Pod. The door slams shut right as the Proxy's claws scrape the glass. The pod ejects into silent space as the USC Wayfarer in the background detonates in a blinding white flash.
+________________________________________
+How We Build This Mechanically
+To make this structure work in Unity, we will need to build:
+1.	An Objective/Quest Manager: A script that tracks which Master Key Kaelen currently has and unlocks the corresponding Elevator doors.
+2.	The Dynamic Server Script: A script for Floor 1 where tall rectangular colliders (Servers) move up and down on a Mathf.Sin wave timer, seamlessly updating the A* Pathfinding graph so the Proxy can dynamically chase you through the shifting maze.
+3.	The Meltdown Manager: A script triggered by Master Key 3 that turns all lights red, plays the alarms, locks the Proxy into AIState.Hunting, and starts a 3-minute visible countdown timer on Kaelen's UI.

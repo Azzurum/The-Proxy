@@ -440,4 +440,72 @@ public static class ProceduralAudioGen
         clipCache[key] = clip;
         return clip;
     }
+
+    // Generates a short, electrical crackle (Great for particle sparks)
+    public static AudioClip GenerateSparkCrackle(float duration = 0.2f)
+    {
+        string key = $"SparkCrackle_{duration}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / sampleCount;
+            // Create a choppy, crackling envelope using high-frequency math
+            float crackleEnv = (Mathf.Sin(t * Mathf.PI * Random.Range(40f, 80f)) > 0.5f) ? 1f : 0.2f; 
+            float noise = Random.Range(-1f, 1f);
+            float overallEnv = Mathf.Exp(-t * 12f); // Fast decay
+            
+            samples[i] = noise * crackleEnv * overallEnv * 0.4f * globalVolume;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcSpark", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
+    // Generates a smooth, heavy mechanical slide and thud (Great for servers rising)
+    public static AudioClip GenerateServerRise(float duration = 0.4f)
+    {
+        string key = $"ServerRise_{duration}";
+        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        float phase = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / sampleCount;
+            
+            // 1. The low mechanical hum/slide
+            float freq = Mathf.Lerp(60f, 30f, t); // Pitch drops slightly as it settles
+            phase += 2f * Mathf.PI * freq / SampleRate;
+            float hum = Mathf.Sin(phase) * 0.6f;
+            
+            // 2. The sliding friction noise
+            float friction = Random.Range(-1f, 1f) * 0.15f;
+            
+            // 3. The thud at the very end when it locks into place
+            float thud = 0f;
+            if (t > 0.7f) 
+            {
+                float thudT = (t - 0.7f) / 0.3f;
+                thud = Mathf.Sin(thudT * Mathf.PI * 4f) * Mathf.Exp(-thudT * 10f) * 0.8f;
+            }
+
+            // Smooth envelope to avoid clicks
+            float env = Mathf.Sin(t * Mathf.PI);
+
+            samples[i] = (hum + friction + thud) * env * 0.7f * globalVolume;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcServerRise", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
 }

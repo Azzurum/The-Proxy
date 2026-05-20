@@ -21,15 +21,6 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
         if (backgroundImage != null) normalColor = backgroundImage.color;
     }
 
-    void Update()
-    {
-        // Automatically clear the slot if the item is dragged out of the hotbar!
-        if (containedItem != null && containedItem.transform.parent != this.transform)
-        {
-            ClearSlot();
-        }
-    }
-
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (DraggableItem.itemBeingDragged != null && containedItem == null)
@@ -82,6 +73,12 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
         {
             HotbarManager.Instance.EquipSlot(slotNumber);
         }
+    }
+
+    // A quiet way to clear the item reference when a drag begins from this slot.
+    public void DetachItem()
+    {
+        containedItem = null;
     }
 
     public void SetHighlight(bool isActive)

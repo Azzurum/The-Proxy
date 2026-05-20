@@ -112,6 +112,8 @@ public class UIBioFace : MonoBehaviour
 
         while (elapsed < duration)
         {
+            if (faceRect == null || faceImage == null) yield break;
+
             // Pick a random direction to violently shove the UI picture
             float offsetX = Random.Range(-1f, 1f) * magnitude;
             float offsetY = Random.Range(-1f, 1f) * magnitude;

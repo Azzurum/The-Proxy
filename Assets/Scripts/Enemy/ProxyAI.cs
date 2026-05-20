@@ -50,6 +50,7 @@ public class ProxyAI : MonoBehaviour
     [SerializeField] private float delayedHuntSeconds = 2f;
     [SerializeField] private float signalSpeedMultiplier = 1.2f; // 20% buff when Rig is open
     private bool isSignalEmpowered = false; // Tracks if the Proxy is enraged by the open inventory
+    private bool isEnraged = false; // Permanent hunt mode for the Meltdown sequence
 
     [Header("Knockback")]
     [SerializeField] private float knockbackSpeed = 25f;
@@ -66,6 +67,11 @@ public class ProxyAI : MonoBehaviour
     private Coroutine delayedHuntCoroutine;
 
     // Components & Managers
+    [Header("Depth Sorting")]
+    [Tooltip("Make sure this exactly matches Kaelen's sorting layer!")]
+    public string sortingLayerName = "Player";
+    public float depthOffset = -0.5f; // Where the Proxy's feet are relative to its center
+    
     private Animator animator;
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
@@ -88,13 +94,17 @@ public class ProxyAI : MonoBehaviour
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null) spriteRenderer.sortingLayerName = sortingLayerName;
         
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody2D>();
         }
         
-        rb.bodyType = RigidbodyType2D.Kinematic;
+        // PHYSICS FAILSAFE: The Proxy must be Dynamic to collide with the server maze!
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.gravityScale = 0f;
+        rb.mass = 1000f; // Make it a brick wall so Kaelen can't push it!
         rb.simulated = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.freezeRotation = true;
@@ -137,7 +147,7 @@ public class ProxyAI : MonoBehaviour
         switch (currentState)
         {
             case AIState.Hunting:
-                if (isSignalEmpowered || isPlayerInMeleeRange)
+                if (isSignalEmpowered || isPlayerInMeleeRange || isEnraged)
                 {
                     lastKnownPosition = targetPlayer.position;
                     SetMoveTarget(targetPlayer.position, sprintSpeed);
@@ -180,6 +190,12 @@ public class ProxyAI : MonoBehaviour
         }
         
         UpdateAnimationSpeed();
+
+        // DYNAMIC DEPTH SORTING: Update sorting order based on Y position so the Proxy can walk behind things!
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
+        }
     }
 
     // --- STATE MACHINE LOGIC ---
@@ -280,6 +296,8 @@ public class ProxyAI : MonoBehaviour
 
     public void OnSignalSpike(bool isListening, float distance)
     {
+        if (isEnraged) return; // Cannot drop the signal during a meltdown!
+
         isSignalEmpowered = isListening; // Activates the 20% buff while the signal is active!
 
         if (isListening && distance >= 0)
@@ -524,11 +542,11 @@ public class ProxyAI : MonoBehaviour
 
         while (Vector2.Distance(myPos2D, targetPosition) > 0.1f)
         {
-            myPos2D = Vector2.MoveTowards(myPos2D, targetPosition, knockbackSpeed * Time.deltaTime);
+            myPos2D = Vector2.MoveTowards(myPos2D, targetPosition, knockbackSpeed * Time.fixedDeltaTime);
             if (rb != null) rb.MovePosition(myPos2D);
             else transform.position = new Vector3(myPos2D.x, myPos2D.y, transform.position.z);
             
-            yield return null;
+            yield return new WaitForFixedUpdate();
         }
         if (currentState == AIState.KnockedBack)
         {
@@ -559,6 +577,8 @@ public class ProxyAI : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (rb != null) rb.linearVelocity = Vector2.zero; // Immediately kill any sliding momentum!
+
         if (!hasMoveTarget || currentState == AIState.Stunned || currentState == AIState.KnockedBack || currentState == AIState.Attacking || currentState == AIState.Idle) return;
         
         // Apply the 20% speed buff if the M.E.T. Rig is emitting a signal
@@ -690,5 +710,13 @@ public class ProxyAI : MonoBehaviour
             // Dynamically scale animation speed based on movement speed.
             animator.speed = Mathf.Max(1f, currentSpeed / baseSpeed) * activeMultiplier;
         }
+    }
+
+    // Triggered by the Meltdown Manager in the escape scene
+    public void TriggerEnragedHunt()
+    {
+        isEnraged = true;
+        isSignalEmpowered = true; // Grants the 20% speed buff permanently
+        ChangeState(AIState.Hunting);
     }
 }

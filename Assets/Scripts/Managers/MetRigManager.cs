@@ -27,6 +27,20 @@ public class MetRigManager : MonoBehaviour
 
     void Start()
     {
+        // AUTO-WIRING: Find the UI and Player if they aren't assigned!
+        if (terminalOverlayUI == null)
+        {
+            // The easiest way to find the Terminal is to look for its Animator!
+            var rigAnim = FindAnyObjectByType<MetRigAnimator>(FindObjectsInactive.Include);
+            if (rigAnim != null) terminalOverlayUI = rigAnim.gameObject;
+            else Debug.LogWarning("MetRigManager: Could not auto-find UI_TerminalOverlay!");
+        }
+
+        if (playerController == null)
+        {
+            playerController = FindAnyObjectByType<PlayerController>();
+        }
+
         // Ensure the heavy UI is hidden when the game first starts
         if (terminalOverlayUI != null)
         {

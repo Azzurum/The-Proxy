@@ -172,6 +172,17 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         originalParent = transform.parent;
         originalAnchoredPosition = rectTransform.anchoredPosition;
 
+        // If we are being dragged from a hotbar slot, we need to tell it we've left.
+        // This is critical for allowing the item to be dropped back into the main grid.
+        if (originalParent != null)
+        {
+            HotbarSlot slot = originalParent.GetComponent<HotbarSlot>();
+            if (slot != null)
+            {
+                slot.DetachItem();
+            }
+        }
+
         transform.SetParent(canvas.transform, true);
         transform.SetAsLastSibling();
 

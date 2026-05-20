@@ -12,7 +12,7 @@ public class UIItem : MonoBehaviour
 
     private List<GameObject> generatedBackgroundBlocks = new List<GameObject>();
 
-    public void Initialize(ItemData data, float cellSize)
+    public void Initialize(ItemData data, float cellSize, bool overrideRotation = false)
     {
         myData = data;
 
@@ -51,7 +51,7 @@ public class UIItem : MonoBehaviour
             drag.itemData = data;
             drag.itemName = data.itemName;
             drag.itemDescription = data.description;
-            drag.isRotated = data.isRotated; 
+            drag.isRotated = overrideRotation; 
 
             ItemFootprint baseFp = data.GetFootprint();
             drag.SetFootprint(drag.isRotated ? baseFp.GetRotated() : baseFp);

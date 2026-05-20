@@ -27,6 +27,25 @@ public class MainMenuManager : MonoBehaviour
     // INITIALIZATION & SCENE LOADING
     // ==========================================
 
+    void Start()
+    {
+        // FAILSAFE: Always force the heavy overlays closed on boot!
+        if (panelSaveLoad != null) panelSaveLoad.gameObject.SetActive(false);
+        if (darkBlocker != null) darkBlocker.SetActive(false);
+        if (settingsOverlay != null) settingsOverlay.SetActive(false);
+
+        // If you accidentally dragged the Main Menu prefab into a gameplay level (like Floor 3),
+        // this will force it to hide completely so it doesn't block your face while playing!
+        if (SceneManager.GetActiveScene().name != "MainMenu_Scene")
+        {
+            if (menuMatrix != null) menuMatrix.SetActive(false);
+        }
+        else
+        {
+            if (menuMatrix != null) menuMatrix.SetActive(true);
+        }
+    }
+
     public void StartNewRun()
     {
         Debug.Log("SYSTEM BOOT: Loading First Level...");

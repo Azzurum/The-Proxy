@@ -18,6 +18,12 @@ public class UIPurgeSystem : MonoBehaviour
 
     void Awake()
     {
+        // AUTO-WIRING: Self-repair internal references
+        if (purgeButton == null) purgeButton = GetComponent<Button>();
+        if (buttonText == null) buttonText = GetComponentInChildren<TextMeshProUGUI>();
+        if (cooldownOverlay == null && transform.Find("CooldownOverlay") != null) 
+            cooldownOverlay = transform.Find("CooldownOverlay").GetComponent<Image>();
+
         // Moved to Awake so it initializes before the Save System tries to load data!
         if (buttonText != null) originalTextColor = buttonText.color;
     }

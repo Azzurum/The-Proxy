@@ -19,6 +19,17 @@ public class PlayerInteraction : MonoBehaviour
     void Start()
     {
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
+
+        // AUTO-WIRING: Find the floating interaction prompt UI
+        if (interactionPrompt == null)
+        {
+            interactionPrompt = FindAnyObjectByType<FloatingPrompt>(FindObjectsInactive.Include);
+            if (interactionPrompt == null)
+            {
+                // This is a critical failure, the game cannot show any prompts without this!
+                Debug.LogError("<color=red>[CRITICAL ERROR]</color> PlayerInteraction script cannot find the 'FloatingPrompt' UI object in the scene! No 'E' prompts will be displayed. Make sure your UI prefab with the FloatingPrompt script is in the scene.");
+            }
+        }
     }
 
     void Update()
@@ -38,20 +49,32 @@ public class PlayerInteraction : MonoBehaviour
         GameObject closest = null;
         float minDistance = float.MaxValue;
 
+        // DEBUG: Let's see what colliders we are hitting.
+        if (nearbyObjects.Length > 0) Debug.Log($"[PlayerInteraction] OverlapCircle found {nearbyObjects.Length} colliders nearby.");
+
         // Find the absolute closest item
-        foreach (var obj in nearbyObjects)
+        foreach (var col in nearbyObjects)
         {
-            if (obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || obj.CompareTag("Generator") || obj.CompareTag("Locker"))
+            // AUTO-FIX: Check the object AND its parent just in case the tag is on the root object but the collider is on a child graphic!
+            GameObject obj = col.gameObject;
+            if (!HasInteractableTag(obj) && obj.transform.parent != null && HasInteractableTag(obj.transform.parent.gameObject))
+            {
+                obj = obj.transform.parent.gameObject;
+            }
+
+            if (HasInteractableTag(obj))
             {
                 float dist = Vector2.Distance(transform.position, obj.transform.position);
+                // DEBUG: We found a valid interactable object!
+                Debug.Log($"<color=cyan>[PlayerInteraction]</color> Found valid interactable: '{obj.name}' with tag '{obj.tag}'.");
                 if (dist < minDistance)
                 {
                     minDistance = dist;
-                    closest = obj.gameObject;
+                    closest = obj;
                 }
             }
         }
-
+        
         // If the closest item changes (or we walked away from it)
         if (closest != closestInteractable)
         {
@@ -76,6 +99,11 @@ public class PlayerInteraction : MonoBehaviour
                         }
                     }
                 }
+                else if (closestInteractable.CompareTag("LockedDoor"))
+                {
+                    // Always show locked doors as white, the feedback will be red text if failed.
+                    promptColor = Color.white;
+                }
 
                 interactionPrompt.SetPromptColor(promptColor);
 
@@ -91,9 +119,16 @@ public class PlayerInteraction : MonoBehaviour
         }
     }
 
+    private bool HasInteractableTag(GameObject obj)
+    {
+        return obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || 
+               obj.CompareTag("Generator") || obj.CompareTag("Locker") || 
+               obj.CompareTag("LockedDoor");
+    }
+
     private void AttemptPickup()
     {
-        if (closestInteractable == null) return;
+        if (closestInteractable == null) return; // Nothing to interact with.
 
         InventoryManager manager = FindAnyObjectByType<InventoryManager>();
         if (manager == null) return;
@@ -216,6 +251,21 @@ public class PlayerInteraction : MonoBehaviour
             else
             {
                 Debug.LogWarning("This Locker is missing a LockerStorage script!");
+            }
+        }
+        // SCENARIO E: A Locked Door
+        else if (obj.CompareTag("LockedDoor"))
+        {
+            LockedDoor door = obj.GetComponent<LockedDoor>();
+            if (door == null) door = obj.GetComponentInParent<LockedDoor>();
+
+            if (door != null)
+            {
+                door.AttemptUnlock();
+            }
+            else
+            {
+                Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'LockedDoor' but is missing the LockedDoor.cs script!");
             }
         }
     }

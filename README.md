@@ -1,1 +1,2 @@
-walang ginawa si ken
+walang ginawa si ken....
+AI lang si ken

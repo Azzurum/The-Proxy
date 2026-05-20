@@ -28,8 +28,17 @@ public class UIPickupLog : MonoBehaviour
     void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else 
+        {
+            Debug.LogWarning($"<color=red>[SINGLETON WARNING]</color> Multiple UIPickupLog scripts found! Destroying the duplicate on '{gameObject.name}'. Make sure you only have ONE in your scene!");
+            Destroy(gameObject);
+        }
         
+        // AUTO-WIRING: Try to find the TextMeshPro component automatically if the reference is lost!
+        if (logText == null) logText = GetComponent<TextMeshProUGUI>();
+        if (logText == null) logText = GetComponentInChildren<TextMeshProUGUI>(true);
+        if (logText == null) Debug.LogWarning("<color=yellow>[UI WARNING]</color> UIPickupLog cannot find the Log Text component! Make sure the script is attached to the Text object itself.");
+
         if (logText != null) logText.text = "";
 
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
@@ -73,6 +82,9 @@ public class UIPickupLog : MonoBehaviour
     private void UpdateTextDisplay()
     {
         if (logText == null) return;
+
+        // AUTO-FIX: Force the text object to turn on just in case it was disabled in the Editor!
+        if (!logText.gameObject.activeSelf) logText.gameObject.SetActive(true);
 
         string fullText = "";
         foreach (var log in activeLogs)

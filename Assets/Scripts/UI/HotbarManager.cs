@@ -17,13 +17,33 @@ public class HotbarManager : MonoBehaviour
     void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else 
+        {
+            Debug.LogWarning($"<color=red>[SINGLETON WARNING]</color> Multiple HotbarManager scripts found! Destroying the duplicate on '{gameObject.name}'.");
+            Destroy(gameObject);
+        }
     }
 
     void Start()
     {
+        CheckForMissingReferences();
         // Ensure outlines start turned off
         UpdateHighlights();
+    }
+
+    private void CheckForMissingReferences()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            if (i >= quickSlots.Length || quickSlots[i] == null)
+                Debug.LogError($"<color=red>[HOTBAR ERROR]</color> Quick Slot {i + 1} is missing! Assign the physical Inventory Slot in the HotbarManager inspector.");
+                
+            if (i >= hudIcons.Length || hudIcons[i] == null)
+                Debug.LogError($"<color=red>[HOTBAR ERROR]</color> HUD Icon {i + 1} is missing! Assign the HUD Image in the HotbarManager inspector.");
+                
+            if (i >= hudOutlines.Length || hudOutlines[i] == null)
+                Debug.LogWarning($"<color=yellow>[HOTBAR WARNING]</color> HUD Outline {i + 1} is missing! Assign the HUD Outline in the HotbarManager inspector.");
+        }
     }
 
     void Update()
