@@ -1,0 +1,63 @@
+THE PROXY - GAME MECHANICS OVERVIEW
+
+1. THE M.E.T. RIG (INVENTORY SYSTEM)
+- Grid-Based Storage: A 10x10 spatial grid where players must manually place and rotate bulky items (e.g., Master Keys take 3x3 slots, Fusion Welder 2x3, Batteries 1x2).
+- The Vulnerability Window: Opening the inventory roots the player in place, deafens them with cooling fan noise, and emits an electromagnetic flare that alerts the hunting enemy (The Proxy).
+- Data Gravity: After executing a "Clean", all items in the inventory instantly snap down to fill empty space below them.
+- Item Ejection: Items pushed past the top row (Row 9) are ejected into the physical game world. Quest items respawn at their original spawn point.
+- Priority Locks: Up to 2 essential items can be locked to prevent ejection.
+
+2. CORRUPTION (THE SYMBIOTE)
+- Manifestation: Corruption appears as dead blocks filling the inventory from the bottom (Row 0) upwards, pushing items up.
+- Growth Triggers: 
+  - Taking a hit from the Proxy (+1 Row / System Shock).
+  - Extended sprinting (adds +1 Row when the hidden stamina meter maxes out).
+  - Leaving the M.E.T. Rig open for too long.
+- Buffer Zone: Rows 0 and 1 are a "Free Buffer" that take up space but do not trigger penalties or personality shifts from MOTHER.
+
+3. SYSTEM CRUSH & PENALTIES
+- Crush State: Occurs when a locked item is pushed against the ceiling (Row 9) by rising corruption.
+- Tiered Penalties:
+  - Tier 1 (First Contact): Player movement speed is reduced by 20%.
+  - Tier 2 (Sustained 5s): Audio hallucinations begin (fake Proxy static and footsteps).
+  - Tier 3 (Sustained 10s): Sprint stamina drain is increased by 100%.
+
+4. THE SYMBIOTE TOOLKIT (ACTIVE ABILITIES)
+- Players can voluntarily accept instant Corruption to gain tactical advantages from MOTHER:
+  - Override (+1 Row): Instantly unlock high-tier security doors.
+  - Sonar (+1 Row): Reveal the Proxy's exact location on the mini-map for 5 seconds.
+  - Signal Mask (+2 Rows): Jam the M.E.T. Rig for 8 seconds, allowing inventory organization without alerting the Proxy.
+
+5. CLEAN PROTOCOLS
+- Standard Clean: Takes 4.5 seconds to execute. Removes the bottom row of Corruption (Row 0). Leaves the player highly vulnerable.
+- Emergency Clean: A one-time use panic button per save-station. Instantly purges 3 rows of Corruption but permanently destroys 2 random inventory grid slots for the rest of the run.
+
+6. COMBAT & TACTICAL TOOLS
+- Combat never kills the Proxy; it only delays or repositions it.
+- ARC-Pulse Stunner: Stuns the Proxy. Consumes 1 Aether-Core Battery per shot.
+- K-80 Repulsor: Knocks the Proxy back 6-8 units to break line-of-sight. Uses a pneumatic charge with a 10-second cooldown (no battery required).
+- Decoy Device: Broadcasts a massive electromagnetic flare for 10 seconds to distract the Proxy.
+
+7. ENEMY AI & DETECTION (THE PROXY)
+- Signal Hunting: The Proxy is blind but hunts electromagnetic flares caused by opening the M.E.T. Rig.
+- Graduated Detection:
+  - Very Far: Investigates the exact coordinates of the signal spike.
+  - Far: Delayed Hunt (2-5 seconds of safe UI time before locking onto the player).
+  - Nearby: Immediate Hunt (charges the player's location).
+- Stun Resistance (Adaptation): The Proxy learns from the Stunner. 1st stun lasts 3s, 2nd stun within 60s lasts 1.5s, 3rd stun within 60s makes it immune.
+- Faraday Zones: Rare, shielded server shafts that block the M.E.T. Rig's signal, allowing safe inventory management.
+
+8. MOVEMENT & STAMINA
+- Sprinting: Players can sprint for a burst of speed, governed by a hidden stamina meter. 
+- Fatigue: Depleting stamina reduces movement speed and adds Corruption if sprinting continues.
+- Recovery: Stamina recovers over time, recovering twice as fast when standing completely still.
+
+9. ENDGAME STATES (KERNEL PANIC)
+- The Last Stand: If Corruption hits Row 10, time slows down for exactly 3 seconds. The player has one final window to trigger an Emergency Clean or use a Stunner. Failure results in assimilation (Game Over).
+- Endings are determined by the number of Corruption rows when the final Master Key is inserted.
+
+10. THE ENDINGS
+- Ending 1 (Kernel Panic - Bad Ending): Triggered by inserting the final Master Key with 7-9 rows of Corruption. MOTHER completes the overwrite, trapping Kaelen on the Command Deck. Kaelen becomes the new Proxy.
+- Ending 2 (Partitioned Survivor - Neutral/Good Ending): Triggered by inserting the final Master Key with 2-6 rows of Corruption. Kaelen escapes in a pod, but MOTHER survives, partitioned permanently within his M.E.T. Rig.
+- Ending 3 (Zero-Sector Purge - True/Hard Ending): Triggered by inserting the final Master Key with 0-1 rows of Corruption. A total reactor purge is triggered, leading to a 60-second escape sequence against an Enraged Proxy as the ship detonates.
+- Ending 4 (The Refusal - Coward's Ending): Triggered by refusing the job in the Earth intro scene. Kaelen is fired by Aether-Core and survives, while news reports later reveal the fate of the doomed salvage teams sent in his place.

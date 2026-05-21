@@ -2,19 +2,24 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 
+/// <summary>
+/// Coordinates visual and auditory effects triggered during Save, Load, and Purge sequences.
+/// </summary>
 public class SystemSyncFX : MonoBehaviour
 {
     public static SystemSyncFX Instance;
 
     [Header("UI References")]
+    [Tooltip("Full screen overlay used for bright screen flashes.")]
     public Image flashbangImage;
 
     [Header("Execution Colors")]
-    public Color colorLoad = new Color(0f, 0.94f, 1f, 1f);   // Aether Cyan
-    public Color colorSave = new Color(1f, 1f, 1f, 1f);      // Blinding White
-    public Color colorPurge = new Color(1f, 0f, 0.23f, 1f);  // Mother Red
+    public Color colorLoad = new Color(0f, 0.94f, 1f, 1f);   
+    public Color colorSave = new Color(1f, 1f, 1f, 1f);      
+    public Color colorPurge = new Color(1f, 0f, 0.23f, 1f);  
 
-    [Header("Audio (Optional)")]
+    [Header("Audio")]
+    [Tooltip("Source for playing execution sounds.")]
     public AudioSource fxSource;
     public AudioClip sfxCrush;
     public AudioClip sfxLoad;
@@ -29,18 +34,27 @@ public class SystemSyncFX : MonoBehaviour
         if (flashbangImage != null) flashbangImage.color = new Color(0,0,0,0);
     }
 
+    /// <summary>
+    /// Plays the mechanical crush sound effect used when collapsing save slots.
+    /// </summary>
     public void PlayCrushSound()
     {
         if (fxSource != null && sfxCrush != null) fxSource.PlayOneShot(sfxCrush);
     }
 
+    /// <summary>
+    /// Initiates a screen flash and sound effect matching the specified action type.
+    /// </summary>
     public void ExecuteFlash(string type)
     {
         Color targetColor = colorSave;
         AudioClip targetClip = sfxSave;
 
-        if (type == "LOAD") { targetColor = colorLoad; targetClip = sfxLoad; }
-        else if (type == "PURGE") { targetColor = colorPurge; targetClip = sfxPurge; }
+        switch (type.ToUpper())
+        {
+            case "LOAD": targetColor = colorLoad; targetClip = sfxLoad; break;
+            case "PURGE": targetColor = colorPurge; targetClip = sfxPurge; break;
+        }
 
         if (fxSource != null && targetClip != null) fxSource.PlayOneShot(targetClip);
         
@@ -52,10 +66,8 @@ public class SystemSyncFX : MonoBehaviour
     {
         if (flashbangImage == null) yield break;
 
-        // Instantly snap to full color
         flashbangImage.color = flashColor;
 
-        // Smoothly fade back to invisible
         float timer = 0;
         float duration = 0.6f;
 
@@ -64,7 +76,6 @@ public class SystemSyncFX : MonoBehaviour
             timer += Time.unscaledDeltaTime;
             float t = timer / duration;
             
-            // Fade out the alpha
             Color c = flashColor;
             c.a = Mathf.Lerp(1f, 0f, t);
             flashbangImage.color = c;

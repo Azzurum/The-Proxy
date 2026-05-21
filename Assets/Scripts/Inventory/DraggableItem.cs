@@ -3,52 +3,79 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections.Generic;
 
+/// <summary>
+/// Manages the behavior of a UI item that can be clicked, dragged, rotated, and dropped into inventory slots.
+/// </summary>
 [RequireComponent(typeof(CanvasGroup))]
 public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
 {
     [Header("Item Data")]
+    [Tooltip("The ScriptableObject that defines this item's properties.")]
     public ItemData itemData;
+    [Tooltip("Display name of the item.")]
     public string itemName = "Unknown Object";
+    [Tooltip("Flavor text or description for the item inspector.")]
     [TextArea] public string itemDescription = "A strange item with unknown properties.";
 
     [Header("Item Footprint")]
+    [Tooltip("The spatial layout of the item on the grid.")]
     public ItemFootprint footprint;
+    [Tooltip("Is the item currently rotated 90 degrees?")]
     public bool isRotated = false;
 
     public int sizeX => footprint != null ? footprint.width : 1;
     public int sizeY => footprint != null ? footprint.height : 1;
 
     [Header("Layout")]
+    [Tooltip("The size of a single grid cell, used for calculating visual dimensions.")]
     public float cellSize = 80f;
+
+    [Header("Drag State (Runtime)")]
+    [Tooltip("If true, the item will be destroyed and spawned in the world on drop.")]
+    public bool ejectedFromRig = false;
+    [Tooltip("Should the 'Press R to Rotate' hint be shown during drag?")]
+    public bool showRotationHint = true;
+    [Tooltip("The text to display for the rotation hint.")]
+    public string rotationHintLabel = "R";
 
     [HideInInspector] public Transform parentAfterDrag;
     [HideInInspector] public static DraggableItem itemBeingDragged;
-    public bool ejectedFromRig = false;
-
     [HideInInspector] public Transform originalParent;
     [HideInInspector] public Vector2 originalAnchoredPosition;
     [HideInInspector] public bool dropAccepted = false;
 
     private CanvasGroup canvasGroup;
     private RectTransform rectTransform;
-    private Canvas canvas;
-    private LayoutElement layoutElement;
+    private Canvas rootCanvas;
     private Coroutine animateCoroutine;
     private UIItem uiItem;
     private Text rotationHintText;
-    public bool showRotationHint = true;
-    public string rotationHintLabel = "R";
+    private Vector3 _dragOffset;
 
     void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
         rectTransform = GetComponent<RectTransform>();
-        canvas = GetComponentInParent<Canvas>()?.rootCanvas;
-        layoutElement = GetComponent<LayoutElement>();
+        rootCanvas = GetComponentInParent<Canvas>()?.rootCanvas;
+        
+        // This component is added by UIItem, but we can ensure it's ignored here.
+        if (TryGetComponent<LayoutElement>(out var layoutElement))
+        {
+            layoutElement.ignoreLayout = true;
+        }
+
         uiItem = GetComponent<UIItem>();
 
-        if (layoutElement != null) layoutElement.ignoreLayout = true;
         CreateRotationHint();
+    }
+
+    void OnDestroy()
+    {
+        // SAFETY: Prevents a dangling static reference if the item is destroyed or the scene unloads mid-drag.
+        if (itemBeingDragged == this)
+        {
+            itemBeingDragged = null;
+        }
     }
 
     void Start()
@@ -67,27 +94,35 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (itemBeingDragged == this && Input.GetKeyDown(KeyCode.R)) RotateItem();
     }
 
+    /// <summary>
+    /// Assigns a new footprint to this item and updates its visual representation.
+    /// </summary>
     public void SetFootprint(ItemFootprint newFootprint)
     {
         footprint = newFootprint;
         UpdateVisualSize();
     }
 
+    /// <summary>
+    /// Updates the cell size used for layout calculations and refreshes the item's visual representation.
+    /// </summary>
     public void SetCellSize(float newCellSize)
     {
         cellSize = newCellSize;
         UpdateVisualSize();
     }
 
+    /// <summary>
+    /// Recalculates and applies the item's size, rotation, and pivot based on its data and parent container.
+    /// </summary>
     public void UpdateVisualSize()
     {
         ItemFootprint baseFp = itemData != null ? itemData.GetFootprint() : new ItemFootprint(1, 1);
         if (rectTransform == null) { rectTransform = GetComponent<RectTransform>(); if (rectTransform == null) return; }
 
-        rectTransform.pivot = new Vector2(0.5f, 0.5f);
         footprint = isRotated ? baseFp.GetRotated() : baseFp;
 
-        // --- HOTBAR AWARENESS ---
+        // Determine if the item is currently in a hotbar slot.
         bool inHotbar = false;
         if (transform.parent != null && transform.parent.GetComponent<HotbarSlot>() != null) inHotbar = true;
         if (itemBeingDragged == this && parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null) inHotbar = true;
@@ -95,12 +130,14 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         if (inHotbar)
         {
             rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
             rectTransform.localEulerAngles = Vector3.zero;
 
             if (uiItem != null) uiItem.SetTetrisGridVisibility(false);
 
             if (itemBeingDragged != this)
             {
+                // Center the item within the hotbar slot.
                 rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
                 rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
                 rectTransform.anchoredPosition = Vector2.zero;
@@ -109,16 +146,17 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             return;
         }
 
-        // --- GRID AWARENESS ---
+        // Standard grid item layout logic.
         if (uiItem != null) uiItem.SetTetrisGridVisibility(true);
 
         rectTransform.sizeDelta = new Vector2(baseFp.width * cellSize, baseFp.height * cellSize);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
         rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? -90f : 0f);
 
         if (itemBeingDragged != this)
         {
             rectTransform.localScale = Vector3.one;
-            rectTransform.anchorMin = new Vector2(0f, 1f);
+            rectTransform.anchorMin = new Vector2(0f, 1f); // Top-left anchor for grid slots.
             rectTransform.anchorMax = new Vector2(0f, 1f);
 
             float visualWidth = footprint.width * cellSize;
@@ -140,19 +178,23 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         }
     }
 
+    /// <summary>
+    /// Handles left-click for inspection and right-click for item usage.
+    /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
         if (eventData.button == PointerEventData.InputButton.Left)
         {
+            // Left-click sends the item to the inspection panel.
             if (UIInspectorManager.Instance != null && itemData != null)
                 UIInspectorManager.Instance.InspectItem(itemData);
 
-            InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-            if (manager != null && itemData != null)
-                manager.SetInspectionIcon(itemData.icon);
+            if (InventoryManager.Instance != null && itemData != null)
+                InventoryManager.Instance.SetInspectionIcon(itemData.icon);
         }
         else if (eventData.button == PointerEventData.InputButton.Right)
         {
+            // Right-click attempts to use the item.
             ItemUsageManager usageManager = FindAnyObjectByType<ItemUsageManager>();
             if (usageManager != null && itemData != null)
             {
@@ -161,6 +203,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         }
     }
 
+    /// <summary>
+    /// Called when a drag operation begins. Caches original state and prepares the item for floating.
+    /// </summary>
     public void OnBeginDrag(PointerEventData eventData)
     {
         if (itemData != null && itemData.itemID == "CRPT") return;
@@ -172,8 +217,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         originalParent = transform.parent;
         originalAnchoredPosition = rectTransform.anchoredPosition;
 
-        // If we are being dragged from a hotbar slot, we need to tell it we've left.
-        // This is critical for allowing the item to be dropped back into the main grid.
+        // Notify the source hotbar slot that the item is being moved.
         if (originalParent != null)
         {
             HotbarSlot slot = originalParent.GetComponent<HotbarSlot>();
@@ -183,7 +227,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             }
         }
 
-        transform.SetParent(canvas.transform, true);
+        transform.SetParent(rootCanvas.transform, true);
         transform.SetAsLastSibling();
 
         rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -196,8 +240,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         UpdateVisualSize();
         UpdateDragPosition(eventData);
 
-        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-        if (manager != null) manager.SyncDataFromUI();
+        if (InventoryManager.Instance != null) InventoryManager.Instance.SyncDataFromUI();
 
         Canvas myCanvas = GetComponent<Canvas>();
         if (myCanvas != null) myCanvas.sortingOrder = 40; // High default float priority during drag
@@ -208,27 +251,39 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         SetRotationHintVisible(true);
     }
 
+    /// <summary>
+    /// Called every frame during a drag operation to update the item's position.
+    /// </summary>
     public void OnDrag(PointerEventData eventData)
     {
         if (itemData != null && itemData.itemID == "CRPT") return;
         UpdateDragPosition(eventData);
     }
 
+    /// <summary>
+    /// Updates the item's position to follow the cursor during a drag.
+    /// </summary>
     private void UpdateDragPosition(PointerEventData eventData)
     {
-        if (canvas == null) return;
+        if (rootCanvas == null) return;
 
         Vector2 pointerPos = eventData != null ? eventData.position : (Vector2)Input.mousePosition;
+            Camera cam = rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : rootCanvas.worldCamera;
 
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            (RectTransform)canvas.transform, pointerPos,
-            canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
-            out Vector2 localPoint))
-        {
-            rectTransform.anchoredPosition = localPoint;
+            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(
+                (RectTransform)rootCanvas.transform, pointerPos, cam, out Vector3 worldPoint))
+            {
+                transform.position = worldPoint + _dragOffset;
+                
+                Vector3 localPos = transform.localPosition;
+                localPos.z = 0f;
+                transform.localPosition = localPos;
         }
     }
 
+    /// <summary>
+    /// Called when a drag operation ends. Determines whether to place the item or return it.
+    /// </summary>
     public void OnEndDrag(PointerEventData eventData)
     {
         if (itemData != null && itemData.itemID == "CRPT") return;
@@ -242,10 +297,11 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         ClearAllSlotHighlights();
         SetRotationHintVisible(false);
 
+        // If the item was dragged off the grid, spawn it in the world.
         if (ejectedFromRig)
         {
-            InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-            if (manager != null) manager.DiscardItemToWorld(gameObject);
+            if (WorldItemSpawner.Instance != null) WorldItemSpawner.Instance.DiscardItemToWorld(gameObject);
+            else Destroy(gameObject); // Failsafe
             return;
         }
 
@@ -254,21 +310,14 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             HotbarSlot hotbarSlot = parentAfterDrag.GetComponent<HotbarSlot>();
             if (hotbarSlot != null)
             {
-                // --- ADD THIS CRITICAL LINE TO FORCE DATA SYNCHRONIZATION ---
+                // Finalize the drop into the hotbar slot.
                 hotbarSlot.containedItem = this;
-
-                // If your team's code uses an external UIItem tracker, sync that too:
                 this.dropAccepted = true;
 
-                // 2. FORCE the HotbarManager to instantly register slot index 0!
-                HotbarManager hotbar = FindAnyObjectByType<HotbarManager>();
-                if (hotbar != null)
+                if (HotbarManager.Instance != null)
                 {
-                    // Directly assign the slot object into the tracking array
-                    hotbar.quickSlots[0] = hotbarSlot;
-
-                    // Manually trigger the equipment code so you don't even have to press 1!
-                    hotbar.EquipSlot(1);
+                    HotbarManager.Instance.quickSlots[0] = hotbarSlot;
+                    HotbarManager.Instance.EquipSlot(1);
                 }
 
                 StartSmoothPlacement(parentAfterDrag);
@@ -278,6 +327,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             InventorySlot hoverSlot = parentAfterDrag.GetComponent<InventorySlot>();
             if (hoverSlot != null && footprint != null)
             {
+                // Calculate the correct anchor slot based on the item's center and footprint.
                 int offsetX = -Mathf.FloorToInt(footprint.width / 2f);
                 int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
 
@@ -298,6 +348,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         else StartRejectedReturn();
     }
 
+    /// <summary>
+    /// Calculates the final local position for the item within its new parent slot.
+    /// </summary>
     private Vector2 GetTargetAnchoredPosition()
     {
         if (parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null)
@@ -305,17 +358,24 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             return Vector2.zero;
         }
 
+        // For grid items, calculate the offset based on the visual size to align the pivot correctly.
         float visualWidth = footprint.width * cellSize;
         float visualHeight = footprint.height * cellSize;
         return new Vector2(visualWidth / 2f, -(visualHeight / 2f));
     }
 
+    /// <summary>
+    /// Starts a coroutine to smoothly animate the item into its new parent.
+    /// </summary>
     private void StartSmoothPlacement(Transform targetParent)
     {
         if (animateCoroutine != null) StopCoroutine(animateCoroutine);
         animateCoroutine = StartCoroutine(SmoothMoveToParent(targetParent, GetTargetAnchoredPosition(), 0.18f));
     }
 
+    /// <summary>
+    /// Starts a coroutine to animate the item returning to its original position after a failed drop.
+    /// </summary>
     private void StartRejectedReturn()
     {
         if (originalParent == null) originalParent = transform.parent;
@@ -323,6 +383,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         animateCoroutine = StartCoroutine(RejectedReturnCoroutine(originalParent, originalAnchoredPosition, 0.22f));
     }
 
+    /// <summary>
+    /// Coroutine to animate the item returning to its original slot with a "shake" effect.
+    /// </summary>
     private System.Collections.IEnumerator RejectedReturnCoroutine(Transform targetParent, Vector2 targetAnchoredPosition, float duration)
     {
         if (rectTransform == null) yield break;
@@ -387,6 +450,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         }
     }
 
+    /// <summary>
+    /// Coroutine to smoothly move and re-parent the item to a new slot.
+    /// </summary>
     private System.Collections.IEnumerator SmoothMoveToParent(Transform targetParent, Vector2 targetAnchoredPosition, float duration)
     {
         if (rectTransform == null) yield break;
@@ -440,16 +506,18 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
         }
 
-        InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
-        if (inventoryManager != null) inventoryManager.SyncDataFromUI();
+        if (InventoryManager.Instance != null) InventoryManager.Instance.SyncDataFromUI();
     }
 
+    /// <summary>
+    /// Calculates the list of grid coordinates this item would occupy if placed at a given anchor point.
+    /// </summary>
     public List<Vector2Int> GetOccupiedCells(Vector2Int gridPosition)
     {
         List<Vector2Int> occupied = new List<Vector2Int>();
         if (footprint == null) return occupied;
 
-        int offsetX = -Mathf.FloorToInt(footprint.width / 2f);
+        int offsetX = -Mathf.FloorToInt(footprint.width / 2f); // Centering offset
         int offsetY = -Mathf.FloorToInt(footprint.height / 2f);
 
         List<Vector2Int> footprintCells = footprint.GetOccupiedCells();
@@ -460,6 +528,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         return occupied;
     }
 
+    /// <summary>
+    /// Creates the small "R" text object used to indicate that the item can be rotated.
+    /// </summary>
     private void CreateRotationHint()
     {
         if (!showRotationHint) return;
@@ -499,23 +570,27 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     private void ClearAllSlotHighlights()
     {
-        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-        if (manager == null) return;
-        ClearGridHighlights(manager.gridLeft);
-        ClearGridHighlights(manager.gridRight);
-        if (manager.gridExt != null) ClearGridHighlights(manager.gridExt);
+        if (InventoryManager.Instance == null) return;
+        ClearGridHighlights(InventoryManager.Instance.gridLeft);
+        ClearGridHighlights(InventoryManager.Instance.gridRight);
+        if (InventoryManager.Instance.gridExt != null) ClearGridHighlights(InventoryManager.Instance.gridExt);
     }
 
     private void ClearGridHighlights(Transform grid)
     {
         if (grid == null) return;
-        foreach (Transform slot in grid)
+        foreach (Transform slotTransform in grid)
         {
-            ItemSlot itemSlot = slot.GetComponent<ItemSlot>();
-            if (itemSlot != null) itemSlot.ClearHighlight();
+            if (slotTransform.TryGetComponent<ItemSlot>(out var itemSlot))
+            {
+                itemSlot.ClearHighlight();
+            }
         }
     }
 
+    /// <summary>
+    /// Forcibly cancels an active drag, returning the item to its original position instantly.
+    /// </summary>
     public void AbortDrag()
     {
         if (itemBeingDragged != this) return;

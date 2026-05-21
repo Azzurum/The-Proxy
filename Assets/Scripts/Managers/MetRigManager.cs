@@ -1,39 +1,52 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Manages the state, animations, and shielding logic for the player's M.E.T. Rig interface, as well as MOTHER's symbiote abilities.
+/// </summary>
 public class MetRigManager : MonoBehaviour
 {
     [Header("System References")]
-    public GameObject terminalOverlayUI; // Drag the UI_TerminalOverlay here
-    public PlayerController playerController; // Drag Player_Kaelen here
+    [Tooltip("The main UI overlay for the terminal interface.")]
+    public GameObject terminalOverlayUI;
+    [Tooltip("Reference to the player controller for rooting movement while the rig is open.")]
+    public PlayerController playerController;
+    
     [Header("Faraday Shielding")]
-    public bool inFaradayZone = false; // Is Kaelen standing in a safe room?
+    [Tooltip("Indicates whether the player is currently inside a signal-blocking Faraday zone.")]
+    public bool inFaradayZone = false; 
 
     [Header("Rig State")]
+    [Tooltip("Indicates whether the M.E.T. Rig inventory interface is actively open.")]
     public bool isRigOpen = false;
 
     [Header("MOTHER Abilities")]
+    [Tooltip("Duration in seconds that the Sonar ability reveals the Proxy's location.")]
     public float sonarDuration = 5f;
+    [Tooltip("Duration in seconds that the Signal Mask ability hides the player's UI signature.")]
     public float signalMaskDuration = 8f;
 
-    private bool isSonarActive = false;
-    private float sonarTimer = 0f;
-    private bool isSignalMasked = false;
-    private float signalMaskTimer = 0f;
+    private bool _isSonarActive = false;
+    private float _sonarTimer = 0f;
+    private bool _isSignalMasked = false;
+    private float _signalMaskTimer = 0f;
 
-    private ProxyAI proxyAI;
-    private AudioSource rigAudioSource;
-    private Coroutine fanNoiseRoutine;
+    private ProxyAI _proxyAI;
+    private AudioSource _rigAudioSource;
+    private Coroutine _fanNoiseRoutine;
+    private MetRigAnimator _rigAnimator;
+    private QuestTracker _questTracker;
 
-    void Start()
+    private void Start()
     {
-        // AUTO-WIRING: Find the UI and Player if they aren't assigned!
         if (terminalOverlayUI == null)
         {
-            // The easiest way to find the Terminal is to look for its Animator!
-            var rigAnim = FindAnyObjectByType<MetRigAnimator>(FindObjectsInactive.Include);
-            if (rigAnim != null) terminalOverlayUI = rigAnim.gameObject;
-            else Debug.LogWarning("MetRigManager: Could not auto-find UI_TerminalOverlay!");
+            _rigAnimator = FindAnyObjectByType<MetRigAnimator>(FindObjectsInactive.Include);
+            if (_rigAnimator != null) terminalOverlayUI = _rigAnimator.gameObject;
+        }
+        else
+        {
+            _rigAnimator = terminalOverlayUI.GetComponent<MetRigAnimator>();
         }
 
         if (playerController == null)
@@ -41,62 +54,58 @@ public class MetRigManager : MonoBehaviour
             playerController = FindAnyObjectByType<PlayerController>();
         }
 
-        // Ensure the heavy UI is hidden when the game first starts
         if (terminalOverlayUI != null)
         {
             terminalOverlayUI.SetActive(false);
         }
 
-        proxyAI = FindAnyObjectByType<ProxyAI>();
+        _proxyAI = FindAnyObjectByType<ProxyAI>();
+        _questTracker = FindAnyObjectByType<QuestTracker>();
 
-        rigAudioSource = gameObject.AddComponent<AudioSource>();
-        rigAudioSource.volume = 0.6f;
+        _rigAudioSource = gameObject.AddComponent<AudioSource>();
+        _rigAudioSource.volume = 0.6f;
     }
 
-    void Update()
+    private void Update()
     {
-        // Listen for the Tab key to open/close the inventory
         if (Input.GetKeyDown(KeyCode.Tab))
         {
             ToggleRig();
         }
 
-        // Update MOTHER ability timers
-        if (isSonarActive)
+        if (_isSonarActive)
         {
-            sonarTimer -= Time.deltaTime;
-            if (sonarTimer <= 0)
+            _sonarTimer -= Time.deltaTime;
+            if (_sonarTimer <= 0)
             {
-                isSonarActive = false;
-                Debug.Log("SONAR: Deactivated - Proxy location hidden.");
+                _isSonarActive = false;
             }
         }
 
-        if (isSignalMasked)
+        if (_isSignalMasked)
         {
-            signalMaskTimer -= Time.deltaTime;
-            if (signalMaskTimer <= 0)
+            _signalMaskTimer -= Time.deltaTime;
+            if (_signalMaskTimer <= 0)
             {
-                isSignalMasked = false;
-                Debug.Log("SIGNAL MASK: Deactivated - Signal leaking again.");
+                _isSignalMasked = false;
                 
-                // Immediately alert the Proxy if the inventory is still open!
-                if (isRigOpen && proxyAI != null && !inFaradayZone)
+                if (isRigOpen && _proxyAI != null && !inFaradayZone)
                 {
-                    float distance = Vector2.Distance(transform.position, proxyAI.transform.position);
-                    proxyAI.OnSignalSpike(true, distance);
+                    float distance = Vector2.Distance(transform.position, _proxyAI.transform.position);
+                    _proxyAI.OnSignalSpike(true, distance);
                 }
             }
         }
     }
 
+    /// <summary>
+    /// Toggles the M.E.T. Rig interface on or off, handling animations, audio, and enemy perception triggers.
+    /// </summary>
     public void ToggleRig()
     {
-        // Fix: Disconnect from the locker BEFORE hiding the UI so the inventory can save your changes!
-        InventoryManager inventoryManager = FindAnyObjectByType<InventoryManager>();
-        if (isRigOpen && inventoryManager != null)
+        if (isRigOpen && InventoryManager.Instance != null)
         {
-            inventoryManager.DisconnectFromLocker();
+            InventoryManager.Instance.DisconnectFromLocker();
         }
 
         isRigOpen = !isRigOpen;
@@ -106,24 +115,20 @@ public class MetRigManager : MonoBehaviour
             bool wasInactive = !terminalOverlayUI.activeSelf;
             terminalOverlayUI.SetActive(true);
             
-            // If it was mid-closing animation, force it to reverse and open!
-            if (!wasInactive)
+            if (!wasInactive && _rigAnimator != null)
             {
-                MetRigAnimator animator = terminalOverlayUI.GetComponent<MetRigAnimator>();
-                if (animator != null) animator.PlayOpenAnimation();
+                _rigAnimator.PlayOpenAnimation();
                 
-                // LORE UPDATE: The heavy cooling fans scream, masking ambient noise!
-                if (fanNoiseRoutine != null) StopCoroutine(fanNoiseRoutine);
-                fanNoiseRoutine = StartCoroutine(FanNoiseLoop());
+                if (_fanNoiseRoutine != null) StopCoroutine(_fanNoiseRoutine);
+                _fanNoiseRoutine = StartCoroutine(FanNoiseLoop());
             }
         }
         else
         {
-            MetRigAnimator animator = terminalOverlayUI.GetComponent<MetRigAnimator>();
-            if (animator != null) animator.CloseInventoryWithAnimation();
+            if (_rigAnimator != null) _rigAnimator.CloseInventoryWithAnimation();
             else terminalOverlayUI.SetActive(false);
             
-            if (fanNoiseRoutine != null) StopCoroutine(fanNoiseRoutine);
+            if (_fanNoiseRoutine != null) StopCoroutine(_fanNoiseRoutine);
         }
 
         if (playerController != null)
@@ -131,118 +136,95 @@ public class MetRigManager : MonoBehaviour
             playerController.isRooted = isRigOpen;
         }
 
-        if (proxyAI != null)
+        if (_proxyAI != null)
         {
-            // LORE LOGIC: The Faraday Zone actively blocks the signal!
             bool signalLeaked = isRigOpen && !inFaradayZone;
-            float distance = signalLeaked ? Vector2.Distance(transform.position, proxyAI.transform.position) : -1f;
-            proxyAI.OnSignalSpike(signalLeaked && !isSignalMasked, distance);
+            float distance = signalLeaked ? Vector2.Distance(transform.position, _proxyAI.transform.position) : -1f;
+            _proxyAI.OnSignalSpike(signalLeaked && !_isSignalMasked, distance);
         }
 
-        if (isRigOpen)
+        if (isRigOpen && InventoryManager.Instance != null)
         {
-            if (inventoryManager != null)
+            Canvas.ForceUpdateCanvases();
+            InventoryManager.Instance.RefreshAllGrids();
+
+            bool shouldShowExt = InventoryManager.Instance.isInteractingWithLocker || InventoryManager.Instance.HasItemsInExternalStorage();
+            if (InventoryManager.Instance.gridExt != null && InventoryManager.Instance.gridExt.parent != null)
             {
-                Canvas.ForceUpdateCanvases();
-                inventoryManager.RefreshAllGrids();
-
-                // ONLY show the external tray if we are at a locker, OR if we have items to retrieve!
-                bool shouldShowExt = inventoryManager.isInteractingWithLocker || inventoryManager.HasItemsInExternalStorage();
-                if (inventoryManager.gridExt != null && inventoryManager.gridExt.parent != null)
-                {
-                    inventoryManager.gridExt.parent.gameObject.SetActive(shouldShowExt);
-                }
+                InventoryManager.Instance.gridExt.parent.gameObject.SetActive(shouldShowExt);
             }
-        }
-
-        // Console Warnings based on where you are standing
-        if (isRigOpen && !inFaradayZone && !isSignalMasked)
-        {
-            Debug.Log("<color=red>SIGNAL SPIKE:</color> Massive electromagnetic flare emitted! The Proxy is listening...");
-        }
-        else if (isRigOpen && inFaradayZone)
-        {
-            Debug.Log("<color=cyan>FARADAY SHIELD ACTIVE:</color> M.E.T. Rig opened safely. Signal masked.");
-        }
-        else if (isRigOpen && isSignalMasked)
-        {
-            Debug.Log("<color=yellow>SIGNAL MASK ACTIVE:</color> M.E.T. Rig opened safely. Signal jammed.");
         }
     }
 
     private System.Collections.IEnumerator FanNoiseLoop()
     {
-        // Continuously pump loud pneumatic hiss while the rig is open
         while (isRigOpen)
         {
-            if (rigAudioSource != null) rigAudioSource.PlayOneShot(ProceduralAudioGen.GenerateHiss(1.5f));
+            if (_rigAudioSource != null) _rigAudioSource.PlayOneShot(ProceduralAudioGen.GenerateHiss(1.5f));
             yield return new WaitForSecondsRealtime(1.0f);
         }
     }
 
-    // MOTHER Abilities
+    /// <summary>
+    /// Activates the MOTHER Override ability, trading corruption for high-tier door access.
+    /// </summary>
     public void UseOverride()
     {
-        InventoryManager mgr = FindAnyObjectByType<InventoryManager>();
-        if (mgr != null)
+        if (InventoryManager.Instance != null)
         {
-            mgr.AddCorruptionRow();
-            Debug.Log("MOTHER: Override used - High-tier door unlocked. +1 Corruption row.");
-            // TODO: Unlock door logic
+            InventoryManager.Instance.AddCorruptionRow();
         }
     }
 
+    /// <summary>
+    /// Activates the MOTHER Sonar ability, trading corruption to reveal the Proxy's location.
+    /// </summary>
     public void UseSonar()
     {
-        InventoryManager mgr = FindAnyObjectByType<InventoryManager>();
-        if (mgr != null)
+        if (InventoryManager.Instance != null)
         {
-            mgr.AddCorruptionRow();
-            isSonarActive = true;
-            sonarTimer = sonarDuration;
-            Debug.Log("MOTHER: Sonar activated - Proxy location revealed for 5 seconds. +1 Corruption row.");
-            // TODO: Show proxy on mini-map
+            InventoryManager.Instance.AddCorruptionRow();
+            _isSonarActive = true;
+            _sonarTimer = sonarDuration;
         }
     }
 
+    /// <summary>
+    /// Activates the MOTHER Signal Mask ability, heavily trading corruption for temporary stealth while using the inventory.
+    /// </summary>
     public void UseSignalMask()
     {
-        InventoryManager mgr = FindAnyObjectByType<InventoryManager>();
-        if (mgr != null)
+        if (InventoryManager.Instance != null)
         {
-            mgr.AddCorruptionRow();
-            mgr.AddCorruptionRow(); // +2 rows
-            isSignalMasked = true;
-            signalMaskTimer = signalMaskDuration;
-            Debug.Log("MOTHER: Signal Mask activated - Inventory safe for 8 seconds. +2 Corruption rows.");
+            InventoryManager.Instance.AddCorruptionRow();
+            InventoryManager.Instance.AddCorruptionRow(); 
+            _isSignalMasked = true;
+            _signalMaskTimer = signalMaskDuration;
         }
     }
 
-    private void EmitSignalSpike()
-    {
-        Debug.Log("SIGNAL SPIKE: Massive electromagnetic flare emitted! The Proxy is listening...");
-    }
-
+    /// <summary>
+    /// Manually triggers the Rig to close and updates active tutorials if applicable.
+    /// </summary>
     public void CloseRig()
     {
-        // If the rig is currently open, toggle it closed.
         if (isRigOpen)
         {
             ToggleRig();
         }
 
-        QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
-        if (tracker != null && tracker.GetCurrentObjective() == 4)
+        if (_questTracker == null) _questTracker = FindAnyObjectByType<QuestTracker>();
+        if (_questTracker != null && _questTracker.GetCurrentObjective() == 4)
         {
-            // Advance tracker to Phase 4: Application & Progression
-            tracker.AdvanceObjective(5, "Weld the Airlock Door");
+            _questTracker.AdvanceObjective(5, "Weld the Airlock Door");
         }
-
     }
 
+    /// <summary>
+    /// Manually triggers the Rig to open.
+    /// </summary>
     public void OpenRig()
     {
-        // If the rig is currently closed, toggle it open.
         if (!isRigOpen)
         {
             ToggleRig();

@@ -3,28 +3,48 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
 
+/// <summary>
+/// Coordinates the final escape pod sequence, transitioning from interior cinematic to the external space explosion.
+/// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class EscapePodDirector : MonoBehaviour
 {
     [Header("Interaction Setup")]
+    [Tooltip("Reference to the floating interaction prompt UI.")]
     public FloatingPrompt interactionPrompt;
     private bool isPlayerInRange = false;
     private bool isTriggered = false;
 
     [Header("Interior Cinematic Connections")]
+    [Tooltip("The player's Transform, required for forced movement/teleportation.")]
     public Transform playerTransform;
-    public Transform podInteriorTarget; // Where Kaelen teleports to
+    [Tooltip("The designated position inside the escape pod where the player will be teleported.")]
+    public Transform podInteriorTarget; 
     
     [Header("Exterior Cinematic Connections")]
+    [Tooltip("An invisible transform outside the ship where the camera will snap to view the exterior.")]
     public Transform externalCameraAnchor; 
-    public GameObject escapePodExteriorVisual; // The tiny pod sprite in space
-    public GameObject wayfarerShipVisual; // The massive ship sprite in space
+    [Tooltip("The external sprite representing the escaping pod.")]
+    public GameObject escapePodExteriorVisual; 
+    [Tooltip("The external sprite representing the doomed Wayfarer ship.")]
+    public GameObject wayfarerShipVisual; 
+    [Tooltip("A full-screen UI Image used for the final explosion flash.")]
     public Image whiteFlashOverlay; 
 
     [Header("Dialogue Integrations")]
+    [Tooltip("Reference to the Dialogue Engine in the scene.")]
     public DialogueEngine dialogueEngine;
+    [Tooltip("The final conversation nodes that play before ejection.")]
     public DialogueNode[] finalDialogue;
+    [Tooltip("The exact name of the credits scene.")]
     public string creditsSceneName = "credits_scene";
+
+    private CameraFollow _cachedCamera;
+
+    private void Start()
+    {
+        _cachedCamera = FindAnyObjectByType<CameraFollow>();
+    }
 
     void Update()
     {
@@ -57,24 +77,20 @@ public class EscapePodDirector : MonoBehaviour
         isTriggered = true;
         if (interactionPrompt != null) interactionPrompt.HidePrompt();
 
-        // 1. Lock Player and Halt the Meltdown Alarms
         PlayerController pc = FindAnyObjectByType<PlayerController>();
         if (pc != null) pc.enabled = false;
 
         MeltdownManager meltdown = FindAnyObjectByType<MeltdownManager>();
         if (meltdown != null) meltdown.HaltMeltdown();
 
-        // Stop the Chase BGM so the quiet cinematic dialogue can be heard!
         BGMManager bgm = FindAnyObjectByType<BGMManager>();
         if (bgm != null) bgm.StopMusic();
 
-        // Force the Proxy to despawn so it doesn't kill you during the cutscene!
         ProxyAI proxy = FindAnyObjectByType<ProxyAI>();
         if (proxy != null) proxy.gameObject.SetActive(false);
 
         AudioSource audio = gameObject.AddComponent<AudioSource>();
 
-        // 2. The Door Slam & Teleport
         audio.PlayOneShot(ProceduralAudioGen.GeneratePneumaticBlast(1f));
         audio.PlayOneShot(ProceduralAudioGen.GenerateTrayLatch(false));
         
@@ -86,7 +102,6 @@ public class EscapePodDirector : MonoBehaviour
 
         yield return new WaitForSeconds(0.5f);
 
-        // Teleport Kaelen inside the static Escape Pod room
         if (playerTransform != null && podInteriorTarget != null)
         {
             playerTransform.position = podInteriorTarget.position;
@@ -98,7 +113,6 @@ public class EscapePodDirector : MonoBehaviour
             whiteFlashOverlay.gameObject.SetActive(false);
         }
 
-        // 3. Play the Tragic Final Dialogue
         if (dialogueEngine != null && finalDialogue != null && finalDialogue.Length > 0)
         {
             if (finalDialogue == null || finalDialogue.Length == 0) AutoFillDialogue();
@@ -110,7 +124,6 @@ public class EscapePodDirector : MonoBehaviour
             yield return new WaitUntil(() => !DialogueEngine.isDialogueActive);
         }
 
-        // 4. The Ejection (Cut to Space)
         audio.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime(0.5f));
         
         if (whiteFlashOverlay != null)
@@ -120,20 +133,16 @@ public class EscapePodDirector : MonoBehaviour
         }
         yield return new WaitForSeconds(0.5f);
 
-        // Hide Kaelen, Snap Camera to the External Space Scene
         if (playerTransform != null) playerTransform.gameObject.SetActive(false);
 
-        CameraFollow cam = FindAnyObjectByType<CameraFollow>();
-        if (cam != null && externalCameraAnchor != null)
+        if (_cachedCamera != null && externalCameraAnchor != null)
         {
-            cam.target = externalCameraAnchor;
-            cam.smoothTime = 0.05f; // SAFE VALUE: Prevents SmoothDamp from crashing!
+            _cachedCamera.target = externalCameraAnchor;
+            _cachedCamera.smoothTime = 0.05f; 
             
-            // INSTANT SNAP: Physically move the camera right now so it doesn't slide across the map
-            Camera.main.transform.position = externalCameraAnchor.position + cam.offset;
+            Camera.main.transform.position = externalCameraAnchor.position + _cachedCamera.offset;
         }
 
-        // VISIBILITY FAILSAFE: Ensure the ships render on top of everything in the void
         if (escapePodExteriorVisual != null && escapePodExteriorVisual.GetComponent<SpriteRenderer>() != null) escapePodExteriorVisual.GetComponent<SpriteRenderer>().sortingOrder = 50;
         if (wayfarerShipVisual != null && wayfarerShipVisual.GetComponent<SpriteRenderer>() != null) wayfarerShipVisual.GetComponent<SpriteRenderer>().sortingOrder = 40;
 
@@ -143,7 +152,6 @@ public class EscapePodDirector : MonoBehaviour
             whiteFlashOverlay.gameObject.SetActive(false);
         }
 
-        // 5. The Pod Flies Away
         float flightTimer = 0f;
         audio.PlayOneShot(ProceduralAudioGen.GenerateHiss(2f));
 
@@ -151,23 +159,19 @@ public class EscapePodDirector : MonoBehaviour
         {
             flightTimer += Time.deltaTime;
             
-            // Animate the pod flying downward (away from the ship)
             if (escapePodExteriorVisual != null) escapePodExteriorVisual.transform.position += Vector3.down * (12f * Time.deltaTime); 
             
-            // Slowly drift the camera's focus from the tiny pod up to the massive doomed ship
-            if (cam != null && wayfarerShipVisual != null && flightTimer > 1.0f)
+            if (_cachedCamera != null && wayfarerShipVisual != null && flightTimer > 1.0f)
             {
-                cam.smoothTime = 2.5f; 
-                cam.target = wayfarerShipVisual.transform;
+                _cachedCamera.smoothTime = 2.5f; 
+                _cachedCamera.target = wayfarerShipVisual.transform;
             }
             
             yield return null;
         }
 
-        // 6. The Explosion
-        // A massive silent flash in space, followed by rumbling, terrifying static
         audio.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(3.5f), 1.5f);
-        if (cam != null) cam.TriggerShake(2.5f, 1.5f); 
+        if (_cachedCamera != null) _cachedCamera.TriggerShake(2.5f, 1.5f); 
         
         if (whiteFlashOverlay != null)
         {
@@ -175,11 +179,10 @@ public class EscapePodDirector : MonoBehaviour
             whiteFlashOverlay.color = Color.white;
         }
 
-        if (wayfarerShipVisual != null) wayfarerShipVisual.SetActive(false); // The ship is gone.
+        if (wayfarerShipVisual != null) wayfarerShipVisual.SetActive(false); 
 
         yield return new WaitForSeconds(3.5f);
 
-        // 7. Load Credits
         SceneManager.LoadScene(creditsSceneName);
     }
 

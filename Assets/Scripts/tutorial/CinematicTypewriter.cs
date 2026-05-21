@@ -2,62 +2,77 @@ using System.Collections;
 using UnityEngine;
 using TMPro;
 
+/// <summary>
+/// Handles the zero-allocation typewriter reveal effect for cinematic text elements.
+/// </summary>
 public class CinematicTypewriter : MonoBehaviour
 {
     [Header("Text Objects")]
-    public TextMeshProUGUI spaceText;  // Drag Galaxy_Text here
-    public TextMeshProUGUI hangarText; // Drag Hangar_Text here
+    [Tooltip("The text component for the introductory space sequence.")]
+    public TextMeshProUGUI spaceText;  
+    [Tooltip("The text component for the hangar arrival sequence.")]
+    public TextMeshProUGUI hangarText; 
 
     [Header("Settings")]
+    [Tooltip("Delay in seconds between revealing each character.")]
     public float typingSpeed = 0.04f;
 
-    private string fullSpaceText;
-    private string fullHangarText;
+    private string _fullSpaceText;
+    private string _fullHangarText;
+    private WaitForSeconds _typingDelay;
 
-    void Start()
+    private void Start()
     {
-        // Cache and clear Space text
+        _typingDelay = new WaitForSeconds(typingSpeed);
+
         if (spaceText != null)
         {
-            fullSpaceText = spaceText.text;
-            spaceText.text = "";
+            _fullSpaceText = spaceText.text;
+            spaceText.maxVisibleCharacters = 0;
         }
 
-        // Cache and clear Hangar text
         if (hangarText != null)
         {
-            fullHangarText = hangarText.text;
-            hangarText.text = "";
+            _fullHangarText = hangarText.text;
+            hangarText.maxVisibleCharacters = 0;
         }
     }
 
-    // Trigger for the opening space text
+    /// <summary>
+    /// Begins the typewriter effect on the space cinematic text.
+    /// </summary>
     public void StartSpaceTyping()
     {
         if (spaceText != null)
         {
             StopAllCoroutines();
-            StartCoroutine(TypeText(spaceText, fullSpaceText));
+            StartCoroutine(TypeTextRoutine(spaceText, _fullSpaceText));
         }
     }
 
-    // Trigger for the closing hangar text
+    /// <summary>
+    /// Begins the typewriter effect on the hangar cinematic text.
+    /// </summary>
     public void StartHangarTyping()
     {
         if (hangarText != null)
         {
             StopAllCoroutines();
-            StartCoroutine(TypeText(hangarText, fullHangarText));
+            StartCoroutine(TypeTextRoutine(hangarText, _fullHangarText));
         }
     }
 
-    IEnumerator TypeText(TextMeshProUGUI targetComponent, string targetText)
+    private IEnumerator TypeTextRoutine(TextMeshProUGUI targetComponent, string targetText)
     {
-        targetComponent.text = "";
-        foreach (char letter in targetText.ToCharArray())
+        targetComponent.text = targetText;
+        targetComponent.ForceMeshUpdate();
+        
+        int totalCharacters = targetComponent.textInfo.characterCount;
+
+        for (int i = 0; i <= totalCharacters; i++)
         {
-            targetComponent.text += letter;
-            yield return new WaitForSeconds(typingSpeed);
+            targetComponent.maxVisibleCharacters = i;
+            yield return _typingDelay;
         }
     }
 }

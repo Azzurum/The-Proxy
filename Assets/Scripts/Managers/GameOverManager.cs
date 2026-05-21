@@ -3,27 +3,41 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
-using TMPro; // NEW: We must include the TextMeshPro dictionary!
+using TMPro; 
 
+/// <summary>
+/// Coordinates the visual and audio sequences for the "Kernel Panic" game over screen.
+/// </summary>
 public class GameOverManager : MonoBehaviour
 {
     [Header("UI Connections")]
+    [Tooltip("The root canvas for the Game Over UI overlay.")]
     public GameObject canvasGameOver;
+    [Tooltip("Container holding the fragmented screen capture slices.")]
     public RectTransform gridContainer; 
+    [Tooltip("The UI text object displaying MOTHER's final dialogue.")]
     public GameObject textMotherDialogue;
+    [Tooltip("The UI text object prompting the hardware override command.")]
     public GameObject textOverridePrompt;
     
     [Header("New Visuals & Polish")]
+    [Tooltip("A solid background used to hide the level during the implosion effect.")]
     public GameObject voidBackground;
+    [Tooltip("The fill bar graphic representing the player's assimilation progress.")]
     public Image yieldFillBar; 
 
     [Header("Grid Math")]
+    [Tooltip("The resolution of the grid used to shatter the screen (e.g., 10 creates a 10x10 grid).")]
     public int gridSize = 10;
     
     [Header("Animation Settings")]
+    [Tooltip("Duration of the screen collapse animation.")]
     public float vacuumDuration = 0.8f;   
+    [Tooltip("Speed at which the individual screen tiles turn to black static.")]
     public float corruptionSpeed = 0.05f; 
+    [Tooltip("Intensity of the red/cyan corruption discoloration applied to tiles.")]
     [Range(0f, 1f)] public float rotIntensity = 0.8f;
+    [Tooltip("Speed of the flashing 'Override' text prompt.")]
     public float blinkSpeed = 0.6f; 
 
     [Header("Dialogue Pool")]
@@ -49,14 +63,17 @@ public class GameOverManager : MonoBehaviour
     };
 
     [Header("Fixes & Tweaks")]
+    [Tooltip("Flips the UV map of the captured screen texture to resolve rendering API inversion issues.")]
     public bool flipScreenshot = true; 
+    [Tooltip("The final visual footprint size of the collapsed screen slices.")]
     public float finalContainerSize = 450f; 
+    [Tooltip("Padding applied between the screen slices after they collapse.")]
     public float blockPadding = 5f;
 
-    private RenderTexture screenCapture;
-    private bool canOverride = false; 
-    private float yieldProgress = 0f;
-    private float timeToYield = 1.5f; 
+    private RenderTexture _screenCapture;
+    private bool _canOverride = false; 
+    private float _yieldProgress = 0f;
+    private float _timeToYield = 1.5f; 
     
     private class SliceData
     {
@@ -72,40 +89,50 @@ public class GameOverManager : MonoBehaviour
         public Vector3 explodeSpin;
     }
     
-    private List<SliceData> activeSlices = new List<SliceData>();
-    private Coroutine blinkRoutine;
+    private List<SliceData> _activeSlices = new List<SliceData>();
+    private Coroutine _blinkRoutine;
 
-    void Update()
+    private void OnDestroy()
     {
-        if (Input.GetKeyDown(KeyCode.K)) TriggerGameOver();
+        if (_screenCapture != null)
+        {
+            _screenCapture.Release();
+            Destroy(_screenCapture);
+        }
+    }
 
-        if (canOverride)
+    private void Update()
+    {
+        if (_canOverride)
         {
             if (Input.GetKey(KeyCode.Escape))
             {
-                yieldProgress += Time.unscaledDeltaTime;
-                yieldFillBar.fillAmount = yieldProgress / timeToYield;
+                _yieldProgress += Time.unscaledDeltaTime;
+                if (yieldFillBar != null) yieldFillBar.fillAmount = _yieldProgress / _timeToYield;
 
-                if (yieldProgress >= timeToYield)
+                if (_yieldProgress >= _timeToYield)
                 {
-                    if(blinkRoutine != null) StopCoroutine(blinkRoutine);
+                    if(_blinkRoutine != null) StopCoroutine(_blinkRoutine);
                     StartCoroutine(YieldRoutine());
                 }
             }
             else
             {
-                yieldProgress = Mathf.Max(0, yieldProgress - Time.unscaledDeltaTime * 2f);
-                yieldFillBar.fillAmount = yieldProgress / timeToYield;
+                _yieldProgress = Mathf.Max(0, _yieldProgress - Time.unscaledDeltaTime * 2f);
+                if (yieldFillBar != null) yieldFillBar.fillAmount = _yieldProgress / _timeToYield;
             }
 
             if (Input.GetKeyDown(KeyCode.R))
             {
-                if(blinkRoutine != null) StopCoroutine(blinkRoutine);
+                if(_blinkRoutine != null) StopCoroutine(_blinkRoutine);
                 StartCoroutine(HardwareOverrideRoutine());
             }
         }
     }
 
+    /// <summary>
+    /// Initiates the game over cinematic, freezing time and shattering the screen.
+    /// </summary>
     public void TriggerGameOver()
     {
         StartCoroutine(ImplosionRoutine());
@@ -113,64 +140,76 @@ public class GameOverManager : MonoBehaviour
 
     private IEnumerator ImplosionRoutine()
     {
-        canOverride = false;
-        yieldProgress = 0f;
+        _canOverride = false;
+        _yieldProgress = 0f;
         if(yieldFillBar != null) yieldFillBar.fillAmount = 0f;
 
         Time.timeScale = 0f;
-        textMotherDialogue.SetActive(false);
-        textOverridePrompt.SetActive(false);
-        voidBackground.SetActive(false);
+        if (textMotherDialogue != null) textMotherDialogue.SetActive(false);
+        if (textOverridePrompt != null) textOverridePrompt.SetActive(false);
+        if (voidBackground != null) voidBackground.SetActive(false);
 
-        // Stop all background music so the Game Over ambiance shines!
-        BGMManager bgm = FindAnyObjectByType<BGMManager>();
-        if (bgm != null) bgm.StopMusic();
+        if (BGMManager.Instance != null) BGMManager.Instance.StopMusic();
 
         yield return new WaitForSecondsRealtime(0.1f); 
         
         yield return new WaitForEndOfFrame();
-        screenCapture = new RenderTexture(Screen.width, Screen.height, 24);
-        ScreenCapture.CaptureScreenshotIntoRenderTexture(screenCapture);
+        
+        if (_screenCapture != null)
+        {
+            _screenCapture.Release();
+            Destroy(_screenCapture);
+        }
+        _screenCapture = new RenderTexture(Screen.width, Screen.height, 24);
+        ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenCapture);
 
-        canvasGameOver.SetActive(true);
-        voidBackground.SetActive(true);
+        if (canvasGameOver != null) canvasGameOver.SetActive(true);
+        if (voidBackground != null) voidBackground.SetActive(true);
 
         SliceScreen();
 
         yield return StartCoroutine(VacuumAnimation());
         yield return StartCoroutine(CorruptionAnimation());
 
-        // --- THE TEXTMESHPRO FIX ---
-        // We now ask Unity specifically for the TextMeshProUGUI component!
-        if (motherMessages.Length > 0 && textMotherDialogue.GetComponent<TextMeshProUGUI>() != null)
+        if (textMotherDialogue != null && textMotherDialogue.TryGetComponent<TextMeshProUGUI>(out var motherTextComponent))
         {
-            string randomMsg = motherMessages[Random.Range(0, motherMessages.Length)];
-            textMotherDialogue.GetComponent<TextMeshProUGUI>().text = randomMsg;
+            if (motherMessages.Length > 0)
+            {
+                string randomMsg = motherMessages[Random.Range(0, motherMessages.Length)];
+                motherTextComponent.text = randomMsg;
+            }
+            textMotherDialogue.SetActive(true);
         }
-
-        textMotherDialogue.SetActive(true);
         
         yield return new WaitForSecondsRealtime(1.0f);
         
-        textOverridePrompt.SetActive(true);
-        blinkRoutine = StartCoroutine(BlinkPrompt());
+        if (textOverridePrompt != null)
+        {
+            textOverridePrompt.SetActive(true);
+            _blinkRoutine = StartCoroutine(BlinkPrompt());
+        }
         
-        canOverride = true; 
+        _canOverride = true; 
     }
 
+    /// <summary>
+    /// Continuously pulses the visibility of the hardware override prompt.
+    /// </summary>
     private IEnumerator BlinkPrompt()
     {
         while (true)
         {
-            textOverridePrompt.SetActive(!textOverridePrompt.activeSelf);
+            if (textOverridePrompt != null) textOverridePrompt.SetActive(!textOverridePrompt.activeSelf);
             yield return new WaitForSecondsRealtime(blinkSpeed);
         }
     }
 
     private void SliceScreen()
     {
-        foreach(var slice in activeSlices) Destroy(slice.rect.gameObject);
-        activeSlices.Clear();
+        foreach(var slice in _activeSlices) Destroy(slice.rect.gameObject);
+        _activeSlices.Clear();
+
+        if (canvasGameOver == null) return;
 
         RectTransform canvasRect = canvasGameOver.GetComponent<RectTransform>();
         float sliceWidth = canvasRect.rect.width / (float)gridSize;
@@ -193,7 +232,7 @@ public class GameOverManager : MonoBehaviour
                 RectTransform rect = blockObj.AddComponent<RectTransform>();
                 RawImage rawImage = blockObj.AddComponent<RawImage>();
 
-                rawImage.texture = screenCapture;
+                rawImage.texture = _screenCapture;
                 
                 float uvX = x / (float)gridSize;
                 float uvY = y / (float)gridSize;
@@ -213,16 +252,17 @@ public class GameOverManager : MonoBehaviour
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
                 rect.pivot = new Vector2(0.5f, 0.5f); 
                 
-                SliceData data = new SliceData();
-                data.rect = rect;
-                data.image = rawImage;
-                data.gridX = x;
-                data.gridY = y;
-
-                data.targetSize = new Vector2(targetVisualSize, targetVisualSize);
-                data.targetPos = new Vector2(targetStartX + (x * cellSpacing), targetStartY + (y * cellSpacing));
-                data.startSize = new Vector2(sliceWidth - 2f, sliceHeight - 2f);
-                data.startPos = new Vector2(canvasStartX + (x * sliceWidth), canvasStartY + (y * sliceHeight));
+                SliceData data = new SliceData
+                {
+                    rect = rect,
+                    image = rawImage,
+                    gridX = x,
+                    gridY = y,
+                    targetSize = new Vector2(targetVisualSize, targetVisualSize),
+                    targetPos = new Vector2(targetStartX + (x * cellSpacing), targetStartY + (y * cellSpacing)),
+                    startSize = new Vector2(sliceWidth - 2f, sliceHeight - 2f),
+                    startPos = new Vector2(canvasStartX + (x * sliceWidth), canvasStartY + (y * sliceHeight))
+                };
 
                 rect.sizeDelta = data.startSize;
                 rect.anchoredPosition = data.startPos;
@@ -231,7 +271,7 @@ public class GameOverManager : MonoBehaviour
                 data.explodeVelocity = new Vector3(Random.Range(-1500f, 1500f), Random.Range(-1500f, 1500f), Random.Range(-800f, 800f));
                 data.explodeSpin = new Vector3(Random.Range(-360f, 360f), Random.Range(-360f, 360f), Random.Range(-720f, 720f));
 
-                activeSlices.Add(data);
+                _activeSlices.Add(data);
             }
         }
     }
@@ -245,9 +285,9 @@ public class GameOverManager : MonoBehaviour
         {
             elapsed += Time.unscaledDeltaTime; 
             float t = elapsed / vacuumDuration;
-            float ease = t * t * t; 
+            float ease = t * t * t;
 
-            foreach (var slice in activeSlices)
+            foreach (var slice in _activeSlices)
             {
                 slice.rect.anchoredPosition = Vector2.Lerp(slice.startPos, slice.targetPos, ease);
                 slice.rect.sizeDelta = Vector2.Lerp(slice.startSize, slice.targetSize, ease);
@@ -264,7 +304,7 @@ public class GameOverManager : MonoBehaviour
             yield return null;
         }
 
-        foreach (var slice in activeSlices)
+        foreach (var slice in _activeSlices)
         {
             slice.rect.anchoredPosition = slice.targetPos;
             slice.rect.sizeDelta = slice.targetSize;
@@ -275,7 +315,7 @@ public class GameOverManager : MonoBehaviour
     {
         for (int y = 0; y < gridSize; y++)
         {
-            foreach (var slice in activeSlices)
+            foreach (var slice in _activeSlices)
             {
                 if (slice.gridY == y)
                 {
@@ -289,12 +329,12 @@ public class GameOverManager : MonoBehaviour
 
     private IEnumerator HardwareOverrideRoutine()
     {
-        canOverride = false; 
+        _canOverride = false; 
         
-        textMotherDialogue.SetActive(false);
-        textOverridePrompt.SetActive(false);
+        if (textMotherDialogue != null) textMotherDialogue.SetActive(false);
+        if (textOverridePrompt != null) textOverridePrompt.SetActive(false);
         
-        foreach (var slice in activeSlices)
+        foreach (var slice in _activeSlices)
         {
             slice.image.color = Color.red;
         }
@@ -306,7 +346,7 @@ public class GameOverManager : MonoBehaviour
         {
             explosionTimer += Time.unscaledDeltaTime;
             
-            foreach (var slice in activeSlices)
+            foreach (var slice in _activeSlices)
             {
                 slice.rect.localPosition += slice.explodeVelocity * Time.unscaledDeltaTime;
                 slice.rect.Rotate(slice.explodeSpin * Time.unscaledDeltaTime);
@@ -321,22 +361,18 @@ public class GameOverManager : MonoBehaviour
 
     private IEnumerator YieldRoutine()
     {
-        canOverride = false; 
+        _canOverride = false; 
         
-        // --- TEXTMESHPRO FIX FOR THE PROMPT ---
-        TextMeshProUGUI promptText = textOverridePrompt.GetComponent<TextMeshProUGUI>();
-        if(promptText != null)
+        if (textOverridePrompt != null && textOverridePrompt.TryGetComponent<TextMeshProUGUI>(out var promptText))
         {
             promptText.text = "ASSIMILATION COMPLETE.";
             promptText.color = Color.gray;
+            textOverridePrompt.SetActive(true); 
         }
-        
-        textOverridePrompt.SetActive(true); 
         
         yield return new WaitForSecondsRealtime(1.5f);
         
         Time.timeScale = 1f;
-        // SceneManager.LoadScene("MainMenu"); 
-        Debug.Log("PLAYER YIELDED. LOADING MAIN MENU...");
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }

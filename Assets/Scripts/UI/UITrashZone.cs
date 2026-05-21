@@ -2,20 +2,20 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+/// <summary>
+/// Coordinates drag-and-drop feedback for item destruction/ejection zones.
+/// </summary>
 public class UITrashZone : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
 {
+    [Tooltip("The underlying background image component reacting to highlight events.")]
     public Image background;
-    public Color normalColor = new Color(1f, 0.66f, 0f, 0.05f); // Faint Amber
-    public Color highlightColor = new Color(1f, 0.66f, 0f, 0.3f); // Glowing Amber
+    public Color normalColor = new Color(1f, 0.66f, 0f, 0.05f); 
+    public Color highlightColor = new Color(1f, 0.66f, 0f, 0.3f); 
 
-    void Start() { if(background != null) background.color = normalColor; }
+    private void Start() { if(background != null) background.color = normalColor; }
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        // ADD THIS LINE TO PROVE THE MOUSE IS TOUCHING IT:
-        Debug.Log("<color=cyan>TRASH CAN: I feel the mouse!</color>"); 
-
-        // Light up the trash can if we are holding an item over it
         if (DraggableItem.itemBeingDragged != null && background != null)
             background.color = highlightColor;
     }
@@ -27,7 +27,6 @@ public class UITrashZone : MonoBehaviour, IDropHandler, IPointerEnterHandler, IP
 
     public void OnDrop(PointerEventData eventData)
     {
-        // Tell the item it has been thrown away!
         if (DraggableItem.itemBeingDragged != null)
         {
             DraggableItem.itemBeingDragged.ejectedFromRig = true;

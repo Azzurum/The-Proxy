@@ -1,38 +1,52 @@
 using UnityEngine;
 using System.Collections;
 
+/// <summary>
+/// Controls the countdown, activation, and burnout phases of the decoy tool.
+/// </summary>
 public class DecoyDevice : MonoBehaviour
 {
+    [Header("Decoy Settings")]
+    [Tooltip("Time in seconds before the decoy activates its noise flare.")]
     public float fuseTime = 7f;
+    [Tooltip("Duration in seconds that the decoy produces noise to distract the enemy.")]
     public float noiseDuration = 10f;
     
-    // Add a light component to the prefab and assign it here so it flashes!
+    [Header("Visuals")]
+    [Tooltip("Light component to visually indicate the decoy's current phase.")]
     public UnityEngine.Rendering.Universal.Light2D decoyLight; 
 
     [Header("Audio SFX")]
+    [Tooltip("Audio source for playing decoy sound effects.")]
     public AudioSource audioSource;
+    [Tooltip("Sound played during the silent countdown phase.")]
     public AudioClip sfxTick;
+    [Tooltip("Sound played continuously during the active noise phase.")]
     public AudioClip sfxBlast;
 
-    void Start()
+    private ProxyAI[] _cachedProxies;
+
+    private void Start()
     {
-        // Prevent player from picking up the active decoy
         gameObject.tag = "Untagged";
         foreach (Transform child in transform) child.gameObject.tag = "Untagged";
 
-        PhysicalItem pi = GetComponent<PhysicalItem>();
-        if (pi == null) pi = GetComponentInChildren<PhysicalItem>();
-
-        if (pi != null) Destroy(pi);
+        if (TryGetComponent<PhysicalItem>(out var pi)) Destroy(pi);
+        else
+        {
+            var childPi = GetComponentInChildren<PhysicalItem>();
+            if (childPi != null) Destroy(childPi);
+        }
 
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        
+        _cachedProxies = FindObjectsByType<ProxyAI>(FindObjectsInactive.Exclude);
 
         StartCoroutine(DecoySequence());
     }
 
     private IEnumerator DecoySequence()
     {
-        // Phase 1: Silent Countdown
         if (decoyLight != null) decoyLight.color = Color.yellow;
         
         for (int i = 0; i < fuseTime; i++)
@@ -41,31 +55,25 @@ public class DecoyDevice : MonoBehaviour
             yield return new WaitForSeconds(1f);
         }
 
-        // Phase 2: Activation (The Electromagnetic Noise)
-        Debug.Log("DECOY ACTIVATED: Broadcasting massive electromagnetic flare!");
         if (decoyLight != null) decoyLight.color = Color.cyan;
         
         if (audioSource != null) audioSource.PlayOneShot(sfxBlast != null ? sfxBlast : ProceduralAudioGen.GenerateStaticGlitch(1.5f));
         
-        ProxyAI[] allProxies = FindObjectsByType<ProxyAI>(FindObjectsInactive.Exclude);
-        
         float timer = 0;
         while (timer < noiseDuration)
         {
-            foreach (var proxy in allProxies)
+            foreach (var proxy in _cachedProxies)
             {
                 if (proxy != null) 
                 {
                     proxy.DistractToLocation(transform.position, noiseDuration - timer);
-                    proxy.OnCombatAction(transform.position); // Ensure proxy detects the flare
+                    proxy.OnCombatAction(transform.position); 
                 }
             }
             yield return new WaitForSeconds(1f);
             timer += 1f;
         }
 
-        // Phase 3: Burnout
-        Debug.Log("DECOY BURNOUT: Signal lost.");
-        Destroy(gameObject); // The battery dies and it disappears/breaks
+        Destroy(gameObject);
     }
 }

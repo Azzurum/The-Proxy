@@ -4,7 +4,9 @@ using UnityEngine.EventSystems;
 using TMPro;
 using System.Collections;
 
-// Added ISelectHandler and IDeselectHandler for Gamepad/Keyboard support
+/// <summary>
+/// A highly specialized UI Button that procedurally degrades, jitters, and displays fake error codes based on corruption levels.
+/// </summary>
 public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler, ISelectHandler, IDeselectHandler
 {
     [Header("Text Components")]
@@ -24,7 +26,9 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
     public Color spikeLineColor = new Color(1, 0, 0, 1);
     public int segmentResolution = 40;
     public float lineWidth = 2f;
+    
     private Image[] _lineSegments;
+    private Vector2[] _flowPoints;
 
     [Header("White Border Glitch")]
     public Image borderImage; 
@@ -79,6 +83,8 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
     {
         if (ekgContainer == null) return;
         _lineSegments = new Image[segmentResolution];
+        _flowPoints = new Vector2[segmentResolution + 1];
+        
         for (int i = 0; i < segmentResolution; i++)
         {
             GameObject segObj = new GameObject("Segment_" + i);
@@ -97,10 +103,9 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
 
     private void DrawFlowingLine()
     {
-        if (ekgContainer == null || _lineSegments == null) return;
+        if (ekgContainer == null || _lineSegments == null || _flowPoints == null) return;
         float width = ekgContainer.rect.width;
         float startX = -width / 2f;
-        Vector2[] points = new Vector2[segmentResolution + 1];
 
         for (int i = 0; i <= segmentResolution; i++)
         {
@@ -110,38 +115,32 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
 
             if (!_isHovering) 
             {
-                // --- BIOMETRIC UPDATE: Idle line gets "heart palpitations" (Noise) as corruption grows ---
                 float idleSine = Mathf.Sin((t * 12f) - (Time.unscaledTime * 4f)) * 6f;
                 float corruptionNoise = (Mathf.PerlinNoise(t * 10f, Time.unscaledTime) - 0.5f) * (40f * corruptionPercent);
                 currentY = (idleSine + corruptionNoise) * edgeTaper;
             }
             else 
             {
-                // Hover spike gets more violent with corruption
                 float hoverIntensity = 60f + (40f * corruptionPercent);
                 currentY = (Mathf.PerlinNoise(t * 25f, Time.unscaledTime * 30f) - 0.5f) * hoverIntensity * edgeTaper;
             }
 
-            points[i] = new Vector2(startX + (t * width), currentY);
+            _flowPoints[i] = new Vector2(startX + (t * width), currentY);
         }
 
         for (int i = 0; i < segmentResolution; i++)
         {
-            // ... (keep the drawing math the same as Phase 3) ...
-            Vector2 p1 = points[i];
-            Vector2 p2 = points[i + 1];
+            Vector2 p1 = _flowPoints[i];
+            Vector2 p2 = _flowPoints[i + 1];
             Vector2 dir = p2 - p1;
             RectTransform rt = _lineSegments[i].rectTransform;
             rt.anchoredPosition = p1 + dir / 2f;
             rt.sizeDelta = new Vector2(dir.magnitude, lineWidth);
             rt.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg);
             
-            // --- BIOMETRIC UPDATE: Line color bleeds to red even when idle if corruption is high ---
             _lineSegments[i].color = Color.Lerp(normalLineColor, spikeLineColor, _isHovering ? 1.0f : corruptionPercent);
         }
     }
-
-    // --- INTERACTION HANDLERS ---
 
     public void OnPointerEnter(PointerEventData eventData) 
     {
@@ -159,7 +158,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
         if (audioSource) audioSource.PlayOneShot(SND_UI_Button_Click != null ? SND_UI_Button_Click : ProceduralAudioGen.GenerateClick(800f, 0.05f));
     }
 
-    // Gamepad/Keyboard Support
     public void OnSelect(BaseEventData eventData) => OnPointerEnter(null);
     public void OnDeselect(BaseEventData eventData) => ResetGlitchState();
 
@@ -169,7 +167,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
         if (_glitchRoutine != null) StopCoroutine(_glitchRoutine);
         if (_errorRoutine != null) StopCoroutine(_errorRoutine);
 
-        // BUG FIX: Always ensure text is visible when resetting
         if (mainText) 
         {
             mainText.gameObject.SetActive(true);
@@ -189,7 +186,6 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
 
         while (_isHovering)
         {
-            // --- BIOMETRIC UPDATE: Vibration and Chromatic Offset increase with corruption ---
             float currentVibration = vibrationIntensity + (vibrationIntensity * corruptionPercent * 2f);
             float currentChromatic = chromaticOffset + (chromaticOffset * corruptionPercent * 3f);
 
@@ -199,11 +195,9 @@ public class HorrorProxyButton : MonoBehaviour, IPointerEnterHandler, IPointerEx
             if (ghostCyan) ghostCyan.transform.localPosition = _originalCyanPos + randomVibrate + (Vector3.left * currentChromatic);
             if (ghostRed) ghostRed.transform.localPosition = _originalRedPos + randomVibrate + (Vector3.right * currentChromatic);
 
-            // Flicker more often if corrupted
             if (Random.value < (0.1f + (corruptionPercent * 0.2f))) mainText.gameObject.SetActive(!mainText.gameObject.activeSelf);
             else mainText.gameObject.SetActive(true);
 
-            // Speed up the pulse based on corruption
             if (borderImage)
             {
                 float pulse = Mathf.Sin(Time.unscaledTime * (borderBlinkSpeed + (corruptionPercent * 10f)));

@@ -2,25 +2,36 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections;
 
+/// <summary>
+/// Handles the final terminal interaction, determining and executing the appropriate endgame sequence based on corruption levels.
+/// </summary>
 public class CommandConsole : MonoBehaviour
 {
     [Header("Endgame Thresholds")]
-    [Tooltip("0 to 1 rows triggers the True Ending")]
+    [Tooltip("Maximum corruption rows allowed (0 to X) to trigger the True Ending.")]
     public int trueEndingMaxCorruption = 1;
     
-    [Tooltip("2 to 6 rows triggers the Neutral Ending")]
+    [Tooltip("Maximum corruption rows allowed (X to Y) to trigger the Neutral Ending.")]
     public int neutralEndingMaxCorruption = 6;
 
     [Header("References")]
+    [Tooltip("The ID of the Master Key required to activate this terminal.")]
     public string masterKey3ID = "MasterKey3";
+    [Tooltip("The exact name of the escape sequence scene.")]
     public string escapeSceneName = "level_escape";
+    [Tooltip("The exact name of the credits scene.")]
     public string creditsSceneName = "credits_scene";
+    [Tooltip("The exact name of the bad ending cinematic scene.")]
     public string ending1SceneName = "Ending1_Scene";
+    [Tooltip("Reference to the floating interaction prompt UI.")]
     public FloatingPrompt interactionPrompt;
 
     [Header("Cinematic Integrations")]
+    [Tooltip("Reference to the Dialogue Engine in the scene.")]
     public DialogueEngine dialogueEngine;
+    [Tooltip("Dialogue nodes for the Bad Ending sequence.")]
     public DialogueNode[] motherBetrayalDialogue;
+    [Tooltip("Dialogue nodes for the True Ending sequence.")]
     public DialogueNode[] motherPurgeDialogue;
 
     private bool isEndgameTriggered = false;
@@ -52,19 +63,19 @@ public class CommandConsole : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Validates the player's inventory for the final key and initiates the ending evaluation if successful.
+    /// </summary>
     public void AttemptTerminalAccess()
     {
         if (isEndgameTriggered) return;
 
-        // 1. Check if the player has Master Key 3 anywhere in the M.E.T. Rig
-        // TODO: Update "HasItem" to match your actual InventoryManager method
         bool hasMasterKey3 = InventoryManager.Instance.HasItem(masterKey3ID);
 
         if (hasMasterKey3)
         {
             isEndgameTriggered = true;
             
-            // Turn off the collider so the 'E' prompt permanently disappears during the cinematic!
             Collider2D col = GetComponent<Collider2D>();
             if (col != null) col.enabled = false;
             if (interactionPrompt != null) interactionPrompt.HidePrompt();
@@ -73,19 +84,19 @@ public class CommandConsole : MonoBehaviour
         }
         else
         {
-            // Add audio feedback so the player knows the button press actually registered!
             AudioSource audio = GetComponent<AudioSource>();
             if (audio == null) audio = gameObject.AddComponent<AudioSource>();
             audio.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(150f, 0.4f));
 
-            Debug.Log("ACCESS DENIED: Master Key 3 Required.");
             if (SystemLogger.Instance != null) SystemLogger.Instance.Log("ACCESS DENIED: MASTER KEY 3 REQUIRED.", "#FF003C");
         }
     }
 
+    /// <summary>
+    /// Compares current corruption levels against thresholds to trigger the corresponding cinematic coroutine.
+    /// </summary>
     private void EvaluateEndgame()
     {
-        // RUNTIME FAILSAFE: If Unity forgot the dialogue data, fill it instantly!
         if (motherBetrayalDialogue == null || motherBetrayalDialogue.Length == 0 || motherPurgeDialogue == null || motherPurgeDialogue.Length == 0)
         {
             AutoFillDialogue();
@@ -93,41 +104,35 @@ public class CommandConsole : MonoBehaviour
 
         int corruptionRows = InventoryManager.Instance.CurrentCorruptionRows;
         
-        Debug.Log($"Command Console Accessed. Current Corruption: {corruptionRows}");
-
         if (corruptionRows >= 7)
         {
-            Debug.Log("<color=red>ENDING 1 INITIATED: KERNEL PANIC</color>");
             StartCoroutine(Sequence_KernelPanic());
         }
         else if (corruptionRows > trueEndingMaxCorruption && corruptionRows <= neutralEndingMaxCorruption)
         {
-            Debug.Log("<color=yellow>ENDING 2 INITIATED: PARTITIONED SURVIVOR</color>");
             StartCoroutine(Sequence_PartitionedSurvivor());
         }
         else
         {
-            Debug.Log("<color=cyan>ENDING 3 INITIATED: ZERO-SECTOR PURGE</color>");
             StartCoroutine(Sequence_ZeroSectorPurge());
         }
     }
 
+    /// <summary>
+    /// Executes the high-corruption "Bad Ending" sequence, transitioning to Ending 1.
+    /// </summary>
     private IEnumerator Sequence_KernelPanic()
     {
-        // 1. Lock the player
         PlayerController player = FindAnyObjectByType<PlayerController>();
-        if (player != null) player.enabled = false; // Completely lock out player inputs
+        if (player != null) player.enabled = false; 
 
-        // 2. Play the Visual Novel Betrayal Dialogue
         if (dialogueEngine != null && motherBetrayalDialogue != null && motherBetrayalDialogue.Length > 0)
         {
-            // RUNTIME FAILSAFE: Check if the user accidentally dragged the Prefab from the Project window!
             if (!dialogueEngine.gameObject.scene.IsValid())
             {
                 Debug.LogError("<color=red>[CRITICAL ERROR]</color> You assigned the Dialogue Engine from the PROJECT FOLDER! You must drag 'UI_AetherCore_Terminal' from the HIERARCHY into the Command Console inspector.");
             }
 
-            // Auto-fix: Ensure the Dialogue Engine and all its parents (like the Canvas) are active
             Transform currentUI = dialogueEngine.transform;
             while (currentUI != null)
             {
@@ -135,10 +140,8 @@ public class CommandConsole : MonoBehaviour
                 currentUI = currentUI.parent;
             }
 
-            // Failsafe: Force the engine active one last time just in case Awake() disabled it!
             dialogueEngine.gameObject.SetActive(true);
 
-            // Failsafe: If it is STILL not active in the hierarchy, it means a parent is disabled or it's a Project Prefab!
             if (!dialogueEngine.gameObject.activeInHierarchy)
             {
                 Debug.LogError("<color=red>[CRITICAL ERROR]</color> The Dialogue Engine is still inactive! Make sure you dragged the UI_AetherCore_Terminal from the HIERARCHY, not the Project folder. Also ensure its parent objects are enabled.");
@@ -150,15 +153,12 @@ public class CommandConsole : MonoBehaviour
             }
         }
 
-        // 3. Force the M.E.T. Rig open
         MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
         if (rigManager != null && !rigManager.isRigOpen) rigManager.OpenRig();
         
-        // Disable natural game over so we can play the custom cinematic ending!
         InventoryManager.Instance.suppressGameOver = true;
         InventoryManager.Instance.isSystemActive = false;
 
-        // 4. Initial Setup: Alarms and Log
         AudioSource audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.loop = true;
         audioSource.clip = ProceduralAudioGen.GenerateAlarm(2f);
@@ -172,7 +172,6 @@ public class CommandConsole : MonoBehaviour
 
         CameraFollow cam = FindAnyObjectByType<CameraFollow>();
 
-        // 5. Spam Corruption slowly to 100%
         while (InventoryManager.Instance.CurrentCorruptionRows < 10)
         {
             InventoryManager.Instance.AddCorruptionRow();
@@ -181,7 +180,6 @@ public class CommandConsole : MonoBehaviour
             yield return new WaitForSeconds(1.2f);
         }
 
-        // 6. The Final Shatter & Fade
         audioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2f));
         if (ScreenEffectManager.Instance != null)
         {
@@ -192,29 +190,30 @@ public class CommandConsole : MonoBehaviour
         SceneManager.LoadScene(ending1SceneName);
     }
 
+    /// <summary>
+    /// Executes the mid-corruption "Neutral Ending" sequence, transitioning to the credits.
+    /// </summary>
     private IEnumerator Sequence_PartitionedSurvivor()
     {
-        // Phase 2: Fade to black and load credits
         yield return new WaitForSeconds(2f);
         SceneManager.LoadScene(creditsSceneName);
     }
 
+    /// <summary>
+    /// Executes the zero-corruption "True Ending" sequence, initiating the escape phase.
+    /// </summary>
     private IEnumerator Sequence_ZeroSectorPurge()
     {
-        // 1. Lock the player
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null) player.enabled = false;
 
-        // 2. Play the Panic Dialogue
         if (dialogueEngine != null && motherPurgeDialogue != null && motherPurgeDialogue.Length > 0)
         {
-            // RUNTIME FAILSAFE: Check if the user accidentally dragged the Prefab from the Project window!
             if (!dialogueEngine.gameObject.scene.IsValid())
             {
                 Debug.LogError("<color=red>[CRITICAL ERROR]</color> You assigned the Dialogue Engine from the PROJECT FOLDER! You must drag 'UI_AetherCore_Terminal' from the HIERARCHY into the Command Console inspector.");
             }
 
-            // Auto-fix: Ensure the Dialogue Engine and all its parents are active
             Transform currentUI = dialogueEngine.transform;
             while (currentUI != null)
             {
@@ -222,7 +221,6 @@ public class CommandConsole : MonoBehaviour
                 currentUI = currentUI.parent;
             }
 
-            // Failsafe: Force the engine active one last time just in case Awake() disabled it!
             dialogueEngine.gameObject.SetActive(true);
 
             if (!dialogueEngine.gameObject.activeInHierarchy)
@@ -236,7 +234,6 @@ public class CommandConsole : MonoBehaviour
             }
         }
 
-        // 3. The Overload (Alarms, Shake, and Red Lights)
         AudioSource audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.loop = true;
         audioSource.clip = ProceduralAudioGen.GenerateAlarm(2f);
@@ -251,7 +248,6 @@ public class CommandConsole : MonoBehaviour
 
         yield return new WaitForSeconds(2.5f);
 
-        // 4. The Cut
         audioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2f));
         if (ScreenEffectManager.Instance != null) ScreenEffectManager.Instance.TriggerFlash(Color.red, 1.5f);
 

@@ -1,5 +1,7 @@
+/// <summary>
+/// A simple static class to persist the ID of the last used elevator across scene loads.
+/// </summary>
 public static class ElevatorManager
 {
-    // This stores the ID of the elevator the player just used
     public static string LastUsedElevatorID;
 }

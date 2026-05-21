@@ -1,70 +1,70 @@
 using UnityEngine;
 
+/// <summary>
+/// Manages the state machine for the jammed tutorial door, requiring dialogue completion and the Fusion Welder tool.
+/// </summary>
 public class JammedDoor : MonoBehaviour
 {
     [Header("UI Prompt")]
+    [Tooltip("The canvas containing the interaction prompt graphic.")]
     public GameObject interactionPromptCanvas;
 
     [Header("Dialogue Interaction")]
+    [Tooltip("Reference to the dialogue engine.")]
     public DialogueEngine dialogueEngine;
+    [Tooltip("The dialogue sequence played upon the first failed interaction.")]
     public DialogueNode[] doorDialogueNodes;
 
     [Header("Hold Settings")]
+    [Tooltip("Duration in seconds the interaction key must be held to progress.")]
     public float holdDuration = 1.0f;
-    private float holdTimer = 0f;
 
-    [Header("Phase 4: FX & Progression")]
-    [Tooltip("Drag a Particle System prefab here to create welding sparks!")]
+    [Header("Visual Effects")]
+    [Tooltip("The Particle System prefab representing welding sparks.")]
     public ParticleSystem weldingSparksFX;
 
-    private AudioSource audioSource;
-    private bool isPlayerInZone = false;
-    private bool hasTriggeredMonologue = false;
-    private bool isDoorOpen = false;
+    private float _holdTimer = 0f;
+    private AudioSource _audioSource;
+    private bool _isPlayerInZone = false;
+    private bool _hasTriggeredMonologue = false;
+    private bool _isDoorOpen = false;
+    private GameObject _cachedPlayer;
+    private QuestTracker _questTracker;
+    private HotbarManager _hotbarManager;
 
-    void Start()
+    private void Start()
     {
-        audioSource = GetComponent<AudioSource>();
+        _audioSource = GetComponent<AudioSource>();
+        _questTracker = FindAnyObjectByType<QuestTracker>();
+        _hotbarManager = FindAnyObjectByType<HotbarManager>();
 
         if (interactionPromptCanvas != null)
             interactionPromptCanvas.SetActive(false);
     }
 
-    void Update()
+    private void Update()
     {
-        if (isPlayerInZone && !isDoorOpen)
+        if (_isPlayerInZone && !_isDoorOpen)
         {
-            QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
-
-            // --- STATE A: FIRST TIME TRYING DOOR (PHASE 2) ---
-            if (!hasTriggeredMonologue)
+            if (!_hasTriggeredMonologue)
             {
                 if (Input.GetKey(KeyCode.E) || Input.GetButton("Submit"))
                 {
-                    holdTimer += Time.deltaTime;
-                    if (holdTimer >= holdDuration)
+                    _holdTimer += Time.deltaTime;
+                    if (_holdTimer >= holdDuration)
                     {
                         TriggerDoorFailure();
                     }
                 }
-                if (Input.GetKeyUp(KeyCode.E)) holdTimer = 0f;
+                if (Input.GetKeyUp(KeyCode.E)) _holdTimer = 0f;
             }
-            // --- STATE B: WELDING THE DOOR OPEN (PHASE 4) ---
-            else if (tracker != null && tracker.GetCurrentObjective() == 5)
+            else if (_questTracker != null && _questTracker.GetCurrentObjective() == 5)
             {
-                // 1. Look at your team's Hotbar Manager
-                HotbarManager hotbar = FindAnyObjectByType<HotbarManager>();
-
-                // 2. Check if the player actually has the welder equipped!
                 bool holdingWelder = false;
 
-                // Uses your team's standard array .Length boundary checks!
-                if (hotbar != null && hotbar.currentEquippedIndex >= 0 && hotbar.currentEquippedIndex < hotbar.quickSlots.Length)
+                if (_hotbarManager != null && _hotbarManager.currentEquippedIndex >= 0 && _hotbarManager.currentEquippedIndex < _hotbarManager.quickSlots.Length)
                 {
-                    // Grab your team's custom HotbarSlot script
-                    HotbarSlot currentSlot = hotbar.quickSlots[hotbar.currentEquippedIndex];
-
-                    // Look deep into the slot -> containedItem -> itemData reference!
+                    HotbarSlot currentSlot = _hotbarManager.quickSlots[_hotbarManager.currentEquippedIndex];
                     if (currentSlot != null && currentSlot.containedItem != null)
                     {
                         ItemData activeItem = currentSlot.containedItem.itemData;
@@ -75,28 +75,25 @@ public class JammedDoor : MonoBehaviour
                     }
                 }
 
-                // If holding down E AND the welder is in Kaelen's hand
                 if (Input.GetKey(KeyCode.E) && holdingWelder)
                 {
-                    holdTimer += Time.deltaTime;
+                    _holdTimer += Time.deltaTime;
 
-                    // Trigger the visual spark system!
                     if (weldingSparksFX != null && !weldingSparksFX.isPlaying)
                     {
                         weldingSparksFX.Play();
                     }
 
-                    if (holdTimer >= holdDuration)
+                    if (_holdTimer >= holdDuration)
                     {
-                        ExecuteWeldBypass(tracker);
+                        ExecuteWeldBypass();
                     }
                 }
                 else
                 {
-                    // If they release E OR scroll off the welder item slot, cut the sparks immediately
                     if (Input.GetKeyUp(KeyCode.E) || !holdingWelder)
                     {
-                        holdTimer = 0f;
+                        _holdTimer = 0f;
                         if (weldingSparksFX != null) weldingSparksFX.Stop();
                     }
                 }
@@ -106,45 +103,39 @@ public class JammedDoor : MonoBehaviour
 
     private void TriggerDoorFailure()
     {
-        holdTimer = 0f;
-        if (audioSource != null && audioSource.clip != null) audioSource.Play();
+        _holdTimer = 0f;
+        if (_audioSource != null && _audioSource.clip != null) _audioSource.Play();
 
         if (dialogueEngine != null && doorDialogueNodes != null && doorDialogueNodes.Length > 0)
         {
-            hasTriggeredMonologue = true;
+            _hasTriggeredMonologue = true;
             if (interactionPromptCanvas != null) interactionPromptCanvas.SetActive(false);
 
-            GameObject player = GameObject.Find("Player_Kaelen");
-            if (player == null) player = GameObject.FindWithTag("Player");
-            if (player != null) player.SetActive(false);
+            if (_cachedPlayer != null) _cachedPlayer.SetActive(false);
 
             dialogueEngine.StartDialogue(doorDialogueNodes);
         }
     }
 
-    private void ExecuteWeldBypass(QuestTracker tracker)
+    private void ExecuteWeldBypass()
     {
-        holdTimer = 0f;
-        isDoorOpen = true;
+        _holdTimer = 0f;
+        _isDoorOpen = true;
 
         if (weldingSparksFX != null) weldingSparksFX.Stop();
 
-        // 1. Fire your door opening animation
-        Animator doorAnim = GetComponent<Animator>();
-        if (doorAnim != null)
+        if (TryGetComponent<Animator>(out var doorAnim))
         {
             doorAnim.SetTrigger("OpenDoor");
         }
         else
         {
-            // Fallback if no Animator component is on the door asset yet
             gameObject.SetActive(false);
         }
 
-        // 2. Play a high-fidelity success chime/hiss
-        if (audioSource != null)
+        if (_audioSource != null)
         {
-            audioSource.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime());
+            _audioSource.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime());
         }
 
         DoorTransition transition = GetComponentInChildren<DoorTransition>(true);
@@ -153,19 +144,19 @@ public class JammedDoor : MonoBehaviour
             transition.gameObject.SetActive(true);
         }
 
-        // 3. Move the tracker forward to Phase 5: The Symbiote's Introduction!
-        if (tracker != null)
+        if (_questTracker != null)
         {
-            tracker.AdvanceObjective(6, "Investigate the broken network signal...");
+            _questTracker.AdvanceObjective(6, "Investigate the broken network signal...");
         }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Player") && !isDoorOpen)
+        if (other.CompareTag("Player") && !_isDoorOpen)
         {
-            isPlayerInZone = true;
-            holdTimer = 0f;
+            _isPlayerInZone = true;
+            _cachedPlayer = other.gameObject;
+            _holdTimer = 0f;
             if (interactionPromptCanvas != null) interactionPromptCanvas.SetActive(true);
         }
     }
@@ -174,8 +165,9 @@ public class JammedDoor : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            isPlayerInZone = false;
-            holdTimer = 0f;
+            _isPlayerInZone = false;
+            _cachedPlayer = null;
+            _holdTimer = 0f;
             if (weldingSparksFX != null) weldingSparksFX.Stop();
             if (interactionPromptCanvas != null) interactionPromptCanvas.SetActive(false);
         }

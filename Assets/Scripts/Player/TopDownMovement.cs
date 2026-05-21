@@ -1,37 +1,46 @@
 using UnityEngine;
 
+/// <summary>
+/// Handles basic 2D top-down movement and animation state updates.
+/// </summary>
 public class TopDownMovement : MonoBehaviour
 {
-    public float moveSpeed = 5f;
-    public Rigidbody2D rb;
-    public Animator animator;
+    [Header("Movement Settings")]
+    [Tooltip("The base movement speed of the character.")]
+    [SerializeField] private float moveSpeed = 5f;
+    
+    [Header("Component References")]
+    [Tooltip("The Rigidbody2D component for physics-based movement.")]
+    [SerializeField] private Rigidbody2D rb;
+    [Tooltip("The Animator component for updating movement animations.")]
+    [SerializeField] private Animator animator;
 
-    Vector2 movement;
+    private Vector2 _movement;
 
-    void Update()
+    private void Update()
     {
         if (DialogueEngine.isDialogueActive) return;
-        // 1. Get WASD or Arrow Key input (-1 to 1)
-        movement.x = Input.GetAxisRaw("Horizontal");
-        movement.y = Input.GetAxisRaw("Vertical");
 
-        // 2. Tell the Animator how fast we are moving to trigger the Walk transition
-        animator.SetFloat("Speed", movement.sqrMagnitude);
+        _movement.x = Input.GetAxisRaw("Horizontal");
+        _movement.y = Input.GetAxisRaw("Vertical");
 
-        // 3. ONLY update the direction parameters if we are actually pressing a key!
-        // This is the secret trick: if we stop pressing keys, movement becomes (0,0).
-        // By putting this inside an IF statement, the Animator remembers the LAST direction
-        // we pressed, which ensures the character faces the correct way when they Idle!
-        if (movement != Vector2.zero)
+        if (animator != null)
         {
-            animator.SetFloat("Horizontal", movement.x);
-            animator.SetFloat("Vertical", movement.y);
+            animator.SetFloat("Speed", _movement.sqrMagnitude);
+
+            if (_movement != Vector2.zero)
+            {
+                animator.SetFloat("Horizontal", _movement.x);
+                animator.SetFloat("Vertical", _movement.y);
+            }
         }
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
-        // Actually move the physical character
-        rb.MovePosition(rb.position + movement.normalized * moveSpeed * Time.fixedDeltaTime);
+        if (rb != null)
+        {
+            rb.MovePosition(rb.position + _movement.normalized * moveSpeed * Time.fixedDeltaTime);
+        }
     }
 }

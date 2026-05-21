@@ -1,24 +1,42 @@
 using UnityEngine;
 
+/// <summary>
+/// Handles the execution of consumable and equippable items from the inventory.
+/// </summary>
 public class ItemUsageManager : MonoBehaviour
 {
+    public static ItemUsageManager Instance { get; private set; }
+
     [Header("References")]
-    public InventoryManager inventoryManager;
-    public GameObject physicalDecoyPrefab; // Drag your new Decoy Prefab here
+    [Tooltip("The prefab spawned when the player deploys a decoy device.")]
+    public GameObject physicalDecoyPrefab;
 
     [Header("Audio SFX")]
+    [Tooltip("Audio source for playing item usage sounds.")]
     public AudioSource audioSource;
+    [Tooltip("Sound played when the emergency heat sink is used.")]
     public AudioClip sfxUseHeatSink;
+    [Tooltip("Sound played when an item cannot be used.")]
     public AudioClip sfxError;
 
-    private Vector2 lastFacingDirection = Vector2.down;
+    private Vector2 _lastFacingDirection = Vector2.down;
+    private PlayerController _playerController;
 
-    void Start()
+    private void Awake()
     {
-        if (audioSource == null) audioSource = GetComponent<AudioSource>();
-        if (inventoryManager == null) inventoryManager = FindAnyObjectByType<InventoryManager>();
+        if (Instance != null && Instance != this) Destroy(gameObject);
+        else Instance = this;
     }
 
+    private void Start()
+    {
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        _playerController = FindAnyObjectByType<PlayerController>();
+    }
+
+    /// <summary>
+    /// Evaluates and executes the logic associated with a specific item's ID.
+    /// </summary>
     public void ExecuteItem(ItemData item, GameObject uiItemReference)
     {
         if (item == null) return;
@@ -35,18 +53,15 @@ public class ItemUsageManager : MonoBehaviour
 
             case "STUN-ARC":
             case "WEP-REPULSE":
-                if (audioSource != null) audioSource.PlayOneShot(sfxError != null ? sfxError : ProceduralAudioGen.GenerateErrorBuzz());
-                Debug.LogWarning("WEAPON: You must assign this to a Hotbar slot (1, 2, 3) to aim and fire it!");
+                PlayErrorSound();
                 break;
 
             case "TOOL-WELD":
-                if (audioSource != null) audioSource.PlayOneShot(sfxError != null ? sfxError : ProceduralAudioGen.GenerateErrorBuzz());
-                Debug.Log("FUSION WELDER: Approach a sealed bulkhead and hold [E] to cut through.");
+                PlayErrorSound();
                 break;
 
             case "KEY-MSTR":
-                if (audioSource != null) audioSource.PlayOneShot(sfxError != null ? sfxError : ProceduralAudioGen.GenerateErrorBuzz());
-                Debug.Log("MASTER KEY: Non-destructible. Must be used directly at a Security Terminal.");
+                PlayErrorSound();
                 break;
         }
     }
@@ -54,29 +69,27 @@ public class ItemUsageManager : MonoBehaviour
     private void UseEmergencyHeatSink(GameObject uiItemReference)
     {
         if (audioSource != null) audioSource.PlayOneShot(sfxUseHeatSink != null ? sfxUseHeatSink : ProceduralAudioGen.GenerateHiss(2f));
-        Debug.Log("HEAT SINK USED: Venting M.E.T. Rig temperatures...");
-        // Call your Emergency Clean logic here to purge corruption rows
-        inventoryManager.ExecuteCleanProtocol(); 
+        
+        if (InventoryManager.Instance != null) InventoryManager.Instance.ExecuteCleanProtocol(); 
 
         DestroyConsumable(uiItemReference);
     }
 
     private void PlantDecoy(GameObject uiItemReference)
     {
-        Debug.Log("DECOY DEPLOYED: Priming 7-second fuse...");
-
-        PlayerController pc = FindAnyObjectByType<PlayerController>();
-        if (pc != null && pc.animator != null)
+        if (_playerController != null && _playerController.animator != null)
         {
-            float x = pc.animator.GetFloat("Horizontal");
-            float y = pc.animator.GetFloat("Vertical");
-            if (x != 0 || y != 0) lastFacingDirection = new Vector2(x, y).normalized;
+            float x = _playerController.animator.GetFloat("Horizontal");
+            float y = _playerController.animator.GetFloat("Vertical");
+            if (Mathf.Abs(x) > 0.01f || Mathf.Abs(y) > 0.01f) 
+            {
+                _lastFacingDirection = new Vector2(x, y).normalized;
+            }
         }
         
         if (physicalDecoyPrefab != null)
         {
-            // Spawn the decoy slightly in front of Kaelen
-            Vector3 spawnPos = transform.position + (Vector3)(lastFacingDirection * 1.5f);
+            Vector3 spawnPos = transform.position + (Vector3)(_lastFacingDirection * 1.5f);
             Instantiate(physicalDecoyPrefab, spawnPos, Quaternion.identity);
         }
 
@@ -85,14 +98,14 @@ public class ItemUsageManager : MonoBehaviour
 
     private void DestroyConsumable(GameObject uiItemReference)
     {
-        // Detach from parent so it is immediately removed from the grid hierarchy
         if (uiItemReference != null) uiItemReference.transform.SetParent(null);
-
-        // 1. Destroy the physical UI block from the grid
         Destroy(uiItemReference);
 
-        // 2. Tell the InventoryManager to rescan the grid. 
-        // It will see the item is missing and automatically clear the memory!
-        inventoryManager.SyncDataFromUI();
+        if (InventoryManager.Instance != null) InventoryManager.Instance.SyncDataFromUI();
+    }
+
+    private void PlayErrorSound()
+    {
+        if (audioSource != null) audioSource.PlayOneShot(sfxError != null ? sfxError : ProceduralAudioGen.GenerateErrorBuzz());
     }
 }

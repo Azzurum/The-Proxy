@@ -1,36 +1,36 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// A serialized data container representing the complete state of a player's game session.
+/// </summary>
 [System.Serializable]
 public class SaveData
 {
-    // --- METADATA ---
     public string saveDate;
     public string currentDeckLocation; 
+    public string currentSceneName;
     public float playTimeInSeconds;
 
-    // --- PHYSICAL STATE ---
     public Vector3 kaelenPosition;
-    public Vector3 enemyPosition;        // NEW: Tracks the Proxy
-    public bool isEnemyActive;           // NEW: Tracks if the Proxy is spawned
+    public Vector3 enemyPosition;        
+    public bool isEnemyActive;           
     
-    // --- STAMINA & FATIGUE ---
     public float sprintMeter;
     public float sprintThreshold;
 
-    // --- PARASITE HUD ---
     public float parasiteTimer;
     public int parasiteStacks;
     public float motherCorruptionPercent; 
 
     public float purgeCooldownTimer;
-    // --- INVENTORY ---
     public List<SavedGridItem> gridInventoryItems = new List<SavedGridItem>();
 
     public SaveData()
     {
         saveDate = string.Empty;
         currentDeckLocation = "USC WAYFARER - UNKNOWN DECK";
+        currentSceneName = "level_1";
         playTimeInSeconds = 0f;
         kaelenPosition = Vector3.zero;
         enemyPosition = Vector3.zero;
@@ -48,6 +48,9 @@ public class SaveData
     }
 }
 
+/// <summary>
+/// A serialized representation of a single physical item residing on the inventory grid.
+/// </summary>
 [System.Serializable]
 public class SavedGridItem
 {

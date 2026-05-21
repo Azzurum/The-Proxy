@@ -4,43 +4,40 @@ using UnityEngine.SceneManagement;
 using System.Collections;
 using TMPro;
 
+/// <summary>
+/// Coordinates the smooth scrolling and scene transition for the final credits sequence.
+/// </summary>
 public class CreditsDirector : MonoBehaviour
 {
     [Header("UI References")]
+    [Tooltip("The RectTransform anchored at the bottom to slide upwards.")]
     public RectTransform creditsScrollTarget; 
     public TextMeshProUGUI creditsText;
     public Image fadeOverlay;
     
     [Header("Settings")]
+    [Tooltip("Speed in pixels per second that the text scrolls.")]
     public float scrollSpeed = 45f;
     public float startDelay = 2f;
     public float endDelay = 3f;
-    public string mainMenuSceneName = "MainMenu"; // Make sure this matches your main menu!
+    [Tooltip("The exact string name of the main menu scene.")]
+    public string mainMenuSceneName = "MainMenu"; 
 
-    private AudioSource musicSource;
-    private bool isSkipping = false;
-    private bool isTransitioning = false;
+    private AudioSource _musicSource;
+    private bool _isSkipping = false;
+    private bool _isTransitioning = false;
 
-    void Start()
+    private void Start()
     {
         StartCoroutine(CreditsSequence());
     }
 
-    void Update()
+    private void Update()
     {
-        if (isTransitioning) return;
+        if (_isTransitioning) return;
 
-        // Hold Space, Enter, or Left Click to fast-forward
-        if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.Return) || Input.GetMouseButton(0))
-        {
-            isSkipping = true;
-        }
-        else
-        {
-            isSkipping = false;
-        }
+        _isSkipping = Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.Return) || Input.GetMouseButton(0);
 
-        // Press Escape to skip entirely
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             StopAllCoroutines();
@@ -50,7 +47,6 @@ public class CreditsDirector : MonoBehaviour
 
     private IEnumerator CreditsSequence()
     {
-        // 1. Initial Setup
         if (fadeOverlay != null)
         {
             fadeOverlay.gameObject.SetActive(true);
@@ -59,7 +55,6 @@ public class CreditsDirector : MonoBehaviour
 
         if (creditsScrollTarget != null)
         {
-            // FOOLPROOF MATH: Force the anchor and pivot to Bottom-Center so the math always works
             creditsScrollTarget.anchorMin = new Vector2(0.5f, 0f);
             creditsScrollTarget.anchorMax = new Vector2(0.5f, 0f);
             creditsScrollTarget.pivot = new Vector2(0.5f, 0f);
@@ -71,24 +66,21 @@ public class CreditsDirector : MonoBehaviour
                 contentHeight = creditsText.preferredHeight;
             }
 
-            // Start the text exactly below the bottom edge of the screen
             creditsScrollTarget.anchoredPosition = new Vector2(0f, -contentHeight - 50f);
         }
 
-        // Procedural Ambient Music (Deep, space-like drone)
-        musicSource = gameObject.AddComponent<AudioSource>();
-        musicSource.clip = ProceduralAudioGen.GenerateHiss(10f); // Creates a deep void hum
-        musicSource.pitch = 0.3f;
-        musicSource.loop = true;
-        musicSource.volume = 0f;
-        musicSource.Play();
+        _musicSource = gameObject.AddComponent<AudioSource>();
+        _musicSource.clip = ProceduralAudioGen.GenerateHiss(10f); 
+        _musicSource.pitch = 0.3f;
+        _musicSource.loop = true;
+        _musicSource.volume = 0f;
+        _musicSource.Play();
 
-        // 2. Fade In
         float timer = 0f;
         while (timer < 3f)
         {
             timer += Time.deltaTime;
-            musicSource.volume = Mathf.Lerp(0f, 0.6f, timer / 3f);
+            _musicSource.volume = Mathf.Lerp(0f, 0.6f, timer / 3f);
             if (fadeOverlay != null) fadeOverlay.color = Color.Lerp(Color.black, Color.clear, timer / 3f);
             yield return null;
         }
@@ -96,23 +88,20 @@ public class CreditsDirector : MonoBehaviour
 
         yield return new WaitForSeconds(startDelay);
 
-        // 3. Scroll the Text
         if (creditsScrollTarget != null && creditsText != null)
         {
-            // Get the actual height of the canvas to know when the text has fully left the top of the screen
             float canvasHeight = Screen.height;
             Canvas canvas = creditsScrollTarget.GetComponentInParent<Canvas>();
             if (canvas != null)
             {
-                RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-                if (canvasRect != null) canvasHeight = canvasRect.rect.height;
+                if (canvas.TryGetComponent<RectTransform>(out var canvasRect)) canvasHeight = canvasRect.rect.height;
             }
 
             float targetY = canvasHeight + 100f;
 
             while (creditsScrollTarget.anchoredPosition.y < targetY)
             {
-                float currentSpeed = isSkipping ? scrollSpeed * 5f : scrollSpeed;
+                float currentSpeed = _isSkipping ? scrollSpeed * 5f : scrollSpeed;
                 creditsScrollTarget.anchoredPosition += Vector2.up * currentSpeed * Time.deltaTime;
                 yield return null;
             }
@@ -120,13 +109,12 @@ public class CreditsDirector : MonoBehaviour
 
         yield return new WaitForSeconds(endDelay);
 
-        // 4. Fade Out
         yield return StartCoroutine(FadeAndExit());
     }
 
     private IEnumerator FadeAndExit()
     {
-        isTransitioning = true;
+        _isTransitioning = true;
 
         if (fadeOverlay != null)
         {
@@ -136,18 +124,16 @@ public class CreditsDirector : MonoBehaviour
             {
                 timer += Time.deltaTime;
                 fadeOverlay.color = Color.Lerp(Color.clear, Color.black, timer / 3f);
-                if (musicSource != null) musicSource.volume = Mathf.Lerp(0.6f, 0f, timer / 3f);
+                if (_musicSource != null) _musicSource.volume = Mathf.Lerp(0.6f, 0f, timer / 3f);
                 yield return null;
             }
         }
 
-        // The Final Post-Credits Stinger!
         AudioSource sfx = gameObject.AddComponent<AudioSource>();
         sfx.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(1.5f), 1f);
         
         yield return new WaitForSeconds(2f);
 
-        // Load Main Menu or quit
         if (!string.IsNullOrEmpty(mainMenuSceneName))
         {
             try { SceneManager.LoadScene(mainMenuSceneName); }
@@ -177,12 +163,6 @@ public class CreditsDirector : MonoBehaviour
                 "USC Wayfarer Crew\n\n\n\n\n\n\n\n" +
                 "<i>Thank you for playing.</i>\n\n\n\n\n\n\n\n\n\n" +
                 "<color=#E63946><size=80%>SYSTEM.LOG // CONNECTION SEVERED.</size></color>";
-                
-            Debug.Log("Credits text beautifully formatted and injected!");
-        }
-        else
-        {
-            Debug.LogWarning("Please assign a TextMeshProUGUI to 'Credits Text' before auto-filling!");
         }
     }
 }

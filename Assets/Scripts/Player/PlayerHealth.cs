@@ -1,27 +1,36 @@
-// Example addition to your existing Player Health script
 using UnityEngine;
 
+/// <summary>
+/// Manages the player's health pool and communicates damage events to the M.E.T. Rig UI.
+/// </summary>
 public class PlayerHealth : MonoBehaviour
 {
-    public float currentHealth = 100f;
-    public float maxHealth = 100f;
+    [Header("Health Settings")]
+    [Tooltip("The current health of the player.")]
+    [SerializeField] private float currentHealth = 100f;
+    [Tooltip("The maximum possible health of the player.")]
+    [SerializeField] private float maxHealth = 100f;
 
     [Header("M.E.T. Rig UI Links")]
-    public UIBioFace bioFace;
+    [Tooltip("Reference to the UI component that visually represents the player's health state.")]
+    [SerializeField] private UIBioFace bioFace;
 
-    // Call this whenever Kaelen takes damage from an enemy or hazard
+    /// <summary>
+    /// Reduces the player's health by the specified amount and updates the UI.
+    /// </summary>
     public void TakeDamage(float damageAmount)
     {
-        currentHealth -= damageAmount;
+        currentHealth = Mathf.Clamp(currentHealth - damageAmount, 0f, maxHealth);
         UpdateRigMonitors();
     }
 
     private void UpdateRigMonitors()
     {
-        // Calculate health percentage (0.0 to 1.0)
         float healthPct = Mathf.Clamp01(currentHealth / maxHealth);
         
-        // Update the Doom-style face
-        if (bioFace != null) bioFace.UpdateFace(healthPct);
+        if (bioFace != null)
+        {
+            bioFace.UpdateFace(healthPct);
+        }
     }
 }

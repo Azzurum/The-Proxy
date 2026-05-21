@@ -1,26 +1,33 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.EventSystems; // Required for hover detection!
+using UnityEngine.EventSystems;
 
+/// <summary>
+/// Handles simple visual feedback by modifying an Image's color when the user hovers over a UI element.
+/// </summary>
 public class ButtonHoverGlow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("The Light Strip")]
+    [Tooltip("The UI Image component that will glow upon hover.")]
     public Image lightImage;
 
     [Header("Colors")]
+    [Tooltip("The default resting color of the light strip.")]
     public Color normalColor;
+    [Tooltip("The highlighted color applied when the mouse hovers over the button.")]
     public Color hoverColor;
 
-    void Start()
+    private void Start()
     {
-        // Set to dark/off when the menu first loads
         if (lightImage != null)
         {
             lightImage.color = normalColor;
         }
     }
 
-    // This acts like CSS :hover
+    /// <summary>
+    /// Applies the hover color when the cursor enters the rect bounds.
+    /// </summary>
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (lightImage != null)
@@ -29,7 +36,9 @@ public class ButtonHoverGlow : MonoBehaviour, IPointerEnterHandler, IPointerExit
         }
     }
 
-    // This triggers when the mouse leaves
+    /// <summary>
+    /// Restores the normal resting color when the cursor exits the rect bounds.
+    /// </summary>
     public void OnPointerExit(PointerEventData eventData)
     {
         if (lightImage != null)

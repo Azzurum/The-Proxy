@@ -1,72 +1,95 @@
 using UnityEngine;
 
+/// <summary>
+/// Manages proximity-based player interactions with the environment, items, and terminals.
+/// </summary>
 public class PlayerInteraction : MonoBehaviour
 {
     [Header("Interaction Settings")]
-    public float interactRadius = 1.5f; // Radius for picking up items or using the generator
+    [Tooltip("The maximum distance from Kaelen that objects can be interacted with.")]
+    [SerializeField] private float interactRadius = 1.5f; 
 
     [Header("UI Prompts")]
-    public FloatingPrompt interactionPrompt; 
-    public Vector3 promptOffset = new Vector3(0f, 1f, 0f); // How high above the item it floats
-    private GameObject closestInteractable = null;
+    [Tooltip("How high above the target interactable object the UI prompt should float.")]
+    [SerializeField] private Vector3 promptOffset = new Vector3(0f, 1f, 0f);
+    
+    [Tooltip("The floating UI text prompt (e.g., 'Press E') that appears over items.")]
+    [SerializeField] private FloatingPrompt interactionPrompt; 
 
     [Header("Audio SFX")]
-    public AudioSource audioSource;
-    public AudioClip sfxPickup;
-    public AudioClip sfxInventoryFull;
-    public AudioClip sfxLockerOpen;
+    [Tooltip("Played when an item is successfully added to the M.E.T. Rig buffer.")]
+    [SerializeField] private AudioClip sfxPickup;
+    
+    [Tooltip("Played when the player attempts to pick up an item but the buffer is full.")]
+    [SerializeField] private AudioClip sfxInventoryFull;
+    
+    [Tooltip("Played when Kaelen forces open a crew locker.")]
+    [SerializeField] private AudioClip sfxLockerOpen;
 
-    void Start()
+    private AudioSource _audioSource;
+    private GameObject _closestInteractable = null;
+    private readonly Collider2D[] _overlapResults = new Collider2D[10];
+    private ContactFilter2D _contactFilter;
+    
+    // Cached component references
+    private QuestTracker _questTracker;
+    private MetRigManager _metRigManager;
+    
+    private float _interactScanTimer = 0f;
+    private const float INTERACT_SCAN_INTERVAL = 0.1f;
+
+    private void Start()
     {
-        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        _audioSource = GetComponent<AudioSource>();
+        if (_audioSource == null) _audioSource = gameObject.AddComponent<AudioSource>();
 
-        // AUTO-WIRING: Find the floating interaction prompt UI
+        // Use the static property for a non-allocating filter.
+        _contactFilter = ContactFilter2D.noFilter;
+
         if (interactionPrompt == null)
         {
             interactionPrompt = FindAnyObjectByType<FloatingPrompt>(FindObjectsInactive.Include);
-            if (interactionPrompt == null)
-            {
-                // This is a critical failure, the game cannot show any prompts without this!
-                Debug.LogError("<color=red>[CRITICAL ERROR]</color> PlayerInteraction script cannot find the 'FloatingPrompt' UI object in the scene! No 'E' prompts will be displayed. Make sure your UI prefab with the FloatingPrompt script is in the scene.");
-            }
         }
     }
 
-    void Update()
+    private void Update()
     {
-        FindClosestInteractable();
+        _interactScanTimer -= Time.deltaTime;
+        if (_interactScanTimer <= 0f)
+        {
+            FindClosestInteractable();
+            _interactScanTimer = INTERACT_SCAN_INTERVAL;
+        }
 
-        // Pick up items or use generator
         if (Input.GetKeyDown(KeyCode.E))
         {
             AttemptPickup();
         }
     }
 
+    /// <summary>
+    /// Scans the immediate vicinity for interactable objects, caches the closest valid target, and manages prompt visibility.
+    /// </summary>
     private void FindClosestInteractable()
     {
-        Collider2D[] nearbyObjects = Physics2D.OverlapCircleAll(transform.position, interactRadius);
+        // Memory-safe overlap validation loop
+        int hitCount = Physics2D.OverlapCircle(transform.position, interactRadius, _contactFilter, _overlapResults);
+        
         GameObject closest = null;
         float minDistance = float.MaxValue;
 
-        // DEBUG: Let's see what colliders we are hitting.
-        if (nearbyObjects.Length > 0) Debug.Log($"[PlayerInteraction] OverlapCircle found {nearbyObjects.Length} colliders nearby.");
-
-        // Find the absolute closest item
-        foreach (var col in nearbyObjects)
+        for (int i = 0; i < hitCount; i++)
         {
-            // AUTO-FIX: Check the object AND its parent just in case the tag is on the root object but the collider is on a child graphic!
-            GameObject obj = col.gameObject;
-            if (!HasInteractableTag(obj) && obj.transform.parent != null && HasInteractableTag(obj.transform.parent.gameObject))
+            GameObject obj = _overlapResults[i].gameObject;
+            
+            if (!IsInteractable(obj) && obj.transform.parent != null && IsInteractable(obj.transform.parent.gameObject))
             {
                 obj = obj.transform.parent.gameObject;
             }
 
-            if (HasInteractableTag(obj))
+            if (IsInteractable(obj))
             {
                 float dist = Vector2.Distance(transform.position, obj.transform.position);
-                // DEBUG: We found a valid interactable object!
-                Debug.Log($"<color=cyan>[PlayerInteraction]</color> Found valid interactable: '{obj.name}' with tag '{obj.tag}'.");
                 if (dist < minDistance)
                 {
                     minDistance = dist;
@@ -75,226 +98,201 @@ public class PlayerInteraction : MonoBehaviour
             }
         }
         
-        // If the closest item changes (or we walked away from it)
-        if (closest != closestInteractable)
+        if (closest != _closestInteractable)
         {
-            closestInteractable = closest;
-            
-            if (closestInteractable != null && interactionPrompt != null)
-            {
-                Color promptColor = Color.white;
-
-                // Check if it's an item and if we have space for it
-                if (closestInteractable.CompareTag("Interactable") || closestInteractable.CompareTag("MasterKey"))
-                {
-                    PhysicalItem pi = closestInteractable.GetComponent<PhysicalItem>();
-                    if (pi == null) pi = closestInteractable.GetComponentInParent<PhysicalItem>();
-                    
-                    if (pi != null && pi.itemData != null)
-                    {
-                        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-                        if (manager != null && !manager.CanFitItemToExternalTray(pi.itemData))
-                        {
-                            promptColor = Color.red; // Color it red if the inventory buffer is full!
-                        }
-                    }
-                }
-                else if (closestInteractable.CompareTag("LockedDoor"))
-                {
-                    // Always show locked doors as white, the feedback will be red text if failed.
-                    promptColor = Color.white;
-                }
-
-                interactionPrompt.SetPromptColor(promptColor);
-
-                // Lock the prompt to the new item and fade it in
-                interactionPrompt.SetDynamicTarget(closestInteractable.transform, promptOffset);
-                interactionPrompt.ShowPrompt();
-            }
-            else if (interactionPrompt != null)
-            {
-                // Walked away from everything, fade it out
-                interactionPrompt.HidePrompt();
-            }
+            _closestInteractable = closest;
+            UpdateInteractionPrompt();
         }
     }
 
-    private bool HasInteractableTag(GameObject obj)
+    /// <summary>
+    /// Evaluates the currently targeted interactable and updates the UI prompt's color and position.
+    /// </summary>
+    private void UpdateInteractionPrompt()
+    {
+        if (interactionPrompt == null) return;
+
+        if (_closestInteractable != null)
+        {
+            Color promptColor = Color.white;
+
+            if (_closestInteractable.CompareTag("Interactable") || _closestInteractable.CompareTag("MasterKey"))
+            {
+                PhysicalItem pi = _closestInteractable.GetComponentInParent<PhysicalItem>();
+                
+                // Warn the player visually before they even press 'E' if their buffer cannot hold the item.
+                if (pi != null && pi.itemData != null && InventoryManager.Instance != null)
+                {
+                    if (!InventoryManager.Instance.CanFitItemToExternalTray(pi.itemData))
+                    {
+                        promptColor = Color.red; 
+                    }
+                }
+            }
+
+            interactionPrompt.SetPromptColor(promptColor);
+            interactionPrompt.SetDynamicTarget(_closestInteractable.transform, promptOffset);
+            interactionPrompt.ShowPrompt();
+        }
+        else
+        {
+            interactionPrompt.HidePrompt();
+        }
+    }
+
+    /// <summary>
+    /// Checks the specific game tags to determine if the object is part of the interaction layer.
+    /// </summary>
+    private bool IsInteractable(GameObject obj)
     {
         return obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || 
                obj.CompareTag("Generator") || obj.CompareTag("Locker") || 
                obj.CompareTag("LockedDoor");
     }
 
+    /// <summary>
+    /// Routes the interaction logic to the appropriate sub-system based on the targeted object's tag.
+    /// </summary>
     private void AttemptPickup()
     {
-        if (closestInteractable == null) return; // Nothing to interact with.
+        if (_closestInteractable == null) return; 
 
-        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-        if (manager == null) return;
+        GameObject obj = _closestInteractable;
 
-        GameObject obj = closestInteractable;
-
-        // SCENARIO A: Pick up a Battery
-        if (obj.CompareTag("Interactable"))
+        if (obj.CompareTag("Interactable") || obj.CompareTag("MasterKey"))
         {
-            PhysicalItem pi = obj.GetComponent<PhysicalItem>();
-            if (pi == null) pi = obj.GetComponentInParent<PhysicalItem>();
-            
-            if (pi == null || pi.itemData == null)
-            {
-                Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'Interactable' but is missing the PhysicalItem script or its ItemData is empty! Cannot pick up.");
-                return;
-            }
-
-            if (manager.TryPickupItem(pi.itemData))
-            {
-                if (audioSource != null) audioSource.PlayOneShot(sfxPickup != null ? sfxPickup : ProceduralAudioGen.GenerateAscendingChime());
-                Debug.Log($"<color=yellow>[DEBUG]</color> Picked up {pi.itemData.itemName ?? pi.itemData.itemID}.");
-                
-                if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(pi.itemData.itemName ?? pi.itemData.itemID, Color.yellow);
-
-                if (interactionPrompt != null) interactionPrompt.HidePrompt();
-                closestInteractable = null; // Reset the tracker
-                
-                manager.SaveWorldItems(pi.gameObject); // Save the room and tell it to ignore this object!
-                Destroy(pi.gameObject); // Make sure we destroy the root item object!
-            }
-            else
-            {
-                if (audioSource != null) audioSource.PlayOneShot(sfxInventoryFull != null ? sfxInventoryFull : ProceduralAudioGen.GenerateErrorBuzz());
-                Debug.Log($"<color=yellow>[DEBUG]</color> Failed to pick up {pi.itemData.itemName ?? pi.itemData.itemID}. External inventory full or missing space.");
-            }
+            HandleItemPickup(obj);
         }
-        // SCENARIO B: Pick up a Master Key
-        else if (obj.CompareTag("MasterKey"))
-        {
-            PhysicalItem pi = obj.GetComponent<PhysicalItem>();
-            if (pi == null) pi = obj.GetComponentInParent<PhysicalItem>();
-            
-            if (pi == null || pi.itemData == null)
-            {
-                Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'MasterKey' but is missing the PhysicalItem script or its ItemData is empty! Cannot pick up.");
-                return;
-            }
-
-            if (manager.TryPickupItem(pi.itemData))
-            {
-                if (audioSource != null) audioSource.PlayOneShot(sfxPickup != null ? sfxPickup : ProceduralAudioGen.GenerateAscendingChime());
-                Debug.Log($"<color=magenta>MASTER KEY ACQUIRED:</color> Fits perfectly. [DEBUG] {pi.itemData.itemID}");
-                
-                if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(pi.itemData.itemName ?? pi.itemData.itemID, Color.magenta);
-
-                if (interactionPrompt != null) interactionPrompt.HidePrompt();
-                closestInteractable = null; // Reset the tracker
-                
-                manager.SaveWorldItems(pi.gameObject); // Save the room and tell it to ignore this object!
-                Destroy(pi.gameObject); // Make sure we destroy the root item object!
-            }
-            else
-            {
-                if (audioSource != null) audioSource.PlayOneShot(sfxInventoryFull != null ? sfxInventoryFull : ProceduralAudioGen.GenerateErrorBuzz());
-                Debug.Log($"<color=yellow>[DEBUG]</color> Failed to pick up Master Key. External inventory full or missing space.");
-            }
-        }
-        // SCENARIO C: The Generator Win Condition
         else if (obj.CompareTag("Generator"))
         {
-            if (manager.TryConsumeBatteries(3))
-            {
-                TriggerVictory();
-            }
+            HandleGeneratorInteraction();
         }
-        // SCENARIO D: The Physical Locker Storage
         else if (obj.CompareTag("Locker"))
         {
-            // --- TUTORIAL QUEST CHECK ---
-            QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
-            if (tracker != null && tracker.GetCurrentObjective() < 3)
-            {
-                Debug.Log("Just an old crew locker. No reason to go digging through personal belongings right now.");
-                return; // Stop right here!
-            }
-            // ----------------------------
-
-
-            if (audioSource != null) audioSource.PlayOneShot(sfxLockerOpen != null ? sfxLockerOpen : ProceduralAudioGen.GenerateClick(300f, 0.3f));
-
-            Animator anim = obj.GetComponent<Animator>();
-            if (anim != null) anim.SetTrigger("OpenLocker");
-
-            // 2. Open the Player's M.E.T. Rig via your team's manager 
-            MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
-            if (rigManager != null && !rigManager.isRigOpen)
-            {
-                rigManager.OpenRig(); // Smoothly introduces the system 
-
-
-                if (tracker != null)
-                {
-                    tracker.AdvanceObjective(4, "Move Fusion Welder to Hotbar");
-                }
-
-                if (rigManager.terminalOverlayUI != null)
-                {
-                    Transform tourOverlay = rigManager.terminalOverlayUI.transform.Find("MET_Rig_Tour_Overlay");
-                    if (tourOverlay != null) tourOverlay.gameObject.SetActive(true);
-                }
-            }
-
-            // 3. Connect the Locker's memory to the UI!
-            LockerStorage locker = obj.GetComponent<LockerStorage>();
-            if (locker != null)
-            {
-                manager.OpenLocker(locker);
-            }
-            else
-            {
-                Debug.LogWarning("This Locker is missing a LockerStorage script!");
-            }
+            HandleLockerInteraction(obj);
         }
-        // SCENARIO E: A Locked Door
         else if (obj.CompareTag("LockedDoor"))
         {
-            LockedDoor door = obj.GetComponent<LockedDoor>();
-            if (door == null) door = obj.GetComponentInParent<LockedDoor>();
-
-            if (door != null)
-            {
-                door.AttemptUnlock();
-            }
-            else
-            {
-                Debug.LogError($"<color=red>[ERROR]</color> The object '{obj.name}' is tagged 'LockedDoor' but is missing the LockedDoor.cs script!");
-            }
+            HandleDoorInteraction(obj);
         }
     }
 
+    /// <summary>
+    /// Attempts to digitize a physical item into the M.E.T. Rig's external buffer.
+    /// </summary>
+    private void HandleItemPickup(GameObject itemObject)
+    {
+        if (InventoryManager.Instance == null) return;
+
+        PhysicalItem pi = itemObject.GetComponentInParent<PhysicalItem>();
+        if (pi == null || pi.itemData == null) return;
+
+        if (InventoryManager.Instance.TryPickupItem(pi.itemData))
+        {
+            PlayAudio(sfxPickup, ProceduralAudioGen.GenerateAscendingChime());
+            
+            if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog(pi.itemData.itemName ?? pi.itemData.itemID, itemObject.CompareTag("MasterKey") ? Color.magenta : Color.yellow);
+
+            if (interactionPrompt != null) interactionPrompt.HidePrompt();
+            _closestInteractable = null; 
+            
+            if (InventorySaveHandler.Instance != null) InventorySaveHandler.Instance.SaveWorldItems(pi.gameObject);
+            
+            Destroy(pi.gameObject);
+        }
+        else
+        {
+            PlayAudio(sfxInventoryFull, ProceduralAudioGen.GenerateErrorBuzz());
+        }
+    }
+
+    /// <summary>
+    /// Evaluates if the player meets the requirements to power the generator.
+    /// </summary>
+    private void HandleGeneratorInteraction()
+    {
+        if (InventoryManager.Instance != null && InventoryManager.Instance.TryConsumeBatteries(3))
+        {
+            TriggerVictory();
+        }
+    }
+
+    /// <summary>
+    /// Opens the specified crew locker and links its data to the external inventory grid.
+    /// </summary>
+    private void HandleLockerInteraction(GameObject lockerObject)
+    {
+        // Cache tracker reference on first use.
+        if (_questTracker == null) _questTracker = FindAnyObjectByType<QuestTracker>();
+        if (_questTracker != null && _questTracker.GetCurrentObjective() < 3) return;
+
+        PlayAudio(sfxLockerOpen, ProceduralAudioGen.GenerateClick(300f, 0.3f));
+
+        if (lockerObject.TryGetComponent<Animator>(out Animator anim))
+        {
+            anim.SetTrigger("OpenLocker");
+        }
+
+        // Cache rig manager reference on first use.
+        if (_metRigManager == null) _metRigManager = FindAnyObjectByType<MetRigManager>();
+        if (_metRigManager != null && !_metRigManager.isRigOpen)
+        {
+            _metRigManager.OpenRig(); 
+            if (_questTracker != null) _questTracker.AdvanceObjective(4, "Move Fusion Welder to Hotbar");
+
+            if (_metRigManager.terminalOverlayUI != null)
+            {
+                Transform tourOverlay = _metRigManager.terminalOverlayUI.transform.Find("MET_Rig_Tour_Overlay");
+                if (tourOverlay != null) tourOverlay.gameObject.SetActive(true);
+            }
+        }
+
+        if (lockerObject.TryGetComponent<LockerStorage>(out LockerStorage locker) && InventoryManager.Instance != null)
+        {
+            InventoryManager.Instance.OpenLocker(locker);
+        }
+    }
+
+    /// <summary>
+    /// Prompts the door script to evaluate if the player has the correct credentials.
+    /// </summary>
+    private void HandleDoorInteraction(GameObject doorObject)
+    {
+        LockedDoor door = doorObject.GetComponentInParent<LockedDoor>();
+        if (door != null) door.AttemptUnlock();
+    }
+
+    /// <summary>
+    /// Freezes the game state and displays the victory sequence canvas.
+    /// </summary>
     private void TriggerVictory()
     {
-        Debug.Log("MISSION ACCOMPLISHED: The Proxy has been neutralized!");
-
-        // Find the hidden Victory UI Canvas
         GameObject victoryScreen = GameObject.Find("Canvas_Victory");
         if (victoryScreen == null)
         {
-            // Fallback search if the canvas is turned off
-            victoryScreen = FindAnyObjectByType<Canvas>(FindObjectsInactive.Include)
-                            .gameObject.transform.Find("Canvas_Victory")?.gameObject;
+            Canvas fallbackCanvas = FindAnyObjectByType<Canvas>(FindObjectsInactive.Include);
+            if (fallbackCanvas != null)
+            {
+                Transform vTransform = fallbackCanvas.transform.Find("Canvas_Victory");
+                if (vTransform != null) victoryScreen = vTransform.gameObject;
+            }
         }
 
-        // Show the screen and freeze time
-        if (victoryScreen != null)
-        {
-            victoryScreen.SetActive(true);
-        }
+        if (victoryScreen != null) victoryScreen.SetActive(true);
         Time.timeScale = 0f;
     }
 
-    // Draws a visible red circle in the Scene view to show Kaelen's interaction reach
+    /// <summary>
+    /// Plays an audio clip with a fallback to procedural generation if the clip is unassigned.
+    /// </summary>
+    private void PlayAudio(AudioClip clip, AudioClip proceduralFallback = null)
+    {
+        if (_audioSource == null) return;
+        _audioSource.PlayOneShot(clip != null ? clip : proceduralFallback);
+    }
+
     private void OnDrawGizmosSelected()
     {
-        // Red circle for interact radius
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, interactRadius);
     }

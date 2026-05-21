@@ -1,10 +1,15 @@
 using System.Collections;
 using UnityEngine;
 using TMPro;
+using System.Text;
 
+/// <summary>
+/// Manages the visual interface and input handling for in-game log decryption terminals.
+/// </summary>
 public class SyncTerminalUI : MonoBehaviour
 {
     [Header("UI References")]
+    [Tooltip("The main canvas object that contains the terminal UI.")]
     public Canvas terminalCanvas;
     public TextMeshProUGUI titleText;
     public TextMeshProUGUI metaText;
@@ -13,11 +18,14 @@ public class SyncTerminalUI : MonoBehaviour
     [Header("Buttons")]
     public GameObject logOffButton;
     public GameObject nextPageButton;
-    public GameObject prevPageButton; // NEW: The Previous Page Button
+    public GameObject prevPageButton;
 
     [Header("Decryption Settings")]
+    [Tooltip("Delay in seconds between typing each standard character.")]
     public float typeSpeed = 0.02f;
+    [Tooltip("Delay in seconds between scrambling letters for the glitch effect.")]
     public float scrambleSpeed = 0.012f;
+    [Tooltip("Number of random glitch characters to display before showing the real character.")]
     public int maxScrambles = 3;
     
     private string glitchChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*+=-/\\";
@@ -27,27 +35,32 @@ public class SyncTerminalUI : MonoBehaviour
     private bool _isDecrypting = false;
     private string[] _currentPages;
     private int _pageIndex = 0;
+    
+    private WaitForSeconds _typeWait;
+    private WaitForSeconds _scrambleWait;
+    private QuestTracker _questTracker;
 
     private void Start()
     {
         if (terminalCanvas != null) terminalCanvas.gameObject.SetActive(false);
+        
+        _typeWait = new WaitForSeconds(typeSpeed);
+        _scrambleWait = new WaitForSeconds(scrambleSpeed);
+        _questTracker = FindAnyObjectByType<QuestTracker>();
     }
 
     private void Update()
     {
         if (terminalCanvas.gameObject.activeInHierarchy)
         {
-            // Skip typing
             if (_isDecrypting && (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)))
             {
                 TriggerInstantSkip();
             }
-            // Hotkey for Next Page (Spacebar)
             else if (!_isDecrypting && _pageIndex < _currentPages.Length - 1 && Input.GetKeyDown(KeyCode.Space))
             {
                 LoadNextPage();
             }
-            // NEW: Hotkey for Previous Page (Backspace or Left Arrow)
             else if (!_isDecrypting && _pageIndex > 0 && (Input.GetKeyDown(KeyCode.Backspace) || Input.GetKeyDown(KeyCode.LeftArrow)))
             {
                 LoadPreviousPage();
@@ -55,6 +68,9 @@ public class SyncTerminalUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Locks the player character and begins the decryption visualization for the provided log.
+    /// </summary>
     public void OpenTerminal(TerminalLogData logData, GameObject player)
     {
         _lockedPlayer = player;
@@ -79,7 +95,7 @@ public class SyncTerminalUI : MonoBehaviour
         
         logOffButton.SetActive(true); 
         nextPageButton.SetActive(false); 
-        prevPageButton.SetActive(false); // NEW: Hide Previous button on open
+        prevPageButton.SetActive(false);
 
         _currentPages = logData.logPages;
         _pageIndex = 0;
@@ -91,6 +107,9 @@ public class SyncTerminalUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Unlocks the player and hides the terminal interface.
+    /// </summary>
     public void CloseTerminal()
     {
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
@@ -105,38 +124,45 @@ public class SyncTerminalUI : MonoBehaviour
             if (rb != null) rb.bodyType = RigidbodyType2D.Dynamic;
         }
 
-        QuestTracker tracker = FindObjectOfType<QuestTracker>();
-        if (tracker != null)
+        if (_questTracker != null)
         {
-            tracker.AdvanceObjective(3, "Search lockers for Fusion Welder");
+            _questTracker.AdvanceObjective(3, "Search lockers for Fusion Welder");
         }
 
         terminalCanvas.gameObject.SetActive(false);
     }
 
+    /// <summary>
+    /// Transitions to the next page of the log if available.
+    /// </summary>
     public void LoadNextPage()
     {
         _pageIndex++;
         bodyText.text = "";
         
-        UpdateButtonVisibility(); // NEW: Handle button hiding/showing
+        UpdateButtonVisibility();
 
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
         typingCoroutine = StartCoroutine(DecryptTextRoutine(_currentPages[_pageIndex]));
     }
 
-    // NEW: The method for loading the previous page
+    /// <summary>
+    /// Transitions to the previous page of the log if available.
+    /// </summary>
     public void LoadPreviousPage()
     {
         _pageIndex--;
         bodyText.text = "";
 
-        UpdateButtonVisibility(); // Handle button hiding/showing
+        UpdateButtonVisibility();
 
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
         typingCoroutine = StartCoroutine(DecryptTextRoutine(_currentPages[_pageIndex]));
     }
 
+    /// <summary>
+    /// Bypasses the decryption animation and immediately displays the full page text.
+    /// </summary>
     private void TriggerInstantSkip()
     {
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
@@ -144,16 +170,12 @@ public class SyncTerminalUI : MonoBehaviour
         bodyText.text = _currentPages[_pageIndex];
         _isDecrypting = false; 
 
-        UpdateButtonVisibility(); // NEW: Handle button hiding/showing
+        UpdateButtonVisibility();
     }
 
-    // NEW: A clean helper method to check which buttons should be visible
     private void UpdateButtonVisibility()
     {
-        // Only show Prev if we aren't on the first page
         prevPageButton.SetActive(_pageIndex > 0 && !_isDecrypting);
-        
-        // Only show Next if we aren't on the last page
         nextPageButton.SetActive(_pageIndex < _currentPages.Length - 1 && !_isDecrypting);
     }
 
@@ -161,11 +183,10 @@ public class SyncTerminalUI : MonoBehaviour
     {
         _isDecrypting = true; 
         
-        // Hide navigation buttons while typing
         nextPageButton.SetActive(false);
         prevPageButton.SetActive(false);
 
-        string currentString = "";
+        StringBuilder currentString = new StringBuilder();
 
         for (int i = 0; i < fullText.Length; i++)
         {
@@ -173,27 +194,27 @@ public class SyncTerminalUI : MonoBehaviour
 
             if (nextChar == ' ' || nextChar == '\n')
             {
-                currentString += nextChar;
-                bodyText.text = currentString + "█"; 
-                yield return new WaitForSeconds(typeSpeed);
+                currentString.Append(nextChar);
+                bodyText.text = currentString.ToString() + "█"; 
+                yield return _typeWait;
                 continue;
             }
 
             for (int s = 0; s < maxScrambles; s++)
             {
                 char randomChar = glitchChars[Random.Range(0, glitchChars.Length)];
-                bodyText.text = currentString + randomChar + "█";
-                yield return new WaitForSeconds(scrambleSpeed);
+                bodyText.text = currentString.ToString() + randomChar + "█";
+                yield return _scrambleWait;
             }
 
-            currentString += nextChar;
-            bodyText.text = currentString + "█";
-            yield return new WaitForSeconds(typeSpeed);
+            currentString.Append(nextChar);
+            bodyText.text = currentString.ToString() + "█";
+            yield return _typeWait;
         }
 
-        bodyText.text = currentString;
+        bodyText.text = currentString.ToString();
         _isDecrypting = false; 
 
-        UpdateButtonVisibility(); // Show the correct buttons now that typing is done
+        UpdateButtonVisibility();
     }
 }

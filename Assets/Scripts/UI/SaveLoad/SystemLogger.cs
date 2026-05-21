@@ -1,51 +1,58 @@
 using UnityEngine;
 using TMPro;
 using System.Collections.Generic;
+using System.Text;
 
+/// <summary>
+/// A global UI logger that outputs system events and narrative cues to an on-screen console.
+/// </summary>
 public class SystemLogger : MonoBehaviour
 {
     public static SystemLogger Instance;
 
     [Header("UI Reference")]
+    [Tooltip("The TextMeshPro component used to render the log history.")]
     public TextMeshProUGUI logText;
 
     [Header("Settings")]
+    [Tooltip("The maximum number of distinct log lines visible before older entries are pushed out.")]
     public int maxLines = 15;
 
-    private List<string> logLines = new List<string>();
+    private Queue<string> _logLines = new Queue<string>();
+    private StringBuilder _stringBuilder = new StringBuilder();
 
-    void Awake()
+    private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
-    void Start()
+    private void Start()
     {
         if (logText != null) logText.text = "";
-        Log("VIRTUAL FILE SYSTEM MOUNTED.", "#00F0FF"); // Cyan
-        Log("AWAITING USER DIRECTIVE...", "#5E7382");   // Gray
+        Log("VIRTUAL FILE SYSTEM MOUNTED.", "#00F0FF"); 
+        Log("AWAITING USER DIRECTIVE...", "#5E7382");   
     }
 
-    public void Log(string message, string hexColor = "#FFAA00") // Defaults to Amber
+    /// <summary>
+    /// Pushes a new formatted message into the system console.
+    /// </summary>
+    public void Log(string message, string hexColor = "#FFAA00") 
     {
         if (logText == null) return;
 
-        // Generate a real-time timestamp like [09:54:40.920]
         string time = System.DateTime.Now.ToString("HH:mm:ss.fff");
-        
-        // Wrap the message in Unity's Rich Text color tags
         string newLine = $"<color={hexColor}>[{time}] {message}</color>";
 
-        logLines.Add(newLine);
+        _logLines.Enqueue(newLine);
+        if (_logLines.Count > maxLines) _logLines.Dequeue();
 
-        // If we exceed our max lines, remove the oldest one at the top
-        if (logLines.Count > maxLines)
+        _stringBuilder.Clear();
+        foreach (string line in _logLines)
         {
-            logLines.RemoveAt(0);
+            _stringBuilder.AppendLine(line);
         }
 
-        // Combine all lines with a line-break (\n) and push to the UI
-        logText.text = string.Join("\n", logLines);
+        logText.text = _stringBuilder.ToString();
     }
 }

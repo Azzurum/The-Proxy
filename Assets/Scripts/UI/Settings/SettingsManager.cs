@@ -4,33 +4,42 @@ using UnityEngine.Audio;
 using TMPro;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Coordinates the saving, loading, and application of player settings via PlayerPrefs.
+/// </summary>
 public class SettingsManager : MonoBehaviour
 {
     [Header("Audio System")]
+    [Tooltip("The master Audio Mixer governing game sound levels.")]
     public AudioMixer mainMixer; 
+    [Tooltip("The UI Slider mapped to the master volume.")]
     public Slider volSlider;
+    [Tooltip("The UI Text displaying the current volume percentage.")]
     public TextMeshProUGUI volDisplay;
 
     [Header("Breaker Switches")]
+    [Tooltip("Toggle controlling the CRT distortion post-processing effect.")]
     public Toggle crtToggle;
     public Image crtBulb;
     
+    [Tooltip("Toggle controlling fullscreen application mode.")]
     public Toggle fsToggle;
     public Image fsBulb;
 
+    [Tooltip("Toggle controlling the kinetic screen shake (tremor) effects.")]
     public Toggle shakeToggle;
     public Image shakeBulb;
 
     [Header("Indicator Colors")]
+    [Tooltip("The color applied to the indicator bulb when a setting is active.")]
     public Color bulbOnColor;
+    [Tooltip("The color applied to the indicator bulb when a setting is inactive.")]
     public Color bulbOffColor;
 
-    void Start()
+    private void Start()
     {
-        // --- 1. COMMS GAIN (Volume) ---
         if (volSlider != null)
         {
-            // Load saved memory. If no memory exists, default to 75.
             float savedVol = PlayerPrefs.GetFloat("SysVolMaster", 75f);
             volSlider.value = savedVol; 
             
@@ -38,55 +47,45 @@ public class SettingsManager : MonoBehaviour
             UpdateVolume(savedVol); 
         }
 
-        // --- 2. VISOR OPTICS (CRT) ---
         if (crtToggle != null)
         {
-            // Load memory. Default to 1 (True/ON).
             bool savedCRT = PlayerPrefs.GetInt("CrtDistortion", 1) == 1;
             crtToggle.isOn = savedCRT;
 
             crtToggle.onValueChanged.AddListener(UpdateCRT);
-            crtToggle.onValueChanged.AddListener(delegate { UpdateBulb(crtToggle, crtBulb); });
+            crtToggle.onValueChanged.AddListener(_ => UpdateBulb(crtToggle, crtBulb));
             UpdateBulb(crtToggle, crtBulb);
         }
 
-        // --- 3. VIEWPORT MAX (Fullscreen) ---
         if (fsToggle != null)
         {
             bool savedFS = PlayerPrefs.GetInt("ViewportOverride", 1) == 1;
             fsToggle.isOn = savedFS;
 
             fsToggle.onValueChanged.AddListener(SetFullscreen);
-            fsToggle.onValueChanged.AddListener(delegate { UpdateBulb(fsToggle, fsBulb); });
+            fsToggle.onValueChanged.AddListener(_ => UpdateBulb(fsToggle, fsBulb));
             
-            // Apply the actual screen resolution override
             SetFullscreen(savedFS);
             UpdateBulb(fsToggle, fsBulb);
         }
 
-        // --- 4. KINETIC FEEDBACK (Shake) ---
         if (shakeToggle != null)
         {
             bool savedShake = PlayerPrefs.GetInt("KineticTremor", 1) == 1;
             shakeToggle.isOn = savedShake;
 
             shakeToggle.onValueChanged.AddListener(UpdateShake);
-            shakeToggle.onValueChanged.AddListener(delegate { UpdateBulb(shakeToggle, shakeBulb); });
+            shakeToggle.onValueChanged.AddListener(_ => UpdateBulb(shakeToggle, shakeBulb));
             UpdateBulb(shakeToggle, shakeBulb);
         }
     }
 
-    // ==========================================
-    // THE SAVE PROTOCOLS
-    // ==========================================
-
     private void UpdateVolume(float value)
     {
-        // Save to hard drive
         PlayerPrefs.SetFloat("SysVolMaster", value);
         PlayerPrefs.Save();
 
-        if (volDisplay != null) volDisplay.text = value.ToString("0"); 
+        if (volDisplay != null) volDisplay.SetText("{0:0}", value); 
 
         if (mainMixer != null)
         {
@@ -94,7 +93,6 @@ public class SettingsManager : MonoBehaviour
             else mainMixer.SetFloat("MasterVolume", Mathf.Log10(value / 100f) * 20f);
         }
 
-        // Also update our mathematical sound generator!
         ProceduralAudioGen.SetGlobalVolume(value / 100f); 
     }
 
@@ -110,7 +108,6 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt("CrtDistortion", isEnabled ? 1 : 0);
         PlayerPrefs.Save();
         
-        // Instantly update the CRT overlay if it's currently in the scene
         UICRTPattern crtOverlay = FindAnyObjectByType<UICRTPattern>();
         if (crtOverlay != null)
         {
@@ -129,26 +126,22 @@ public class SettingsManager : MonoBehaviour
     {
         if (bulb == null) return;
 
-        // 1. Change the solid glass color
         bulb.color = toggle.isOn ? bulbOnColor : bulbOffColor;
 
-        // 2. Find the new glowing Aura we just added as a child
         if (bulb.transform.childCount > 0)
         {
-            Image aura = bulb.transform.GetChild(0).GetComponent<Image>();
-            if (aura != null)
+            if (bulb.transform.GetChild(0).TryGetComponent<Image>(out var aura))
             {
-                // If ON, ignite the bloom (Amber with 40% transparency). If OFF, kill the light entirely.
                 aura.color = toggle.isOn ? new Color(bulbOnColor.r, bulbOnColor.g, bulbOnColor.b, 0.4f) : new Color(0, 0, 0, 0f);
             }
         }
     }
 
-    // ==========================================
-    // NAVIGATION
-    // ==========================================
+    /// <summary>
+    /// Triggers a scene load to return the player to the Main Menu.
+    /// </summary>
     public void ReturnToMainMenu()
     {
-        SceneManager.LoadScene("MainMenu"); // Change this string if your main menu scene is named differently!
+        SceneManager.LoadScene("MainMenu"); 
     }
 }

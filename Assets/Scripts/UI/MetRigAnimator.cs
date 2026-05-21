@@ -1,6 +1,9 @@
 using UnityEngine;
 using System.Collections;
 
+/// <summary>
+/// Coordinates the complex multi-axis sliding animations of the M.E.T. Rig's UI panels.
+/// </summary>
 public class MetRigAnimator : MonoBehaviour
 {
     [Header("Main UI Panels")]
@@ -35,11 +38,10 @@ public class MetRigAnimator : MonoBehaviour
 
     private Coroutine animCoroutine;
 
-    void Awake()
+    private void Awake()
     {
         if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
 
-        // Store their exact layout positions as the "Open" state
         if (visorLeft != null) leftVisiblePos = visorLeft.anchoredPosition;
         if (visorRight != null) rightVisiblePos = visorRight.anchoredPosition;
         if (bottomGroup != null) bottomVisiblePos = bottomGroup.anchoredPosition;
@@ -50,16 +52,14 @@ public class MetRigAnimator : MonoBehaviour
         if (mapTray != null) mapTrayVisiblePos = mapTray.anchoredPosition;
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
-        // Prevent the animation and audio from playing when the game first boots up!
         if (Time.timeSinceLevelLoad > 0.5f)
         {
             PlayOpenAnimation();
         }
         else
         {
-            // Instantly snap to the open positions so it's ready, without playing sound
             if (visorLeft != null) visorLeft.anchoredPosition = leftVisiblePos;
             if (visorRight != null) visorRight.anchoredPosition = rightVisiblePos;
             if (bottomGroup != null) bottomGroup.anchoredPosition = bottomVisiblePos;
@@ -70,16 +70,17 @@ public class MetRigAnimator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Initiates the sequence to un-hide and slide all configured UI panels inward.
+    /// </summary>
     public void PlayOpenAnimation()
     {
         if (audioSource != null)
         {
-            // Procedural Audio: Heavy pneumatic hiss + Boot-up system chime
             audioSource.PlayOneShot(ProceduralAudioGen.GeneratePneumaticBlast(0.4f));
             audioSource.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime(0.25f));
         }
 
-        // Instantly snap to hidden positions so it doesn't flicker before sliding
         if (visorLeft != null) visorLeft.anchoredPosition = leftVisiblePos + new Vector2(-slideDistanceX, 0);
         if (visorRight != null) visorRight.anchoredPosition = rightVisiblePos + new Vector2(slideDistanceX, 0);
         if (bottomGroup != null) bottomGroup.anchoredPosition = bottomVisiblePos + new Vector2(0, -slideDistanceY);
@@ -93,9 +94,11 @@ public class MetRigAnimator : MonoBehaviour
         animCoroutine = StartCoroutine(SlidePanels(true));
     }
 
+    /// <summary>
+    /// Initiates the sequence to slide all panels outward to hidden positions.
+    /// </summary>
     public void PlayCloseAnimation()
     {
-        // Force any open trays to close so they don't break sync when re-opened!
         UITrayAnimator[] trays = GetComponentsInChildren<UITrayAnimator>(true);
         foreach (var tray in trays)
         {
@@ -106,8 +109,6 @@ public class MetRigAnimator : MonoBehaviour
             }
         }
 
-        // Procedural Audio: Fast shut-down whoosh + heavy UI click
-        // PLAYED IN WORLD SPACE: This guarantees the sound plays even if the Tab key instantly turns off the Canvas!
         Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
         AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateWhoosh(0.2f), camPos, ProceduralAudioGen.globalVolume);
         AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateClick(300f, 0.1f), camPos, ProceduralAudioGen.globalVolume);
@@ -116,7 +117,9 @@ public class MetRigAnimator : MonoBehaviour
         animCoroutine = StartCoroutine(SlidePanels(false));
     }
 
-    // Helper method to let the animation finish BEFORE turning off the UI
+    /// <summary>
+    /// Plays the outward animation and disables the overarching GameObject once complete.
+    /// </summary>
     public void CloseInventoryWithAnimation()
     {
         if (gameObject.activeInHierarchy)
@@ -128,17 +131,15 @@ public class MetRigAnimator : MonoBehaviour
     private IEnumerator CloseRoutine()
     {
         PlayCloseAnimation();
-        // Wait for the slide to finish (ignoring Time.timeScale in case the game is paused)
         yield return new WaitForSecondsRealtime(slideDuration);
 
-        gameObject.SetActive(false); // Turn off the Canvas!
+        gameObject.SetActive(false); 
     }
 
     private IEnumerator SlidePanels(bool isOpening)
     {
         float elapsed = 0f;
 
-        // Define the hidden "off-screen" positions
         Vector2 leftHidden = leftVisiblePos + new Vector2(-slideDistanceX, 0);
         Vector2 rightHidden = rightVisiblePos + new Vector2(slideDistanceX, 0);
         Vector2 bottomHidden = bottomVisiblePos + new Vector2(0, -slideDistanceY);
@@ -148,7 +149,6 @@ public class MetRigAnimator : MonoBehaviour
         Vector2 latchMapHidden = latchMapVisiblePos + new Vector2(slideDistanceX, 0);
         Vector2 mapTrayHidden = mapTrayVisiblePos + new Vector2(slideDistanceX, 0);
 
-        // Determine start and end points
         Vector2 leftStart = isOpening ? leftHidden : leftVisiblePos;
         Vector2 rightStart = isOpening ? rightHidden : rightVisiblePos;
         Vector2 bottomStart = isOpening ? bottomHidden : bottomVisiblePos;
@@ -170,7 +170,7 @@ public class MetRigAnimator : MonoBehaviour
         while (elapsed < slideDuration)
         {
             elapsed += Time.unscaledDeltaTime; 
-            float t = Mathf.SmoothStep(0f, 1f, elapsed / slideDuration); // Smooth ease in/out
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / slideDuration); 
 
             if (visorLeft != null) visorLeft.anchoredPosition = Vector2.LerpUnclamped(leftStart, leftEnd, t);
             if (visorRight != null) visorRight.anchoredPosition = Vector2.LerpUnclamped(rightStart, rightEnd, t);
@@ -184,7 +184,6 @@ public class MetRigAnimator : MonoBehaviour
             yield return null;
         }
 
-        // Snap perfectly to the target at the end
         if (visorLeft != null) visorLeft.anchoredPosition = leftEnd;
         if (visorRight != null) visorRight.anchoredPosition = rightEnd;
         if (bottomGroup != null) bottomGroup.anchoredPosition = bottomEnd;

@@ -1,8 +1,12 @@
 using UnityEngine;
 
+/// <summary>
+/// Core state machine and behavioral logic for the Proxy antagonist. Handles perception, pathfinding, and combat.
+/// </summary>
 public class ProxyAI : MonoBehaviour
 {
     [Header("Targeting")]
+    [Tooltip("The player character to track and hunt.")]
     public Transform targetPlayer;
     private Vector2 lastKnownPosition;
     private bool hasLastKnownPosition = false;
@@ -20,73 +24,102 @@ public class ProxyAI : MonoBehaviour
     }
 
     [Header("AI State Machine")]
+    [Tooltip("The current behavioral state of the AI.")]
     public AIState currentState = AIState.Idle;
+    
+    [Tooltip("How far the AI searches around the last known position when wandering.")]
+    public float searchRadius = 12f; 
+    
     private float stateTimer = 0f;
     private Vector2 wanderTarget;
     private float wanderWaitTimer = 0f;
-    public float searchRadius = 12f; // Increased significantly for aggressive searching
 
     [Header("Perception System")]
-    public float hearingRadius = 14f; // Can hear you from further away
+    [Tooltip("The radius within which the Proxy can hear player footsteps.")]
+    public float hearingRadius = 14f; 
     private Vector3 previousPlayerPos;
 
     [Header("Movement Stats")]
-    public float baseSpeed = 3.5f; // Buffed patrol speed
-    public float sprintSpeed = 5.5f; // Buffed sprint speed
+    [Tooltip("Movement speed during idle and investigation phases.")]
+    public float baseSpeed = 3.5f; 
+    [Tooltip("Movement speed during an active hunt.")]
+    public float sprintSpeed = 5.5f; 
     private float currentSpeed;
 
     [Header("Stun Resistance")]
+    [Tooltip("Time in seconds before the Proxy forgets it was stunned, resetting its resistance.")]
+    [SerializeField] private float memoryResetTime = 60f;
     private int stunCount = 0;
     private float stunMemoryTimer = 0f;
-    private float memoryResetTime = 60f;
 
     [Header("Signal Response")]
+    [Tooltip("The distance at which the Proxy hunts immediately vs a delayed response when detecting a signal.")]
     [SerializeField] private float delayedSignalDistance = 10f;
+    [Tooltip("Time in seconds before a distant signal triggers a hunt.")]
     [SerializeField] private float delayedHuntSeconds = 2f;
-    [SerializeField] private float signalSpeedMultiplier = 1.2f; // 20% buff when Rig is open
-    private bool isSignalEmpowered = false; // Tracks if the Proxy is enraged by the open inventory
-    private bool isEnraged = false; // Permanent hunt mode for the Meltdown sequence
+    [Tooltip("Speed multiplier applied while the player's inventory signal is active.")]
+    [SerializeField] private float signalSpeedMultiplier = 1.2f; 
+    private bool isSignalEmpowered = false; 
+    private bool isEnraged = false; 
 
     [Header("Knockback")]
+    [Tooltip("The speed at which the Proxy is physically thrown back by the Repulsor.")]
     [SerializeField] private float knockbackSpeed = 25f;
 
     [Header("Attack Behavior")]
+    [Tooltip("Cooldown in seconds after executing a strike.")]
     public float attackRecovery = 1.5f;
+    [Tooltip("The maximum distance from the player to execute a melee strike.")]
     public float attackRange = 1.5f;
 
-    // Internal State Variables
     private bool isPlayerInMeleeRange = false;
     private bool canAttack = true;
     private Vector2 moveTarget;
     private bool hasMoveTarget = false;
     private Coroutine delayedHuntCoroutine;
+    private Coroutine _distractionCoroutine;
+    private CameraFollow _cachedCamera;
 
     [Header("Sixth Sense (Passive Tracking)")]
+    [Tooltip("Minimum time before the Proxy passively pings the player's location.")]
     public float minSixthSenseTime = 20f;
+    [Tooltip("Maximum time before the Proxy passively pings the player's location.")]
     public float maxSixthSenseTime = 60f;
     private float sixthSenseTimer = 0f;
 
     [Header("Dynamic Avoidance (Whiskers)")]
+    [Tooltip("Length of the dynamic collision-avoidance raycasts.")]
     public float whiskerLength = 1.5f;
+    [Tooltip("The angle offset for each pair of whiskers.")]
     public float whiskerAngle = 25f;
-    public int whiskerCount = 4; // 4 Pairs = 8 angled whiskers + 1 forward
-    public float proxyWidth = 0.25f; // Reduced so the AI knows it can squeeze through tight gaps!
+    [Tooltip("Number of paired whiskers (e.g., 4 pairs = 8 side whiskers + 1 forward).")]
+    public int whiskerCount = 4; 
+    [Tooltip("The physical radius size considered for navigation clearance.")]
+    public float proxyWidth = 0.25f; 
+    [Tooltip("LayerMask containing solid environmental obstacles.")]
     public LayerMask obstacleMask;
 
     [Header("Stuck Detection & Teleport")]
+    [Tooltip("The distance threshold to determine if the Proxy is physically stuck.")]
     public float stuckDistanceThreshold = 0.5f;
+    [Tooltip("Time in seconds before the Proxy attempts to recalculate a path when stuck.")]
     public float stuckTimeLimit = 1.0f;
+    [Tooltip("Time in seconds of being stuck before triggering the failsafe teleport.")]
     public float teleportFailsafeLimit = 4.0f;
     private Vector2 _stuckCheckPos;
     private float _stuckTimer = 0f;
     private float _totalStuckTime = 0f;
-    private float _avoidanceBias = 1f; // Remembers which side it chose to avoid glitching
+    private float _avoidanceBias = 1f;
 
-    // Components & Managers
+    private ContactFilter2D _avoidanceFilter;
+    private readonly RaycastHit2D[] _raycastHits = new RaycastHit2D[5];
+    private readonly Collider2D[] _overlapHits = new Collider2D[1];
+
     [Header("Depth Sorting")]
     [Tooltip("Make sure this exactly matches Kaelen's sorting layer!")]
     public string sortingLayerName = "Player";
-    public float depthOffset = -0.5f; // Where the Proxy's feet are relative to its center
+    [Tooltip("Vertical offset to determine dynamic sorting overlap (places the pivot at the feet).")]
+    public float depthOffset = -0.5f;
     
     private Animator animator;
     private Rigidbody2D rb;
@@ -106,7 +139,6 @@ public class ProxyAI : MonoBehaviour
     {
         currentSpeed = baseSpeed;
 
-        // Setup Components
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
@@ -117,44 +149,44 @@ public class ProxyAI : MonoBehaviour
             rb = gameObject.AddComponent<Rigidbody2D>();
         }
         
-        // PHYSICS FAILSAFE: The Proxy must be Dynamic to collide with the server maze!
         rb.bodyType = RigidbodyType2D.Dynamic;
         rb.gravityScale = 0f;
-        rb.mass = 1000f; // Make it a brick wall so Kaelen can't push it!
+        rb.mass = 1000f;
         rb.simulated = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.freezeRotation = true;
 
-        // ADD FRICTIONLESS MATERIAL TO SLIDE OFF WALLS
         PhysicsMaterial2D slipMat = new PhysicsMaterial2D("ProxySlip");
         slipMat.friction = 0f;
         slipMat.bounciness = 0f;
         rb.sharedMaterial = slipMat;
 
-        // Auto-find player if not assigned
         if (targetPlayer == null)
         {
-            // Use the tag to safely find the player regardless of the GameObject's name
             GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player == null) player = GameObject.Find("Player_Kaelen");
-            
             if (player != null) targetPlayer = player.transform;
         }
 
-        // Cache global managers safely
         metRigManager = FindAnyObjectByType<MetRigManager>();
         gameOverManager = FindAnyObjectByType<GameOverManager>();
         inventoryManager = FindAnyObjectByType<InventoryManager>();
+        _cachedCamera = FindAnyObjectByType<CameraFollow>();
 
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
 
-        // PURE CODE SETUP: Automatically target all layers EXCEPT 'Ignore Raycast' so you don't have to configure anything!
         if (obstacleMask.value == 0)
         {
             obstacleMask = ~LayerMask.GetMask("Ignore Raycast");
         }
+
+        _avoidanceFilter = new ContactFilter2D 
+        { 
+            layerMask = obstacleMask, 
+            useLayerMask = true, 
+            useTriggers = false 
+        };
 
         if (targetPlayer != null)
         {
@@ -163,27 +195,24 @@ public class ProxyAI : MonoBehaviour
         
         _stuckCheckPos = transform.position;
 
-        // Initialize the first random ping
         sixthSenseTimer = Random.Range(minSixthSenseTime, maxSixthSenseTime);
-        ChangeState(AIState.Wandering); // Force the Proxy to start prowling immediately!
+        ChangeState(AIState.Wandering); 
     }
 
     void Update()
     {
-        if (targetPlayer == null) return; // Safety check
+        if (targetPlayer == null) return; 
 
         ManageStunMemory();
         UpdatePerception();
         UpdateSixthSense();
 
-        // Global Attack Trigger Check
         if (isPlayerInMeleeRange && canAttack && CanInterruptState(AIState.Attacking))
         {
             ChangeState(AIState.Attacking);
-            return; // Halt other logic while attacking
+            return;
         }
 
-        // Execute State Behaviors
         switch (currentState)
         {
             case AIState.Hunting:
@@ -191,7 +220,7 @@ public class ProxyAI : MonoBehaviour
                 {
                     lastKnownPosition = targetPlayer.position;
                     
-                    // Prevent the Proxy from violently pinning Kaelen against a wall while waiting for its attack cooldown!
+                    // Avoid pushing aggressively into the player if the attack is on cooldown.
                     if (isPlayerInMeleeRange && !canAttack)
                     {
                         hasMoveTarget = false;
@@ -204,7 +233,6 @@ public class ProxyAI : MonoBehaviour
                 }
                 else
                 {
-                    // Signal lost! Keep running to the last known point, but downgrade to Investigate once reached
                     if (!hasMoveTarget)
                     {
                         ChangeState(AIState.Investigating);
@@ -216,7 +244,7 @@ public class ProxyAI : MonoBehaviour
                 if (!hasMoveTarget)
                 {
                     stateTimer += Time.deltaTime;
-                    if (stateTimer >= 0.3f && !isPlayerInMeleeRange) // Organic Pause: Barely hesitate before sweeping!
+                    if (stateTimer >= 0.3f && !isPlayerInMeleeRange) 
                     {
                         ChangeState(AIState.Wandering);
                     }
@@ -229,7 +257,7 @@ public class ProxyAI : MonoBehaviour
                     stateTimer += Time.deltaTime;
                     if (stateTimer >= wanderWaitTimer)
                     {
-                        PickNewWanderTarget(); // Never idles. It will tear the ship apart looking for you.
+                        PickNewWanderTarget();
                     }
                 }
                 break;
@@ -237,14 +265,11 @@ public class ProxyAI : MonoBehaviour
         
         UpdateAnimationSpeed();
 
-        // DYNAMIC DEPTH SORTING: Update sorting order based on Y position so the Proxy can walk behind things!
         if (spriteRenderer != null)
         {
             spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
         }
     }
-
-    // --- STATE MACHINE LOGIC ---
 
     private bool CanInterruptState(AIState newState)
     {
@@ -254,6 +279,9 @@ public class ProxyAI : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Transitions the AI into a new behavior state, initializing necessary speed and target logic.
+    /// </summary>
     private void ChangeState(AIState newState)
     {
         if (currentState == newState) return;
@@ -297,7 +325,6 @@ public class ProxyAI : MonoBehaviour
             if (stunMemoryTimer <= 0)
             {
                 stunCount = 0;
-                Debug.Log("PROXY AI: Stun resistance reset.");
             }
         }
     }
@@ -307,7 +334,6 @@ public class ProxyAI : MonoBehaviour
         float distanceToPlayer = Vector2.Distance(transform.position, targetPlayer.position);
         float playerMovement = Vector3.Distance(targetPlayer.position, previousPlayerPos);
 
-        // Continuous Hearing Detection (Footsteps)
         if (playerMovement > 0.001f && distanceToPlayer <= hearingRadius)
         {
             lastKnownPosition = targetPlayer.position;
@@ -330,17 +356,14 @@ public class ProxyAI : MonoBehaviour
 
     private void UpdateSixthSense()
     {
-        if (isEnraged || currentState == AIState.Hunting) return; // Skip if it already knows where you are
+        if (isEnraged || currentState == AIState.Hunting) return; 
 
         sixthSenseTimer -= Time.deltaTime;
         if (sixthSenseTimer <= 0f)
         {
-            // Ping the player's exact location and reset the random timer!
             lastKnownPosition = targetPlayer.position;
             hasLastKnownPosition = true;
             sixthSenseTimer = Random.Range(minSixthSenseTime, maxSixthSenseTime);
-
-            Debug.Log("<color=magenta>PROXY AI: Sixth sense ping! Sweeping Kaelen's current area.</color>");
 
             if (CanInterruptState(AIState.Investigating))
             {
@@ -349,11 +372,11 @@ public class ProxyAI : MonoBehaviour
         }
     }
 
-    // --- EXTERNAL COMBAT TRIGGERS ---
-
+    /// <summary>
+    /// External hook for when a loud interaction occurs, alerting the Proxy to an exact location.
+    /// </summary>
     public void OnCombatAction(Vector3 actionPosition)
     {
-        Debug.Log("<color=red>PROXY AI: Combat sound detected! Exact location locked.</color>");
         lastKnownPosition = actionPosition;
         hasLastKnownPosition = true;
         
@@ -363,29 +386,28 @@ public class ProxyAI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Hook triggered when the player's inventory is open, increasing the AI's aggressiveness based on distance.
+    /// </summary>
     public void OnSignalSpike(bool isListening, float distance)
     {
-        if (isEnraged) return; // Cannot drop the signal during a meltdown!
+        if (isEnraged) return; 
 
-        isSignalEmpowered = isListening; // Activates the 20% buff while the signal is active!
+        isSignalEmpowered = isListening; 
 
         if (isListening && distance >= 0)
         {
             lastKnownPosition = targetPlayer.position;
             hasLastKnownPosition = true;
 
-            // LORE UPDATE: Always go into hunting mode when the inventory opens!
             if (distance < delayedSignalDistance) 
             {
                 ChangeState(AIState.Hunting);
-                Debug.Log("PROXY: Signal detected! Immediate hunt.");
             }
             else 
             {
-                // If they are super far away, still hunt, but give the player a brief 2-second warning delay
                 if (delayedHuntCoroutine != null) StopCoroutine(delayedHuntCoroutine);
                 delayedHuntCoroutine = StartCoroutine(DelayedHunt(delayedHuntSeconds));
-                Debug.Log("PROXY: Signal detected far! Delayed hunt.");
             }
         }
         else
@@ -393,7 +415,6 @@ public class ProxyAI : MonoBehaviour
             if (delayedHuntCoroutine != null) 
             {
                 StopCoroutine(delayedHuntCoroutine);
-                Debug.Log("PROXY: Delayed hunt canceled - signal turned off!");
             }
             
             if (currentState == AIState.Hunting)
@@ -409,33 +430,29 @@ public class ProxyAI : MonoBehaviour
         if (CanInterruptState(AIState.Hunting))
         {
             ChangeState(AIState.Hunting);
-            Debug.Log("PROXY: Delayed hunt activated!");
         }
     }
-
-    // --- ATTACK LOGIC ---
 
     private System.Collections.IEnumerator AttackRoutine()
     {
         canAttack = false;
-        hasMoveTarget = false; // Stop moving
+        hasMoveTarget = false; 
         
         currentSpeed = 0f;
 
-        // Snap direction to face the player right before triggering the attack animation
         if (targetPlayer != null && animator != null)
         {
             Vector2 dir = (targetPlayer.position - transform.position).normalized;
             if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
             {
-                animator.SetFloat("Direction", 1f); // Side Attack
+                animator.SetFloat("Direction", 1f); 
                 if (spriteRenderer != null) spriteRenderer.flipX = dir.x < 0;
             }
             else
             {
                 if (dir.y > 0)
                 {
-                    animator.SetFloat("Direction", 1f); // Up uses Side Attack
+                    animator.SetFloat("Direction", 1f); 
                     if (spriteRenderer != null)
                     {
                         if (dir.x < -0.01f) spriteRenderer.flipX = true;
@@ -444,48 +461,46 @@ public class ProxyAI : MonoBehaviour
                 }
                 else
                 {
-                    animator.SetFloat("Direction", 0f); // Down Attack
+                    animator.SetFloat("Direction", 0f);
                     if (spriteRenderer != null) spriteRenderer.flipX = false;
                 }
             }
             animator.SetTrigger("Attack");
         }
 
-        Debug.Log("PROXY: Committing attack. Waiting for Animation Events...");
         yield break;
     }
 
-    // --- ANIMATION EVENTS ---
-
-    // 1. Call this from the exact frame the claw swings!
+    /// <summary>
+    /// Triggered by the Animation Event precisely when the attack frame connects. 
+    /// Validates the player's distance and resolves damage.
+    /// </summary>
     public void AnimEvent_Strike()
     {
         if (audioSource != null) audioSource.PlayOneShot(sfxAttackSwing != null ? sfxAttackSwing : ProceduralAudioGen.GenerateWhoosh());
 
-        if (currentState == AIState.Stunned || currentState == AIState.KnockedBack) return; // Prevent damage if interrupted!
+        if (currentState == AIState.Stunned || currentState == AIState.KnockedBack) return; 
 
         if (targetPlayer != null && Vector2.Distance(transform.position, targetPlayer.position) <= attackRange)
         {
             ExecuteAttack();
         }
-        else
-        {
-            Debug.Log("PROXY: Attack missed! Kaelen escaped the strike zone.");
-        }
     }
 
-    // 2. Call this from the very last frame of the attack animation!
+    /// <summary>
+    /// Triggered by the final frame of the attack animation to recover AI states.
+    /// </summary>
     public void AnimEvent_EndAttack()
     {
         if (currentState == AIState.Attacking)
         {
             if (isSignalEmpowered || isPlayerInMeleeRange)
             {
-                ChangeState(AIState.Hunting); // Keep the pressure on!
+                ChangeState(AIState.Hunting); 
             }
             else
             {
-                ChangeState(AIState.Investigating); // Return to searching for the player
+                ChangeState(AIState.Investigating); 
             }
         }
         StartCoroutine(RecoveryRoutine());
@@ -493,44 +508,36 @@ public class ProxyAI : MonoBehaviour
 
     private System.Collections.IEnumerator RecoveryRoutine()
     {
-        // Attack recovers 20% faster when empowered!
         float activeRecovery = isSignalEmpowered ? attackRecovery / signalSpeedMultiplier : attackRecovery;
         yield return new WaitForSeconds(activeRecovery);
         canAttack = true;
     }
 
+    /// <summary>
+    /// Applies corruption damage and environmental feedback when an attack connects.
+    /// </summary>
     private void ExecuteAttack()
     {
         if (audioSource != null) audioSource.PlayOneShot(sfxAttackHit != null ? sfxAttackHit : ProceduralAudioGen.GenerateStaticGlitch(0.4f));
-        Debug.Log("PROXY: Attack landed. Inventory corruption injected.");
         
-        // Trigger a violent screen shake!
-        CameraFollow cam = FindAnyObjectByType<CameraFollow>();
-        if (cam != null)
+        if (_cachedCamera != null)
         {
-            cam.TriggerShake(0.3f, 0.5f);
+            _cachedCamera.TriggerShake(0.3f, 0.5f);
         }
 
-        // Flash the screen red!
         if (ScreenEffectManager.Instance != null)
         {
             ScreenEffectManager.Instance.TriggerFlash(new Color(1f, 0f, 0f, 0.6f), 0.3f);
         }
 
-        // Inject the corruption damage
         if (inventoryManager != null)
         {
             inventoryManager.AddCorruptionRow();
-        }
-        else
-        {
-            Debug.LogWarning("PROXY: Unable to apply corruption because InventoryManager is missing.");
         }
     }
 
     private void KillPlayer()
     {
-        Debug.LogError("CRITICAL FAILURE: Mother has completely taken over! GAME OVER.");
         if (gameOverManager != null)
         {
             gameOverManager.TriggerGameOver();
@@ -540,8 +547,6 @@ public class ProxyAI : MonoBehaviour
             Time.timeScale = 0f;
         }
     }
-
-    // --- PHYSICS & COLLISION ---
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
@@ -553,7 +558,6 @@ public class ProxyAI : MonoBehaviour
         if (collision.gameObject.CompareTag("Player")) isPlayerInMeleeRange = false;
     }
 
-    // Support for the enlarged Trigger Hitbox!
     private void OnTriggerEnter2D(Collider2D collider)
     {
         if (collider.CompareTag("Player")) isPlayerInMeleeRange = true;
@@ -564,13 +568,14 @@ public class ProxyAI : MonoBehaviour
         if (collider.CompareTag("Player")) isPlayerInMeleeRange = false;
     }
 
-    // --- DEFENSIVE REACTIONS ---
-
+    /// <summary>
+    /// Overrides the Proxy's state with a momentary stun, adapting duration based on built-up resistance.
+    /// </summary>
     public void ApplyStun()
     {
         if (currentState == AIState.Stunned) return;
         
-        canAttack = true; // Reset attack readiness
+        canAttack = true; 
 
         stunCount++;
         stunMemoryTimer = memoryResetTime; 
@@ -580,11 +585,9 @@ public class ProxyAI : MonoBehaviour
         else if (stunCount == 2) duration = 1.5f;
         else
         {
-            Debug.LogWarning("PROXY AI: Immune to Stunner!");
             return; 
         }
 
-        Debug.Log($"PROXY AI: Stunned for {duration} seconds!");
         if (audioSource != null) audioSource.PlayOneShot(sfxStunned != null ? sfxStunned : ProceduralAudioGen.GenerateErrorBuzz(80f, 1.5f));
         
         ChangeState(AIState.Stunned);
@@ -593,14 +596,17 @@ public class ProxyAI : MonoBehaviour
 
     private System.Collections.IEnumerator StunRoutine(float time)
     {
-        hasMoveTarget = false; // Halt movement
+        hasMoveTarget = false; 
         yield return new WaitForSeconds(time);
         if (currentState == AIState.Stunned)
         {
-            ChangeState(AIState.Investigating); // Wake up and search!
+            ChangeState(AIState.Investigating);
         }
     }
 
+    /// <summary>
+    /// Physically displaces the AI away from the player via external forces (Repulsor).
+    /// </summary>
     public void ApplyRepulsor(Vector3 playerPosition, float knockbackDistance)
     {
         if (currentState != AIState.KnockedBack)
@@ -630,7 +636,7 @@ public class ProxyAI : MonoBehaviour
         }
         if (currentState == AIState.KnockedBack)
         {
-            ChangeState(AIState.Investigating); // Wake up angry!
+            ChangeState(AIState.Investigating); 
         }
     }
 
@@ -639,7 +645,8 @@ public class ProxyAI : MonoBehaviour
         if (CanInterruptState(AIState.Distracted))
         {
             ChangeState(AIState.Distracted);
-            StartCoroutine(DistractionRoutine(distractionPos, duration));
+            if (_distractionCoroutine != null) StopCoroutine(_distractionCoroutine);
+            _distractionCoroutine = StartCoroutine(DistractionRoutine(distractionPos, duration));
         }
     }
 
@@ -653,49 +660,42 @@ public class ProxyAI : MonoBehaviour
         }
     }
 
-    // --- MOVEMENT EXECUTION ---
-
     private void FixedUpdate()
     {
-        if (rb != null) rb.linearVelocity = Vector2.zero; // Immediately kill any sliding momentum!
+        if (rb != null) rb.linearVelocity = Vector2.zero; 
 
         if (!hasMoveTarget || currentState == AIState.Stunned || currentState == AIState.KnockedBack || currentState == AIState.Attacking || currentState == AIState.Idle) return;
         
-        // Apply the 20% speed buff if the M.E.T. Rig is emitting a signal
         float activeSpeed = isSignalEmpowered ? currentSpeed * signalSpeedMultiplier : currentSpeed;
         Vector2 currentPosition = rb != null ? rb.position : (Vector2)transform.position;
         Vector2 targetDirection = (moveTarget - currentPosition).normalized;
         
-        // --- CUSTOM DYNAMIC AVOIDANCE (WHISKERS) ---
         Vector2 safeDirection = GetAvoidanceDirection(currentPosition, targetDirection);
         Vector2 newPosition = currentPosition + (safeDirection * activeSpeed * Time.fixedDeltaTime);
         
         if (rb != null) rb.MovePosition(newPosition);
         else transform.position = new Vector3(newPosition.x, newPosition.y, transform.position.z);
         
-        // --- IMPROVED STUCK DETECTION & TELEPORT FAILSAFE ---
         _stuckTimer += Time.fixedDeltaTime;
         if (_stuckTimer >= stuckTimeLimit)
         {
             if (Vector2.Distance(currentPosition, _stuckCheckPos) < stuckDistanceThreshold)
             {
                 _totalStuckTime += _stuckTimer;
-                hasMoveTarget = false; // Give up and pick a new path
+                hasMoveTarget = false; 
 
                 if (_totalStuckTime >= teleportFailsafeLimit)
                 {
-                    Debug.Log("<color=orange>PROXY AI: Stuck for too long. Teleporting to open area!</color>");
                     TeleportToOpenArea();
                     _totalStuckTime = 0f;
                 }
             }
-            else _totalStuckTime = 0f; // Successfully moving!
+            else _totalStuckTime = 0f; 
             
             _stuckCheckPos = currentPosition;
             _stuckTimer = 0f;
         }
 
-        // Forgiving arrival radius (0.5f) since avoidance might make us arrive slightly off-center
         if (Vector2.Distance(currentPosition, moveTarget) <= 0.5f)
         {
             hasMoveTarget = false;
@@ -714,16 +714,13 @@ public class ProxyAI : MonoBehaviour
 
     private void PickNewWanderTarget()
     {
-        // We don't use waypoints anymore. The Proxy dynamically picks points around the last known location.
         Vector2 randomDirection = Random.insideUnitCircle * searchRadius;
         wanderTarget = lastKnownPosition + randomDirection;
 
-        wanderWaitTimer = Random.Range(0.2f, 1f); // Very little hesitation between sweeps
+        wanderWaitTimer = Random.Range(0.2f, 1f);
         stateTimer = 0f;
         SetMoveTarget(wanderTarget, baseSpeed);
     }
-
-    // --- ANIMATION CONTROLLER ---
 
     private void UpdateAnimatorDirection(Vector2 target)
     {
@@ -738,25 +735,25 @@ public class ProxyAI : MonoBehaviour
             {
                 if (Mathf.Abs(direction.x) > Mathf.Abs(direction.y))
                 {
-                    animator.SetFloat("Direction", 1f); // Side
+                    animator.SetFloat("Direction", 1f); 
                     spriteRenderer.flipX = direction.x < 0;
                 }
                 else
                 {
                     if (direction.y > 0)
                     {
-                        animator.SetFloat("Direction", 1f); // Up uses Side animation
+                        animator.SetFloat("Direction", 1f); 
                         if (direction.x < -0.01f) spriteRenderer.flipX = true;
                         else if (direction.x > 0.01f) spriteRenderer.flipX = false;
                     }
                     else
                     {
-                        animator.SetFloat("Direction", 0f); // Down
+                        animator.SetFloat("Direction", 0f); 
                         spriteRenderer.flipX = false;
                     }
                 }
                 
-                spriteRenderer.flipY = false; // Never turn upside down anymore!
+                spriteRenderer.flipY = false; 
             }
         }
     }
@@ -770,29 +767,32 @@ public class ProxyAI : MonoBehaviour
         if (currentState == AIState.Stunned || (!hasMoveTarget && currentState != AIState.Attacking))
         {
             animator.SetFloat("Speed", 0f);
-            animator.speed = 1f; // CRITICAL: Unpause the component so Idle animations can play!
+            animator.speed = 1f; 
         }
         else if (currentState == AIState.Attacking)
         {
-            animator.speed = activeMultiplier; // Faster attack animations!
+            animator.speed = activeMultiplier; 
         }
         else
         {
             animator.SetFloat("Speed", currentSpeed);
-            // Dynamically scale animation speed based on movement speed.
             animator.speed = Mathf.Max(1f, currentSpeed / baseSpeed) * activeMultiplier;
         }
     }
 
-    // Triggered by the Meltdown Manager in the escape scene
+    /// <summary>
+    /// Initiates a permanent, empowered hunting state. Used for climax/meltdown sequences.
+    /// </summary>
     public void TriggerEnragedHunt()
     {
         isEnraged = true;
-        isSignalEmpowered = true; // Grants the 20% speed buff permanently
+        isSignalEmpowered = true; 
         ChangeState(AIState.Hunting);
     }
 
-    // Triggered by cinematic directors to force an attack animation toward a specific point
+    /// <summary>
+    /// Forces the AI to trigger a melee animation without modifying logic state, typically for cinematics.
+    /// </summary>
     public void TriggerCinematicAttack(Vector3 targetPosition)
     {
         if (animator == null) return;
@@ -801,14 +801,14 @@ public class ProxyAI : MonoBehaviour
         
         if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
         {
-            animator.SetFloat("Direction", 1f); // Side
+            animator.SetFloat("Direction", 1f); 
             if (spriteRenderer != null) spriteRenderer.flipX = dir.x < 0;
         }
         else
         {
             if (dir.y > 0)
             {
-                animator.SetFloat("Direction", 1f); // Up uses Side animation
+                animator.SetFloat("Direction", 1f); 
                 if (spriteRenderer != null)
                 {
                     if (dir.x < -0.01f) spriteRenderer.flipX = true;
@@ -817,30 +817,32 @@ public class ProxyAI : MonoBehaviour
             }
             else
             {
-                animator.SetFloat("Direction", 0f); // Down
+                animator.SetFloat("Direction", 0f); 
                 if (spriteRenderer != null) spriteRenderer.flipX = false;
             }
         }
         
-        animator.speed = 1f; // Force normal playback speed just in case
+        animator.speed = 1f; 
         animator.SetTrigger("Attack");
     }
 
-    // Forces the Proxy to look in a specific direction (useful for idling in cinematics)
+    /// <summary>
+    /// Overrides the visual orientation of the AI, useful for cinematic staging.
+    /// </summary>
     public void ForceLookDirection(Vector2 dir)
     {
         if (animator == null) return;
         
         if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
         {
-            animator.SetFloat("Direction", 1f); // Side
+            animator.SetFloat("Direction", 1f); 
             if (spriteRenderer != null) spriteRenderer.flipX = dir.x < 0;
         }
         else
         {
             if (dir.y > 0)
             {
-                animator.SetFloat("Direction", 1f); // Up uses Side animation
+                animator.SetFloat("Direction", 1f); 
                 if (spriteRenderer != null)
                 {
                     if (dir.x < -0.01f) spriteRenderer.flipX = true;
@@ -849,21 +851,20 @@ public class ProxyAI : MonoBehaviour
             }
             else
             {
-                animator.SetFloat("Direction", 0f); // Down
+                animator.SetFloat("Direction", 0f); 
                 if (spriteRenderer != null) spriteRenderer.flipX = false;
             }
         }
     }
 
-    // ==========================================
-    // DYNAMIC AVOIDANCE LOGIC (WHISKERS)
-    // ==========================================
-
+    /// <summary>
+    /// Calculates an alternate movement vector to bypass spatial obstacles.
+    /// </summary>
     private Vector2 GetAvoidanceDirection(Vector2 currentPos, Vector2 targetDir)
     {
         if (IsPathClear(currentPos, proxyWidth, targetDir, whiskerLength)) 
         {
-            _avoidanceBias = 1f; // Reset bias when path is completely clear
+            _avoidanceBias = 1f; 
             return targetDir;
         }
 
@@ -871,20 +872,17 @@ public class ProxyAI : MonoBehaviour
         {
             float currentAngle = whiskerAngle * i;
 
-            // Try the biased side first to prevent rapid left/right oscillation
             Vector2 biasedDir = RotateVector(targetDir, currentAngle * _avoidanceBias);
             if (IsPathClear(currentPos, proxyWidth, biasedDir, whiskerLength)) return biasedDir;
 
-            // Try the opposite side if the biased side is blocked
             Vector2 oppositeDir = RotateVector(targetDir, currentAngle * -_avoidanceBias);
             if (IsPathClear(currentPos, proxyWidth, oppositeDir, whiskerLength)) 
             {
-                _avoidanceBias = -_avoidanceBias; // Swap bias!
+                _avoidanceBias = -_avoidanceBias; 
                 return oppositeDir;
             }
         }
 
-        // Failsafe: Slide along the wall smoothly
         RaycastHit2D hit = DoRaycast(currentPos, proxyWidth, targetDir, whiskerLength);
         if (hit.collider != null)
         {
@@ -901,18 +899,21 @@ public class ProxyAI : MonoBehaviour
         return DoRaycast(origin, radius, direction, distance).collider == null;
     }
 
+    /// <summary>
+    /// Wrapper for a non-allocating circle cast that respects internal layer masks and ignores triggers.
+    /// </summary>
     private RaycastHit2D DoRaycast(Vector2 origin, float radius, Vector2 direction, float distance)
     {
-        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, radius, direction, distance, obstacleMask);
-        foreach (var hit in hits)
+        int hitCount = Physics2D.CircleCast(origin, radius, direction, _avoidanceFilter, _raycastHits, distance);
+        for (int i = 0; i < hitCount; i++)
         {
-            // Ignore ourselves, triggers (combat hitboxes), and the player!
-            if (hit.collider.gameObject != this.gameObject && !hit.collider.isTrigger && !hit.collider.CompareTag("Player"))
+            RaycastHit2D currentHit = _raycastHits[i];
+            if (currentHit.collider.gameObject != this.gameObject && !currentHit.collider.CompareTag("Player"))
             {
-                return hit; // We found a solid wall!
+                return currentHit;
             }
         }
-        return new RaycastHit2D(); // Returns empty
+        return default;
     }
 
     private Vector2 RotateVector(Vector2 v, float angleDegrees)
@@ -928,11 +929,9 @@ public class ProxyAI : MonoBehaviour
         if (targetPlayer == null) return;
 
         Vector2 playerPos = targetPlayer.position;
-        Vector2 bestSpot = transform.position; // Default to current position
+        Vector2 bestSpot = transform.position; 
         bool spotFound = false;
 
-        // We want to teleport out of sight if possible, but MUST have line of sight TO THE PLAYER 
-        // This guarantees the spot is inside the map and not behind an outer wall or in the void!
         for (float dist = 10f; dist >= 1.5f; dist -= 1.5f)
         {
             for (int i = 0; i < 8; i++)
@@ -941,15 +940,13 @@ public class ProxyAI : MonoBehaviour
                 Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
                 Vector2 testPos = playerPos + (dir * dist);
 
-                // 1. Is there a clear line of sight from the Player to this spot?
                 RaycastHit2D losHit = Physics2D.Raycast(playerPos, dir, dist, obstacleMask);
                 
                 if (losHit.collider == null) 
                 {
-                    // 2. Is the spot physically large enough to fit the Proxy?
-                    Collider2D spaceHit = Physics2D.OverlapCircle(testPos, proxyWidth + 0.1f, obstacleMask);
+                    int overlaps = Physics2D.OverlapCircle(testPos, proxyWidth + 0.1f, _avoidanceFilter, _overlapHits);
                     
-                    if (spaceHit == null)
+                    if (overlaps == 0)
                     {
                         bestSpot = testPos;
                         spotFound = true;
@@ -964,12 +961,11 @@ public class ProxyAI : MonoBehaviour
         {
             if (rb != null) rb.position = bestSpot;
             transform.position = new Vector3(bestSpot.x, bestSpot.y, transform.position.z);
-            hasMoveTarget = false; // Reset movement memory
+            hasMoveTarget = false;
             UpdateAnimatorDirection(playerPos);
         }
     }
 
-    // Draws the whiskers in the Unity Editor when you select the Proxy!
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;

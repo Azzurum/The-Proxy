@@ -3,25 +3,35 @@ using TMPro;
 using UnityEngine.UI;
 using System.Collections;
 
+/// <summary>
+/// Manages MOTHER's active symbiote abilities that Kaelen can leverage (e.g., Sonar Ping) at the cost of Corruption.
+/// </summary>
 public class SymbioteAbilities : MonoBehaviour
 {
     [Header("World References")]
+    [Tooltip("Reference to Kaelen's transform.")]
     public Transform player;
+    [Tooltip("Reference to the Proxy's transform.")]
     public Transform proxy;
-    public SpriteRenderer proxyBlip; // The red square on the map layer
+    [Tooltip("The red icon representing the Proxy on the physical map layer.")]
+    public SpriteRenderer proxyBlip; 
 
     [Header("UI References")]
-    public RectTransform edgeArrow; // The red UI arrow
-    public TextMeshProUGUI telemetryText; // The text readout
+    [Tooltip("The red arrow indicator that locks to the edge of the radar UI.")]
+    public RectTransform edgeArrow; 
+    [Tooltip("Readout displaying distance and bearing text.")]
+    public TextMeshProUGUI telemetryText; 
     
     [Header("Settings")]
+    [Tooltip("How long the sonar sweep remains active.")]
     public float pingDuration = 5f;
-    public float radarRadius = 130f; // How far the arrow pushes out from the center of the UI
-    public float cameraSize = 15f; // The Orthographic size of your minimap camera
+    [Tooltip("Distance from the radar center point to push the directional arrow.")]
+    public float radarRadius = 130f; 
+    [Tooltip("Orthographic size of the minimap camera used to determine if the blip is visible.")]
+    public float cameraSize = 15f; 
 
     void Start()
     {
-        // Hide everything on startup
         if (proxyBlip != null) proxyBlip.enabled = false;
         if (edgeArrow != null) edgeArrow.gameObject.SetActive(false);
         if (telemetryText != null) telemetryText.text = "> Sonar offline.";
@@ -29,22 +39,21 @@ public class SymbioteAbilities : MonoBehaviour
 
     void Update()
     {
-        // Using 'Q' to trigger the ability
         if (Input.GetKeyDown(KeyCode.Q))
         {
             ExecuteSonar();
         }
     }
 
+    /// <summary>
+    /// Injects corruption into the player's system in exchange for a temporary radar sweep.
+    /// </summary>
     private void ExecuteSonar()
     {
-        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-        if (manager != null)
+        if (InventoryManager.Instance != null)
         {
-            // Pay the price
-            manager.AddCorruptionRow();
+            InventoryManager.Instance.AddCorruptionRow();
             
-            // Stop any existing pings and start a fresh one
             StopAllCoroutines();
             StartCoroutine(SonarRoutine());
         }
@@ -53,74 +62,67 @@ public class SymbioteAbilities : MonoBehaviour
     private IEnumerator SonarRoutine()
     {
         float timer = 0f;
+        float _lastRecordedDistance = -1f;
 
-        // Ensure the arrow object is active
         if (edgeArrow != null) edgeArrow.gameObject.SetActive(true);
 
-        // This loop runs every single frame for exactly 5 seconds
         while (timer < pingDuration)
         {
             timer += Time.deltaTime;
 
             if (player != null && proxy != null)
             {
-                // 1. Calculate the real distance
                 float distance = Vector2.Distance(player.position, proxy.position);
 
-                // 2. Calculate the direction vector
                 Vector2 direction = (proxy.position - player.position).normalized;
                 
-                // 3. Convert direction to an angle in degrees
                 float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-                // 4. Check if the Proxy is close enough to be seen on the camera
                 if (distance <= cameraSize)
                 {
-                    // ON SCREEN: Show the blip, hide the arrow
                     proxyBlip.enabled = true;
                     edgeArrow.gameObject.SetActive(false);
                     
-                    if (telemetryText != null)
+                    // Only rebuild UI strings if the value changes significantly to prevent excessive GC allocation.
+                    if (telemetryText != null && Mathf.Abs(distance - _lastRecordedDistance) > 0.1f)
                     {
                         telemetryText.text = $"<color=red>WARNING: VISUAL CONTACT</color>\nDISTANCE: {distance:F1}m";
+                        _lastRecordedDistance = distance;
                     }
                 }
                 else
                 {
-                    // OFF SCREEN: Hide the blip, show the arrow
                     proxyBlip.enabled = false;
                     edgeArrow.gameObject.SetActive(true);
 
-                    // Move the arrow to the edge of the minimap using trigonometry
                     float rad = angle * Mathf.Deg2Rad;
                     edgeArrow.anchoredPosition = new Vector2(Mathf.Cos(rad) * radarRadius, Mathf.Sin(rad) * radarRadius);
                     
-                    // Rotate the arrow to point outward (Subtract 90 if your arrow graphic naturally points UP)
                     edgeArrow.localRotation = Quaternion.Euler(0, 0, angle - 90f);
 
-                    // Update the terrifying text readout
-                    string bearing = GetBearingString(angle);
-                    if (telemetryText != null)
+                    if (telemetryText != null && Mathf.Abs(distance - _lastRecordedDistance) > 0.1f)
                     {
+                        string bearing = GetBearingString(angle);
                         telemetryText.text = $"<color=red>WARNING: ANOMALY DETECTED</color>\nDISTANCE: {distance:F1}m\nBEARING: {bearing}";
+                        _lastRecordedDistance = distance;
                     }
                 }
             }
 
-            // CRITICAL: This line prevents your PC from crashing. It forces the loop to wait for the next frame.
             yield return null; 
         }
 
-        // 5 seconds are up! Turn everything back off.
         if (proxyBlip != null) proxyBlip.enabled = false;
         if (edgeArrow != null) edgeArrow.gameObject.SetActive(false);
         if (telemetryText != null) telemetryText.text = "> Sonar offline.";
     }
 
-    // Helper function to turn math angles into compass directions
+    /// <summary>
+    /// Converts a mathematical angle into a readable compass heading format for UI readouts.
+    /// </summary>
     private string GetBearingString(float angle)
     {
-        if (angle < 0) angle += 360; // Normalize to 0-360
+        if (angle < 0) angle += 360; 
 
         if (angle >= 337.5f || angle < 22.5f) return "EAST";
         if (angle >= 22.5f && angle < 67.5f) return "NORTH-EAST";

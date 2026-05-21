@@ -4,21 +4,29 @@ using UnityEngine.SceneManagement;
 using System.Collections;
 using TMPro;
 
+/// <summary>
+/// Coordinates the 'Kernel Panic' bad ending cinematic, animating Kaelen's assimilation and transitioning to the end scene.
+/// </summary>
 public class Ending1Cinematic : MonoBehaviour
 {
     [Header("References")]
+    [Tooltip("The player's Transform, required for forced movement.")]
     public Transform kaelenTransform;
+    [Tooltip("The Animator component on the player character.")]
     public Animator kaelenAnimator;
+    [Tooltip("A full-screen UI Image used to fade the screen to and from black.")]
     public Image fadeOverlay;
+    [Tooltip("The UI Text element for displaying MOTHER's final dialogue.")]
     public TextMeshProUGUI motherSubtitle;
 
     [Header("Settings")]
+    [Tooltip("Speed multiplier for the player's forced, puppet-like walk.")]
     public float walkSpeed = 1.5f;
-    public string nextSceneName = "credits_scene"; // Change to your credits or main menu scene
+    [Tooltip("The name of the scene to load upon completion (usually credits).")]
+    public string nextSceneName = "credits_scene"; 
 
     private void Start()
     {
-        // Lock Kaelen's player controller if it exists so the player can't move him
         if (kaelenTransform != null)
         {
             PlayerController pc = kaelenTransform.GetComponent<PlayerController>();
@@ -30,24 +38,20 @@ public class Ending1Cinematic : MonoBehaviour
 
     private IEnumerator PlayEnding()
     {
-        // Failsafe: Ensure Time is running normally just in case we loaded from a paused state
         Time.timeScale = 1f;
 
-        // Setup Audio
         AudioSource audio = gameObject.AddComponent<AudioSource>();
         AudioSource heartbeat = gameObject.AddComponent<AudioSource>();
         heartbeat.clip = ProceduralAudioGen.GenerateHeartbeat(1.2f);
         heartbeat.loop = true;
         heartbeat.Play();
 
-        // Add a low, oppressive drone
         AudioSource drone = gameObject.AddComponent<AudioSource>();
         drone.clip = ProceduralAudioGen.GenerateHiss(2f); 
-        drone.pitch = 0.2f; // Pitch it down into a dark rumble
+        drone.pitch = 0.2f; 
         drone.loop = true;
         drone.Play();
 
-        // Failsafe: Warn the developer if the UI is missing, and force it on if it's hidden
         if (fadeOverlay == null)
         {
             Debug.LogError("<color=red>[ERROR]</color> The Fade Overlay is missing! Drag the FadeOverlay Image into the CinematicDirector script in the Inspector.");
@@ -57,7 +61,6 @@ public class Ending1Cinematic : MonoBehaviour
             fadeOverlay.gameObject.SetActive(true);
         }
 
-        // Failsafe: Force the Canvas to render over absolutely everything (since Kaelen is 15)
         Canvas parentCanvas = fadeOverlay.canvas;
         if (parentCanvas != null)
         {
@@ -65,18 +68,15 @@ public class Ending1Cinematic : MonoBehaviour
             parentCanvas.sortingOrder = 100;
         }
 
-        // 1. Start completely black
         if (fadeOverlay != null) fadeOverlay.color = Color.black;
         if (motherSubtitle != null) motherSubtitle.text = "";
 
-        // Wait a beat before fading in
         yield return new WaitForSeconds(3f);
 
-        // 2. Fade in a bit faster
         float timer = 0;
         if (fadeOverlay != null)
         {
-            while (timer < 2f) // Changed from 4 seconds to 2 seconds
+            while (timer < 2f) 
             {
                 timer += Time.deltaTime;
                 fadeOverlay.color = new Color(0, 0, 0, 1f - (timer / 2f));
@@ -84,9 +84,8 @@ public class Ending1Cinematic : MonoBehaviour
             }
         }
 
-        yield return new WaitForSeconds(0.2f); // Shortened the awkward pause
+        yield return new WaitForSeconds(0.2f); 
 
-        // 3. The Seizure (Violent loss of bodily autonomy)
         audio.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(150f, 0.8f));
         StartCoroutine(ShakeCamera(0.8f, 0.4f));
         
@@ -94,22 +93,19 @@ public class Ending1Cinematic : MonoBehaviour
         {
             if (kaelenAnimator != null)
             {
-                // Snap violently in random directions
                 kaelenAnimator.SetFloat("Horizontal", Random.value > 0.5f ? 1f : -1f);
                 kaelenAnimator.SetFloat("Vertical", Random.value > 0.5f ? 1f : -1f);
             }
             yield return new WaitForSeconds(0.08f);
         }
 
-        // 4. The Puppet Walk
         if (kaelenAnimator != null)
         {
             kaelenAnimator.SetFloat("Horizontal", 0f);
-            kaelenAnimator.SetFloat("Speed", 0.4f); // Half speed for a stiff, zombie-like shuffle
-            kaelenAnimator.SetFloat("Vertical", 1f); // Force him to walk Upwards
+            kaelenAnimator.SetFloat("Speed", 0.4f); 
+            kaelenAnimator.SetFloat("Vertical", 1f); 
         }
 
-        // Move Kaelen up slowly to look like a stiff, controlled walk
         timer = 0;
         float nextTwitchTime = Random.Range(0.5f, 1.2f);
 
@@ -117,7 +113,6 @@ public class Ending1Cinematic : MonoBehaviour
         {
             timer += Time.deltaTime;
 
-            // Occasional random twitch while walking
             if (timer >= nextTwitchTime)
             {
                 audio.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(150f, 0.1f));
@@ -130,10 +125,10 @@ public class Ending1Cinematic : MonoBehaviour
                 }
                 
                 yield return new WaitForSeconds(0.1f);
-                timer += 0.1f; // Account for the paused time
+                timer += 0.1f; 
                 
                 if (kaelenAnimator != null) kaelenAnimator.SetFloat("Horizontal", 0f);
-                if (kaelenAnimator != null) kaelenAnimator.SetFloat("Vertical", 1f); // Restore upward walk
+                if (kaelenAnimator != null) kaelenAnimator.SetFloat("Vertical", 1f); 
                 
                 nextTwitchTime = timer + Random.Range(0.6f, 1.5f);
             }
@@ -144,18 +139,17 @@ public class Ending1Cinematic : MonoBehaviour
             yield return null;
         }
 
-        // Stop walking
         if (kaelenAnimator != null) kaelenAnimator.SetFloat("Speed", 0f);
         yield return new WaitForSeconds(1f);
 
-        // 5. MOTHER speaks (Typewriter Effect)
         string finalText = "> THE VESSEL IS SECURED.";
         if (motherSubtitle != null)
         {
-            motherSubtitle.color = new Color(1f, 0f, 0.23f, 1f); // Mother Red
+            motherSubtitle.color = new Color(1f, 0f, 0.23f, 1f); 
+            motherSubtitle.text = "";
             for (int i = 0; i < finalText.Length; i++)
             {
-                motherSubtitle.text += finalText[i];
+                motherSubtitle.text = finalText.Substring(0, i + 1);
                 audio.PlayOneShot(ProceduralAudioGen.GenerateClick(800f, 0.02f));
                 yield return new WaitForSeconds(0.08f);
             }
@@ -163,28 +157,24 @@ public class Ending1Cinematic : MonoBehaviour
         
         yield return new WaitForSeconds(1.5f);
 
-        // 6. The Final Snap & The Drop
         if (kaelenAnimator != null) 
         {
             kaelenAnimator.SetFloat("Horizontal", 0f);
-            kaelenAnimator.SetFloat("Vertical", -1f); // Instantly snap to face DOWN at the camera
+            kaelenAnimator.SetFloat("Vertical", -1f); 
         }
         
-        // THE DROP: Cut all audio to create a terrifying vacuum of silence
         audio.Stop();
         heartbeat.Stop();
         drone.Stop();
         
         yield return new WaitForSeconds(0.3f);
 
-        // 7. The Lunge (Jumpscare)
         audio.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2.0f));
         audio.PlayOneShot(ProceduralAudioGen.GenerateAlarm(1.0f));
-        StartCoroutine(ShakeCamera(1.5f, 1.2f)); // Much more violent camera shake
+        StartCoroutine(ShakeCamera(1.5f, 1.2f)); 
 
-        if (fadeOverlay != null) fadeOverlay.color = new Color(1f, 0f, 0f, 0.7f); // Violent Red Flash
+        if (fadeOverlay != null) fadeOverlay.color = new Color(1f, 0f, 0f, 0.7f); 
 
-        // Invade the player's personal space by scaling the sprite massively toward the screen
         float lungeTimer = 0;
         Vector3 startScale = kaelenTransform != null ? kaelenTransform.localScale : Vector3.one;
         Vector3 targetScale = startScale * 6f; 
@@ -196,7 +186,6 @@ public class Ending1Cinematic : MonoBehaviour
             yield return null;
         }
 
-        // Hard Cut to Black
         if (fadeOverlay != null) fadeOverlay.color = Color.black;
         if (motherSubtitle != null) motherSubtitle.text = "";
         heartbeat.Stop();

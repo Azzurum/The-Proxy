@@ -2,29 +2,35 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// Manages the Emergency Clean protocol UI, handling its cooldown and execution.
+/// </summary>
 public class UIPurgeSystem : MonoBehaviour
 {
     [Header("Cooldown Settings")]
+    [Tooltip("The duration in seconds before the purge system can be used again.")]
     public float cooldownTime = 4.5f;
+    
     private bool isCoolingDown = false;
     private float currentCooldown = 0f;
 
     [Header("UI Feedback Links")]
-    public Button purgeButton; // The clickable Button component
-    public Image cooldownOverlay; // The dark sweep effect
-    public TextMeshProUGUI buttonText; // The text inside the button
+    [Tooltip("The clickable button component that triggers the purge.")]
+    public Button purgeButton; 
+    [Tooltip("The UI image used to visually display the remaining cooldown sweep.")]
+    public Image cooldownOverlay; 
+    [Tooltip("The text label inside the purge button.")]
+    public TextMeshProUGUI buttonText; 
     
     private Color originalTextColor;
 
     void Awake()
     {
-        // AUTO-WIRING: Self-repair internal references
         if (purgeButton == null) purgeButton = GetComponent<Button>();
         if (buttonText == null) buttonText = GetComponentInChildren<TextMeshProUGUI>();
         if (cooldownOverlay == null && transform.Find("CooldownOverlay") != null) 
             cooldownOverlay = transform.Find("CooldownOverlay").GetComponent<Image>();
 
-        // Moved to Awake so it initializes before the Save System tries to load data!
         if (buttonText != null) originalTextColor = buttonText.color;
     }
 
@@ -37,16 +43,13 @@ public class UIPurgeSystem : MonoBehaviour
     {
         if (isCoolingDown)
         {
-            // Count down the timer
             currentCooldown -= Time.deltaTime;
             
-            // Update the visual sweep (math: current time / total time = percentage from 0.0 to 1.0)
             if (cooldownOverlay != null)
             {
                 cooldownOverlay.fillAmount = currentCooldown / cooldownTime;
             }
 
-            // Finish the cooldown
             if (currentCooldown <= 0f)
             {
                 EndCooldown();
@@ -54,22 +57,17 @@ public class UIPurgeSystem : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Initiates the emergency clean protocol in the InventoryManager and starts the local cooldown.
+    /// </summary>
     public void PurgeCorruptedData()
     {
-        if (isCoolingDown) return; // Prevent clicking if it's already cooling down
+        if (isCoolingDown) return; 
 
-        Debug.Log("--- PURGE SEQUENCE INITIATED ---");
         
-        InventoryManager manager = FindAnyObjectByType<InventoryManager>();
-        
-        if (manager != null)
+        if (InventoryManager.Instance != null)
         {
-            manager.ExecuteCleanProtocol();
-            Debug.Log("<color=green>M.E.T. Rig: ExecuteCleanProtocol() fired.</color>");
-        }
-        else
-        {
-            Debug.LogError("PROXY AI: Cannot find InventoryManager to purge data!");
+            InventoryManager.Instance.ExecuteCleanProtocol();
         }
 
         StartCooldown();
@@ -80,10 +78,9 @@ public class UIPurgeSystem : MonoBehaviour
         isCoolingDown = true;
         currentCooldown = cooldownTime;
         
-        // Turn off the button and dim the text
         if (purgeButton != null) purgeButton.interactable = false;
-        if (buttonText != null) buttonText.color = new Color(0.4f, 0.4f, 0.4f); // Dark gray
-        if (cooldownOverlay != null) cooldownOverlay.fillAmount = 1f; // Fill the overlay completely
+        if (buttonText != null) buttonText.color = new Color(0.4f, 0.4f, 0.4f); 
+        if (cooldownOverlay != null) cooldownOverlay.fillAmount = 1f; 
     }
 
     private void EndCooldown()
@@ -91,20 +88,18 @@ public class UIPurgeSystem : MonoBehaviour
         isCoolingDown = false;
         currentCooldown = 0f;
         
-        // Turn the button back on and restore the original red text
         if (purgeButton != null) purgeButton.interactable = true;
         if (buttonText != null) buttonText.color = originalTextColor;
-        if (cooldownOverlay != null) cooldownOverlay.fillAmount = 0f; // Hide the overlay
+        if (cooldownOverlay != null) cooldownOverlay.fillAmount = 0f; 
     }
 
-    // ==========================================
-    // SAVE SYSTEM INTEGRATION
-    // ==========================================
+    /// <summary>Returns the current cooldown value for saving.</summary>
     public float GetCurrentCooldown()
     {
         return currentCooldown; 
     }
 
+    /// <summary>Restores the UI cooldown state from a loaded save file.</summary>
     public void LoadCooldownState(float savedCooldown)
     {
         currentCooldown = savedCooldown;
@@ -113,11 +108,9 @@ public class UIPurgeSystem : MonoBehaviour
         {
             isCoolingDown = true;
             
-            // Force the button and text into the disabled state immediately
             if (purgeButton != null) purgeButton.interactable = false;
             if (buttonText != null) buttonText.color = new Color(0.4f, 0.4f, 0.4f);
             
-            // Force the visual overlay to the correct fill amount
             if (cooldownOverlay != null)
             {
                 cooldownOverlay.fillAmount = currentCooldown / cooldownTime;
@@ -125,7 +118,6 @@ public class UIPurgeSystem : MonoBehaviour
         }
         else
         {
-            // If the loaded save had 0 cooldown, ensure the button is ready to use
             EndCooldown();
         }
     }

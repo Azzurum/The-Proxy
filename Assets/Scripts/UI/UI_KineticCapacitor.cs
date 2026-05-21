@@ -2,92 +2,87 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// Coordinates the visualization of the player's physical sprint/exertion status.
+/// </summary>
 public class UI_KineticCapacitor : MonoBehaviour
 {
     [Header("UI References")]
-    public TextMeshProUGUI titleText;         // SYS.O2 // KINETIC
-    public TextMeshProUGUI readoutText;       // 100%
-    public Transform segmentContainer;        // Holds the 20 blocks
-    public Image leftBorderAccent;            // The thick left accent line
-    public Outline[] slotHighlights;          // The glowing borders on the hotbar
+    public TextMeshProUGUI titleText;         
+    public TextMeshProUGUI readoutText;       
+    [Tooltip("The parent container holding the individual segment blocks to be toggled.")]
+    public Transform segmentContainer;        
+    public Image leftBorderAccent;            
+    public Outline[] slotHighlights;          
 
     [Header("Settings")]
-    public bool reverseDrainDirection = false; // Check to flip visual drain direction
+    [Tooltip("Invert the visualization so that blocks disappear from the right instead of the left.")]
+    public bool reverseDrainDirection = false; 
 
     [Header("Colors")]
-    public Color normalColor = new Color(1f, 0.66f, 0f);   // Amber
-    public Color criticalColor = new Color(1f, 0f, 0.2f);  // Red
-    public Color emptyColor = new Color(0.1f, 0.1f, 0.1f); // Dark Grey
+    public Color normalColor = new Color(1f, 0.66f, 0f);   
+    public Color criticalColor = new Color(1f, 0f, 0.2f);  
+    public Color emptyColor = new Color(0.1f, 0.1f, 0.1f); 
 
-    private Image[] segments;
-    private PlayerController playerController;
+    private Image[] _segments;
+    private PlayerController _playerController;
 
-    void Start()
+    private void Start()
     {
-        // Safely gather ONLY the child segments
         if (segmentContainer != null)
         {
             int childCount = segmentContainer.childCount;
-            segments = new Image[childCount];
+            _segments = new Image[childCount];
             for (int i = 0; i < childCount; i++)
             {
-                segments[i] = segmentContainer.GetChild(i).GetComponent<Image>();
+                _segments[i] = segmentContainer.GetChild(i).GetComponent<Image>();
             }
         }
         
-        playerController = FindAnyObjectByType<PlayerController>();
+        _playerController = FindAnyObjectByType<PlayerController>();
     }
 
-    void Update()
+    private void Update()
     {
-        if (playerController == null || segments == null || segments.Length == 0) return;
+        if (_playerController == null || _segments == null || _segments.Length == 0) return;
 
-        // THE FIX: Get the raw sprint value (0.0 to 1.0)
-        float rawExertion = playerController.SprintMeter / playerController.SprintMeterThreshold;
+        float rawExertion = _playerController.SprintMeterThreshold > 0f ? _playerController.SprintMeter / _playerController.SprintMeterThreshold : 0f;
         
-        // Invert it! Now 0 exertion = 100% energy.
         float percent = 1f - Mathf.Clamp01(rawExertion);
 
-        // 1. Determine the unified System Color
         Color currentColor = percent > 0.25f ? normalColor : criticalColor;
 
-        // 2. Apply color to Texts and Border
         if (readoutText != null) 
         {
             readoutText.color = currentColor;
-            readoutText.text = Mathf.RoundToInt(percent * 100).ToString() + "<size=50%>%</size>";
+            readoutText.SetText("{0}<size=50%>%</size>", Mathf.RoundToInt(percent * 100));
         }
         if (titleText != null) titleText.color = currentColor;
         if (leftBorderAccent != null) leftBorderAccent.color = currentColor;
 
-        // 3. Apply color to all Hotbar Slot Outlines
         foreach (Outline outline in slotHighlights)
         {
             if (outline != null) outline.effectColor = currentColor;
         }
 
-        // 4. Figure out exactly how many blocks should be lit up
-        int activeBlocks = Mathf.CeilToInt(percent * segments.Length);
+        int activeBlocks = Mathf.CeilToInt(percent * _segments.Length);
 
-        // 5. Loop through and paint the blocks based on direction
-        for (int i = 0; i < segments.Length; i++)
+        for (int i = 0; i < _segments.Length; i++)
         {
-            if (segments[i] == null) continue;
+            if (_segments[i] == null) continue;
 
             bool isLit = false;
 
             if (reverseDrainDirection)
             {
-                // Drains from Left to Right (Solid blocks shift to the right)
-                isLit = i >= (segments.Length - activeBlocks);
+                isLit = i >= (_segments.Length - activeBlocks);
             }
             else
             {
-                // Default: Drains from Right to Left (Solid blocks stay glued to the left)
                 isLit = i < activeBlocks;
             }
 
-            segments[i].color = isLit ? currentColor : emptyColor;
+            _segments[i].color = isLit ? currentColor : emptyColor;
         }
     }
 }

@@ -1,15 +1,22 @@
 using UnityEngine;
-using TMPro; // Required for TextMeshPro!
+using TMPro;
 
+/// <summary>
+/// Handles the bobbing animation, fading, and dynamic positioning of contextual UI text prompts in the world.
+/// </summary>
 public class FloatingPrompt : MonoBehaviour
 {
     [Header("Visuals")]
+    [Tooltip("The TextMeshPro component used to display the prompt.")]
     public TextMeshPro textMesh;
     
     [Header("Animation Settings")]
-    public float floatSpeed = 3f;     // How fast it bobs
-    public float floatHeight = 0.1f;  // How high it bobs
-    public float fadeSpeed = 8f;      // How fast it fades in/out
+    [Tooltip("How fast the prompt bobs up and down.")]
+    public float floatSpeed = 3f;     
+    [Tooltip("The vertical distance the prompt travels during its bob animation.")]
+    public float floatHeight = 0.1f;  
+    [Tooltip("How quickly the text fades in and out when shown or hidden.")]
+    public float fadeSpeed = 8f;      
 
     private Vector3 _startPos;
     private float _targetAlpha = 0f;
@@ -21,30 +28,24 @@ public class FloatingPrompt : MonoBehaviour
 
     void Start()
     {
-        // 1. Remember exactly where we placed it in the scene
         _startPos = transform.localPosition;
 
-        // 2. Automatically grab the Text component (supports both 3D text and Canvas UI text)
         if (textMesh != null) _textComponent = textMesh;
         else _textComponent = GetComponent<TMP_Text>();
 
-        // 3. Force it to be completely invisible when the game starts
         if (_textComponent != null)
         {
             Color c = _textComponent.color;
             c.a = 0f;
             _textComponent.color = c;
 
-            // FIX: Force the floating text to render OVER the tilemaps!
             MeshRenderer mr = _textComponent.GetComponent<MeshRenderer>();
             if (mr != null)
             {
-                // FIX: Force it to the absolute max front so it never gets lost behind a tilemap!
                 mr.sortingOrder = 32000;           
             }
             else
             {
-                // If it's Canvas UI instead of 3D text, we force the Canvas to the front!
                 Canvas parentCanvas = _textComponent.canvas;
                 if (parentCanvas != null) { parentCanvas.overrideSorting = true; parentCanvas.sortingOrder = 50; }
             }
@@ -57,21 +58,17 @@ public class FloatingPrompt : MonoBehaviour
 
     void Update()
     {
-        // 1. The Bobbing Math 
         Vector3 bobbingOffset = new Vector3(0, Mathf.Sin(Time.time * floatSpeed) * floatHeight, 0);
         
         if (_dynamicTarget != null)
         {
-            // Snap to a target (like items on the floor)
             transform.position = _dynamicTarget.position + _dynamicOffset + bobbingOffset;
         }
         else if (!_isDynamic)
         {
-            // Original logic: bob relative to starting position (for Terminals)
             transform.localPosition = _startPos + bobbingOffset;
         }
 
-        // 2. The Fading Math (Smoothly blends the alpha transparency)
         if (_textComponent != null)
         {
             Color c = _textComponent.color;
@@ -80,17 +77,23 @@ public class FloatingPrompt : MonoBehaviour
         }
     }
 
-    // These two commands act as the light switches for the prompt!
+    /// <summary>
+    /// Fades the prompt in and ensures its GameObject is active.
+    /// </summary>
     public void ShowPrompt() 
     { 
         _targetAlpha = 1f; 
-        // Force it to wake up if the object was accidentally unchecked in the inspector!
         if (!gameObject.activeSelf) gameObject.SetActive(true);
     }
 
+    /// <summary>
+    /// Smoothly fades the prompt out to full transparency.
+    /// </summary>
     public void HidePrompt() => _targetAlpha = 0f;
 
-    // Allows the player script to dynamically snap this prompt to items
+    /// <summary>
+    /// Binds the prompt to track a specific transform dynamically (e.g., following a physical item on the floor).
+    /// </summary>
     public void SetDynamicTarget(Transform target, Vector3 offset)
     {
         _isDynamic = true;
@@ -98,7 +101,9 @@ public class FloatingPrompt : MonoBehaviour
         _dynamicOffset = offset;
     }
 
-    // Changes the color of the text while preserving its current transparency fade
+    /// <summary>
+    /// Updates the color of the text while preserving its current alpha transparency.
+    /// </summary>
     public void SetPromptColor(Color newColor)
     {
         if (_textComponent != null)

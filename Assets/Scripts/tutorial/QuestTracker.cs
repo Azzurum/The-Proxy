@@ -1,73 +1,77 @@
 using UnityEngine;
 using TMPro;
 
+/// <summary>
+/// Manages the progression of tutorial objectives and coordinates early-game UI unlocks.
+/// </summary>
 public class QuestTracker : MonoBehaviour
 {
     [Header("UI Configuration")]
+    [Tooltip("The text element displaying the current objective prompt.")]
     public TextMeshProUGUI objectiveText;
 
     [Header("Tutorial UI Grouping")]
-    [Tooltip("Drag your Gameplay_HUD_Group object here!")]
+    [Tooltip("The parent GameObject containing the player's core HUD elements.")]
     public GameObject gameplayHudGroup;
 
-    private int currentObjectiveIndex = 0;
-    private Vector3 playerStartPos;
-    private bool hasMoved = false;
+    private int _currentObjectiveIndex = 0;
+    private Vector3 _playerStartPos;
+    private bool _hasMoved = false;
+    private Transform _cachedPlayer;
 
-    void Start()
+    private void Start()
     {
-        UpdateObjectiveUI("W, A, S, D - Move"); // Phase 1 default 
-
+        UpdateObjectiveUI("W, A, S, D - Move"); 
 
         if (gameplayHudGroup != null)
         {
             gameplayHudGroup.SetActive(false);
         }
 
-        GameObject player = GameObject.Find("Player_Kaelen");
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
-            playerStartPos = player.transform.position;
+            _cachedPlayer = player.transform;
+            _playerStartPos = _cachedPlayer.position;
         }
     }
 
-    void Update()
+    private void Update()
     {
-
-        if (currentObjectiveIndex == 0 && !hasMoved)
+        if (_currentObjectiveIndex == 0 && !_hasMoved && _cachedPlayer != null)
         {
-            GameObject player = GameObject.Find("Player_Kaelen");
-            if (player != null)
+            if (Vector3.Distance(_cachedPlayer.position, _playerStartPos) > 2f)
             {
-                if (Vector3.Distance(player.transform.position, playerStartPos) > 2f)
+                _hasMoved = true;
+
+                if (gameplayHudGroup != null)
                 {
-                    hasMoved = true;
-
-                    // --- THE MOMENT KAELEN SPAWNS & MOVES ---
-                    // Snap the health and corruption UI into view instantly!
-                    if (gameplayHudGroup != null)
-                    {
-                        gameplayHudGroup.SetActive(true);
-                    }
-
-                    AdvanceObjective(1, "Investigate the facility entrance"); // Phase 2 start 
+                    gameplayHudGroup.SetActive(true);
                 }
+
+                AdvanceObjective(1, "Investigate the facility entrance"); 
             }
         }
     }
 
+    /// <summary>
+    /// Progresses the quest sequence if the required step index is met.
+    /// </summary>
     public void AdvanceObjective(int expectedStep, string newObjectiveText)
     {
-        if (currentObjectiveIndex == expectedStep - 1)
+        if (_currentObjectiveIndex == expectedStep - 1)
         {
-            currentObjectiveIndex = expectedStep;
+            _currentObjectiveIndex = expectedStep;
             UpdateObjectiveUI(newObjectiveText);
         }
     }
 
+    /// <summary>
+    /// Retrieves the integer index of the current active objective.
+    /// </summary>
     public int GetCurrentObjective()
     {
-        return currentObjectiveIndex;
+        return _currentObjectiveIndex;
     }
 
     private void UpdateObjectiveUI(string text)

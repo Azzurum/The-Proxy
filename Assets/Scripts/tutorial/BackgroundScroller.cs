@@ -1,37 +1,45 @@
 using UnityEngine;
 
+/// <summary>
+/// Scrolls the texture offset of a material continuously to create a parallax or endless moving effect.
+/// </summary>
 public class BackgroundScroller : MonoBehaviour
 {
     [Header("Scroll Settings")]
+    [Tooltip("The speed and direction applied to the material's texture offset.")]
     [SerializeField] private Vector2 scrollSpeed = new Vector2(-0.5f, 0f);
 
-    private SpriteRenderer spriteRenderer;
-    private Material material;
-    private Vector2 currentOffset = Vector2.zero;
+    private Material _material;
+    private Vector2 _currentOffset = Vector2.zero;
 
-    void Start()
+    private void Start()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        if (spriteRenderer != null)
+        if (TryGetComponent<SpriteRenderer>(out var spriteRenderer))
         {
-            // This instantiates a unique runtime material instance
-            material = spriteRenderer.material;
+            // Instantiates a unique material clone to prevent modifying project assets.
+            _material = spriteRenderer.material;
         }
     }
 
-    void Update()
+    private void Update()
     {
-        if (material != null)
+        if (_material != null)
         {
-            // Calculate frame-rate independent texture drift
-            currentOffset += scrollSpeed * Time.deltaTime;
+            _currentOffset += scrollSpeed * Time.deltaTime;
 
-            // This forces the offset update across all standard 2D texture maps
-            material.mainTextureOffset = currentOffset;
+            _material.mainTextureOffset = _currentOffset;
 
-            // Safety backup for specific URP 2D Unlit graphic cards
-            if (material.HasProperty("_MainTex")) material.SetTextureOffset("_MainTex", currentOffset);
-            if (material.HasProperty("_BaseMap")) material.SetTextureOffset("_BaseMap", currentOffset);
+            if (_material.HasProperty("_MainTex")) _material.SetTextureOffset("_MainTex", _currentOffset);
+            if (_material.HasProperty("_BaseMap")) _material.SetTextureOffset("_BaseMap", _currentOffset);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (_material != null)
+        {
+            // Critical cleanup to prevent memory leaks from instantiated materials.
+            Destroy(_material);
         }
     }
 }

@@ -2,25 +2,36 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+/// <summary>
+/// Represents a single slot in the player's quick-use hotbar. Handles item drops and highlighting.
+/// </summary>
 public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("Slot Setup")]
+    [Tooltip("The numerical identifier for this slot (e.g., 1, 2, or 3).")]
     public int slotNumber;
+    [Tooltip("The UI Image used to indicate that this slot is currently active.")]
     public Image highlightFrame;
 
     [Header("Physical Item")]
+    [Tooltip("A reference to the DraggableItem currently occupying this slot.")]
     public DraggableItem containedItem;
 
     private Image backgroundImage;
     private Color normalColor;
     private Color hoverColor = new Color(0f, 1f, 0.8f, 0.3f);
+    private QuestTracker _questTracker;
 
-    void Awake()
+    private void Awake()
     {
         backgroundImage = GetComponent<Image>();
         if (backgroundImage != null) normalColor = backgroundImage.color;
+        _questTracker = FindAnyObjectByType<QuestTracker>();
     }
 
+    /// <summary>
+    /// Called by the EventSystem when the pointer enters the slot's bounds.
+    /// </summary>
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (DraggableItem.itemBeingDragged != null && containedItem == null)
@@ -32,6 +43,9 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
         if (backgroundImage != null) backgroundImage.color = normalColor;
     }
 
+    /// <summary>
+    /// Called by the EventSystem when a draggable item is released over this slot.
+    /// </summary>
     public void OnDrop(PointerEventData eventData)
     {
         if (backgroundImage != null) backgroundImage.color = normalColor;
@@ -44,18 +58,13 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
             draggedItem.parentAfterDrag = this.transform;
             containedItem = draggedItem;
 
-            // --- ADD THIS TUTORIAL UPDATE CODE NOW ---
             if (containedItem.itemData != null && containedItem.itemData.itemID == "TOOL-WELD")
             {
-                QuestTracker tracker = FindObjectOfType<QuestTracker>();
-                if (tracker != null && tracker.GetCurrentObjective() == 4)
+                if (_questTracker != null && _questTracker.GetCurrentObjective() == 4)
                 {
-                    // Advance objective to index 5: "Weld the Airlock Door"
-                    tracker.AdvanceObjective(5, "Weld the Airlock Door");
-                    Debug.Log("<color=green>TUTORIAL SUCCESS:</color> Welder placed in hotbar. Objective updated!");
+                    _questTracker.AdvanceObjective(5, "Weld the Airlock Door");
                 }
             }
-            // ----------------------------------------
 
             if (slotNumber == 1 && HotbarManager.Instance != null)
             {
@@ -64,6 +73,9 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
         }
     }
 
+    /// <summary>
+    /// Empties the slot of its contained item and updates the hotbar state.
+    /// </summary>
     public void ClearSlot()
     {
         containedItem = null;
@@ -75,12 +87,17 @@ public class HotbarSlot : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPo
         }
     }
 
-    // A quiet way to clear the item reference when a drag begins from this slot.
+    /// <summary>
+    /// Clears the item reference when a drag operation begins from this slot.
+    /// </summary>
     public void DetachItem()
     {
         containedItem = null;
     }
 
+    /// <summary>
+    /// Toggles the visibility of the highlight frame.
+    /// </summary>
     public void SetHighlight(bool isActive)
     {
         if (highlightFrame != null) highlightFrame.enabled = isActive;

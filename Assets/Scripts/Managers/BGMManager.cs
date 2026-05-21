@@ -1,27 +1,36 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// A persistent singleton that controls background music transitions across different game scenes.
+/// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class BGMManager : MonoBehaviour
 {
     public static BGMManager Instance;
 
     [Header("Audio Component")]
+    [Tooltip("The main audio source used to play background music.")]
     public AudioSource bgmSource;
 
     [Header("Level Soundtracks")]
+    [Tooltip("Track played during the intro and main menu.")]
     public AudioClip introBGM;
+    [Tooltip("Track played on Deck 1.")]
     public AudioClip level1BGM;
+    [Tooltip("Track played on Deck 2.")]
     public AudioClip level2BGM;
+    [Tooltip("Track played on Deck 3.")]
     public AudioClip level3BGM;
+    [Tooltip("Track played during the final escape sequence.")]
     public AudioClip chaseBGM;
 
     [Header("Settings")]
+    [Tooltip("Global volume multiplier for the background music.")]
     [Range(0f, 1f)] public float musicVolume = 0.5f;
 
-    void Awake()
+    private void Awake()
     {
-        // Singleton Pattern: Ensure only ONE of these ever exists, and keep it alive across all scenes!
         if (Instance == null)
         {
             Instance = this;
@@ -32,22 +41,28 @@ public class BGMManager : MonoBehaviour
             bgmSource.volume = musicVolume;
             bgmSource.playOnAwake = false;
 
-            // Listen for whenever a new scene finishes loading
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
         else
         {
-            // Destroy duplicates if we revisit a scene with another manager
             Destroy(gameObject);
         }
     }
 
-    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    private void OnDestroy()
+    {
+        // Unsubscribe from scene events to prevent memory leaks when returning to the editor or destroying the manager.
+        if (Instance == this)
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         AudioClip trackToPlay = null;
         string sName = scene.name.ToLower();
 
-        // Determine which track to play based on the scene name
         if (sName.Contains("intro") || sName.Contains("menu")) trackToPlay = introBGM;
         else if (sName == "level_1") trackToPlay = level1BGM;
         else if (sName == "level_2") trackToPlay = level2BGM;
@@ -55,12 +70,10 @@ public class BGMManager : MonoBehaviour
         else if (sName == "level_escape") trackToPlay = chaseBGM;
         else if (sName.Contains("ending") || sName.Contains("credit"))
         {
-            // Stop the BGM entirely during endings so your cinematic audio can shine!
             bgmSource.Stop();
             return; 
         }
 
-        // Only swap and play if the track is different from what's currently playing
         if (trackToPlay != null)
         {
             if (bgmSource.clip != trackToPlay)
@@ -71,12 +84,14 @@ public class BGMManager : MonoBehaviour
         }
         else
         {
-            // Failsafe: If no track is assigned, stop the old music so it doesn't bleed into this level!
             bgmSource.Stop();
             bgmSource.clip = null;
         }
     }
 
+    /// <summary>
+    /// Immediately halts the currently playing background music.
+    /// </summary>
     public void StopMusic()
     {
         if (bgmSource != null) bgmSource.Stop();

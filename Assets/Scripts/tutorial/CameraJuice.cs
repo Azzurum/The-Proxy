@@ -1,24 +1,29 @@
 using UnityEngine;
 
+/// <summary>
+/// Applies a continuous, smooth floating oscillation effect to the camera.
+/// </summary>
 public class CameraJuice : MonoBehaviour
 {
     [Header("Floating Camera Settings")]
-    [SerializeField] private float movementMagnitude = 0.05f; // How far it drifts
-    [SerializeField] private float movementSpeed = 0.8f;     // How fast it swings
+    [Tooltip("The maximum distance the camera drifts from its origin.")]
+    [SerializeField] private float movementMagnitude = 0.05f; 
+    [Tooltip("The speed multiplier of the oscillation sine wave.")]
+    [SerializeField] private float movementSpeed = 0.8f;     
 
-    private Vector3 startPosition;
+    private Vector3 _startPosition;
 
-    void Start()
+    private void Start()
     {
-        startPosition = transform.position;
+        _startPosition = transform.position;
     }
 
-    void Update()
+    private void Update()
     {
-        // Uses mathematical sin waves to smoothly oscillate the camera frame over time
-        float newX = startPosition.x + Mathf.Sin(Time.time * movementSpeed) * movementMagnitude;
-        float newY = startPosition.y + Mathf.Cos(Time.time * (movementSpeed * 0.5f)) * movementMagnitude;
+        // Phase offsets ensure a figure-eight or elliptical float pattern rather than a diagonal line.
+        float newX = _startPosition.x + Mathf.Sin(Time.time * movementSpeed) * movementMagnitude;
+        float newY = _startPosition.y + Mathf.Cos(Time.time * (movementSpeed * 0.5f)) * movementMagnitude;
 
-        transform.position = new Vector3(newX, newY, startPosition.z);
+        transform.position = new Vector3(newX, newY, _startPosition.z);
     }
 }

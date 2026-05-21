@@ -1,29 +1,42 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement; // Required for checking the scene name
+using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Manages the user interface for selecting a destination deck from an elevator terminal.
+/// </summary>
 public class DeckTerminalUI : MonoBehaviour
 {
     [Header("System Links")]
+    [Tooltip("The elevator interaction script that this terminal controls.")]
     public ElevatorInteraction connectedElevator;
     
     [Header("Keyhole Module")]
+    [Tooltip("The UI Image that visually represents the lock status (e.g., a colored light).")]
     public Image statusLight; 
+    [Tooltip("The color to display when the required Master Key is NOT present.")]
     public Color lockedColor = new Color(0.85f, 0.12f, 0.15f); 
+    [Tooltip("The color to display when the required Master Key IS present.")]
     public Color unlockedColor = new Color(0.15f, 0.85f, 0.25f); 
+    [Tooltip("The Item ID of the Master Key required to unlock the final deck button.")]
+    public string requiredMasterKeyID = "MasterKey2";
 
     [Header("Deck Buttons")]
+    [Tooltip("Button to travel to Deck 1.")]
     public Button buttonDeck1;
+    [Tooltip("Button to travel to Deck 2.")]
     public Button buttonDeck2;
+    [Tooltip("Button to travel to Deck 3.")]
     public Button buttonDeck3;
+    [Tooltip("Button to close the terminal UI without traveling.")]
     public Button buttonExit;
 
     private void OnEnable()
     {
+        // When the UI appears, ensure the cursor is unlocked and visible for interaction.
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // Reset all buttons to be interactable first
         if (buttonDeck1 != null) buttonDeck1.interactable = true;
         if (buttonDeck2 != null) buttonDeck2.interactable = true;
         if (buttonDeck3 != null) buttonDeck3.interactable = true;
@@ -32,13 +45,13 @@ public class DeckTerminalUI : MonoBehaviour
         CheckMasterKeyAccess();
     }
 
+    /// <summary>
+    /// Prevents the player from traveling to the floor they are already on.
+    /// </summary>
     private void DisableCurrentFloorButton()
     {
-        // Get the name of the floor Kaelen is currently on
         string currentScene = SceneManager.GetActiveScene().name;
 
-        // Compare the scene name to your floor names and disable the matching button
-        // Make sure these strings "level_1", "level_2" match your actual scene names!
         if (currentScene == "level_1")
         {
             if (buttonDeck1 != null) buttonDeck1.interactable = false;
@@ -53,15 +66,18 @@ public class DeckTerminalUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Checks the player's inventory for the required key and updates the UI accordingly.
+    /// </summary>
     private void CheckMasterKeyAccess()
     {
-        // Replace this with your actual inventory check logic later
-        bool hasKey = false; 
+        bool hasKey = InventoryManager.Instance != null && InventoryManager.Instance.HasItem(requiredMasterKeyID); 
 
         if (hasKey)
         {
             if (statusLight != null) statusLight.color = unlockedColor;
-            // Only unlock if we aren't already on Level 3
+            
+            // Keep the button interactable if the player has the key, unless they are already on that floor.
             if (buttonDeck3 != null && SceneManager.GetActiveScene().name != "level_3") 
             {
                 buttonDeck3.interactable = true;
@@ -69,6 +85,7 @@ public class DeckTerminalUI : MonoBehaviour
         }
         else
         {
+            // If the key is missing, lock the button and show the corresponding status color.
             if (statusLight != null) statusLight.color = lockedColor;
             if (buttonDeck3 != null) buttonDeck3.interactable = false; 
         }
@@ -76,17 +93,16 @@ public class DeckTerminalUI : MonoBehaviour
 
     private void Update()
     {
-        // Force the mouse to stay visible while this UI is open!
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             CancelInteraction();
         }
     }
 
-    // Connect Deck 1, 2, and 3 buttons to this
+    /// <summary>
+    /// Called by deck selection buttons to initiate travel to the specified scene.
+    /// </summary>
+    /// <param name="sceneName">The name of the destination scene to load.</param>
     public void SelectDeck(string sceneName)
     {
         LockCursorAndClose();
@@ -96,7 +112,9 @@ public class DeckTerminalUI : MonoBehaviour
         }
     }
 
-    // Connect your [ X ] button to this
+    /// <summary>
+    /// Called by the 'Exit' button to close the terminal and cancel the elevator sequence.
+    /// </summary>
     public void CancelInteraction()
     {
         LockCursorAndClose();
@@ -106,9 +124,11 @@ public class DeckTerminalUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Restores the game's default cursor state and hides the terminal UI.
+    /// </summary>
     private void LockCursorAndClose()
     {
-        // Keep the mouse free and visible for your 2D gameplay!
         Cursor.lockState = CursorLockMode.None; 
         Cursor.visible = true; 
         

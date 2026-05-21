@@ -3,7 +3,11 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.EventSystems;
+using System.Text;
 
+/// <summary>
+/// Contains visual settings for a specific speaking character within the dialogue system.
+/// </summary>
 [System.Serializable]
 public struct CharacterProfile
 {
@@ -12,6 +16,9 @@ public struct CharacterProfile
     public Color textColor;
 }
 
+/// <summary>
+/// Handles the lerping, scaling, and tinting of a character portrait during dialogue.
+/// </summary>
 [System.Serializable]
 public class PortraitController
 {
@@ -56,9 +63,13 @@ public class PortraitController
     }
 }
 
+/// <summary>
+/// The core visual novel engine driving text delivery, portrait manipulation, and choice interactions.
+/// </summary>
 public class DialogueEngine : MonoBehaviour
 {
     [Header("Character Database")]
+    [Tooltip("Setup the distinct text and nameplate colors for each speaking entity.")]
     public CharacterProfile[] characterProfiles;
 
     [Header("Portrait Controllers")]
@@ -66,6 +77,7 @@ public class DialogueEngine : MonoBehaviour
     public PortraitController portraitRight;
 
     [Header("UI References")]
+    [Tooltip("The root canvas GameObject for the dialogue interface.")]
     public GameObject dialogueCanvas;
     public TextMeshProUGUI dialogueText;
     public TextMeshProUGUI nameText;
@@ -74,17 +86,26 @@ public class DialogueEngine : MonoBehaviour
     public GameObject vignetteOverlay;
 
     [Header("Menus")]
+    [Tooltip("The UI Panel for reviewing past dialogue.")]
     public GameObject logPanel;
     public TextMeshProUGUI logHistoryText;
+    [Tooltip("The UI Panel for adjusting text speed.")]
     public GameObject configPanel;
     public Slider speedSlider;
+    [Tooltip("The UI Panel displaying narrative choices at the end of a sequence.")]
     public GameObject choicePanel; 
 
     [Header("Controls & Settings")]
     public TextMeshProUGUI autoButtonText;
     public TextMeshProUGUI skipButtonText; 
+    [Tooltip("The base delay in seconds between each typed character.")]
     public float typingSpeed = 0.02f;
+    [Tooltip("Delay in seconds before automatically advancing text in Auto mode.")]
     public float autoPlayDelay = 1.5f;
+
+    [Header("Player Control Integration")]
+    public GameObject playerObject;
+    public GameObject questTrackerText;
 
     private DialogueNode[] currentConversation;
     private int currentLineIndex = 0;
@@ -94,18 +115,20 @@ public class DialogueEngine : MonoBehaviour
     public static bool isDialogueActive = false;
     private bool isAutoMode = false;
     private bool isSkipping = false; 
-    private string _conversationHistory = "";
+    private StringBuilder _conversationHistory;
     private bool _showChoicesAtEnd = false;
     private float _dialogueStartTime = 0f;
+    private CameraFollow _mainCameraFollow;
 
     void Awake()
     {
-        // Immediate Failsafes for when a scene restarts
         isDialogueActive = false;
         isSkipping = false;
         isAutoMode = false;
+        _conversationHistory = new StringBuilder();
 
-        // Do not disable our own game object in Awake, it interferes with external activation scripts!
+        _mainCameraFollow = FindAnyObjectByType<CameraFollow>();
+
         if (dialogueCanvas != null && dialogueCanvas != this.gameObject) dialogueCanvas.SetActive(false);
         if (logPanel != null) logPanel.SetActive(false);
         if (configPanel != null) configPanel.SetActive(false);
@@ -131,7 +154,7 @@ public class DialogueEngine : MonoBehaviour
                           (configPanel != null && configPanel.activeInHierarchy) ||
                           (choicePanel != null && choicePanel.activeInHierarchy);
 
-        // FIX: Prevent ghost DialogueEngines from stealing input! Only the one with an active conversation should respond.
+        // Process interactions only if this specific engine is active and visible.
         if (isDialogueActive && currentConversation != null && dialogueCanvas.activeInHierarchy && !isMenuOpen && Time.time > _dialogueStartTime + 0.1f)
         {
             bool pressedKey = Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return);
@@ -140,7 +163,6 @@ public class DialogueEngine : MonoBehaviour
 
             if (pressedKey || clickedMouse)
             {
-                // Clicking intercepts and cancels Auto/Skip so the player can read normally again
                 if (isSkipping) Button_Skip();
                 else if (isAutoMode) Button_Auto();
                 else AdvanceDialogue();
@@ -148,6 +170,16 @@ public class DialogueEngine : MonoBehaviour
         }
     }
 
+    void OnDestroy()
+    {
+        isDialogueActive = false;
+        isAutoMode = false;
+        isSkipping = false;
+    }
+
+    /// <summary>
+    /// Locks gameplay controls, visualizes the dialogue UI, and begins a conversation sequence.
+    /// </summary>
     public void StartDialogue(DialogueNode[] conversation, bool showChoices = false)
     {
         if (conversation == null || conversation.Length == 0) return;
@@ -157,9 +189,9 @@ public class DialogueEngine : MonoBehaviour
         isDialogueActive = true;
         currentConversation = conversation;
         currentLineIndex = 0;
-        _conversationHistory = "SYSTEM ARCHIVE // SESSION INITIALIZED\n\n";
+        _conversationHistory.Clear();
+        _conversationHistory.Append("SYSTEM ARCHIVE // SESSION INITIALIZED\n\n");
 
-        // Reset toggles cleanly
         isAutoMode = false;
         isSkipping = false;
         if (autoButtonText != null) autoButtonText.color = Color.white;
@@ -168,7 +200,6 @@ public class DialogueEngine : MonoBehaviour
         if (dialogueCanvas == null) dialogueCanvas = this.gameObject;
         if (dialogueCanvas != null) dialogueCanvas.SetActive(true);
 
-        // BRUTE FORCE VISIBILITY: Safely bring the UI to the front of the screen
         dialogueCanvas.transform.SetAsLastSibling();
         
         CanvasGroup cg = dialogueCanvas.GetComponent<CanvasGroup>();
@@ -191,12 +222,10 @@ public class DialogueEngine : MonoBehaviour
     {
         if (isTyping)
         {
-            // Instantly finish the line
             if (typingCoroutine != null) StopCoroutine(typingCoroutine);
             if (dialogueText != null && dialogueText.textInfo != null) dialogueText.maxVisibleCharacters = dialogueText.textInfo.characterCount;
             isTyping = false;
             
-            // If we are fast-forwarding, instantly jump to the next line
             if (isSkipping) StartCoroutine(SkipDelayTrigger());
             else if (isAutoMode) StartCoroutine(AutoAdvanceTimer());
         }
@@ -212,7 +241,6 @@ public class DialogueEngine : MonoBehaviour
             {
                 if (_showChoicesAtEnd && choicePanel != null)
                 {
-                    // Forcibly stop the skipping when choices demand an answer!
                     isSkipping = false; 
                     if (skipButtonText != null) skipButtonText.color = Color.white;
                     choicePanel.SetActive(true);
@@ -227,28 +255,24 @@ public class DialogueEngine : MonoBehaviour
 
     IEnumerator TypeSentence(DialogueNode node)
     {
-        if (nameText != null) nameText.text = node.speakerName;
-        ApplyCharacterProfile(node.speakerName);
+        string speakerSafe = node.speakerName ?? "SYSTEM";
+        if (nameText != null) nameText.text = speakerSafe;
+        ApplyCharacterProfile(speakerSafe);
 
-        string cleanName = node.speakerName.Trim().ToUpper();
+        string cleanName = speakerSafe.Trim().ToUpper();
         if (cleanName == "KAELEN") { portraitLeft.SetFocus(true); portraitRight.SetFocus(false); }
         else if (cleanName == "SYSTEM") { portraitLeft.SetFocus(false); portraitRight.SetFocus(false); }
         else { portraitLeft.SetFocus(false); portraitRight.SetFocus(true); }
 
-        _conversationHistory += "<color=#FFB300>> " + node.speakerName + "</color>\n" + node.dialogueText + "\n\n";
+        _conversationHistory.Append("<color=#FFB300>> ").Append(speakerSafe).Append("</color>\n").Append(node.dialogueText).Append("\n\n");
 
-        // Detect if the speaker is screaming (MOTHER + All Caps + Contains Actual Letters)
-        bool isScreaming = node.speakerName.Trim().ToUpper() == "MOTHER" &&
+        bool isScreaming = cleanName == "MOTHER" &&
                            node.dialogueText.Length > 5 && 
                            node.dialogueText == node.dialogueText.ToUpper() && 
                            node.dialogueText != node.dialogueText.ToLower();
 
-        CameraFollow cam = null;
         if (isScreaming) 
         {
-            cam = FindAnyObjectByType<CameraFollow>();
-            
-            // Play a loud static glitch sound when they scream!
             AudioSource audio = GetComponent<AudioSource>();
             if (audio == null) audio = gameObject.AddComponent<AudioSource>();
             audio.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2.5f), 1.0f);
@@ -256,19 +280,18 @@ public class DialogueEngine : MonoBehaviour
 
         string textToType = node.dialogueText;
 
-        // Apply "Ransom Note" Glitch Effect
         if (isScreaming && !textToType.Contains("<"))
         {
-            string corruptedText = "";
+            StringBuilder corruptedText = new StringBuilder();
             foreach (char c in textToType)
             {
-                if (char.IsWhiteSpace(c)) corruptedText += c;
-                else if (Random.value > 0.90f) corruptedText += $"<color=#ff003c><size=130%>{c}</size></color>";
-                else if (Random.value > 0.80f) corruptedText += $"<color=#777777><size=70%>{c}</size></color>";
-                else if (Random.value > 0.77f) corruptedText += $"<color=#ff003c>█</color>";
-                else corruptedText += c;
+                if (char.IsWhiteSpace(c)) corruptedText.Append(c);
+                else if (Random.value > 0.90f) corruptedText.Append($"<color=#ff003c><size=130%>{c}</size></color>");
+                else if (Random.value > 0.80f) corruptedText.Append($"<color=#777777><size=70%>{c}</size></color>");
+                else if (Random.value > 0.77f) corruptedText.Append($"<color=#ff003c>█</color>");
+                else corruptedText.Append(c);
             }
-            textToType = corruptedText;
+            textToType = corruptedText.ToString();
         }
 
         isTyping = true;
@@ -283,13 +306,11 @@ public class DialogueEngine : MonoBehaviour
             {
                 dialogueText.maxVisibleCharacters = i;
                 
-                // Re-trigger the shake as they type so it feels like the voice is rattling the screen!
-                if (isScreaming && cam != null && i % 2 == 0)
+                if (isScreaming && _mainCameraFollow != null && i % 2 == 0)
                 {
-                    cam.TriggerShake(0.15f, 0.35f); 
+                    _mainCameraFollow.TriggerShake(0.15f, 0.35f); 
                 }
 
-                // Randomize typing for a glitchy effect if screaming
                 float currentDelay = typingSpeed;
                 if (isSkipping) currentDelay = typingSpeed / 20f;
                 else if (isScreaming) 
@@ -298,12 +319,17 @@ public class DialogueEngine : MonoBehaviour
                     if (Random.value > 0.9f) currentDelay = typingSpeed * 8f;
                 }
                 
-                yield return new WaitForSeconds(currentDelay);
+                // Zero-allocation wait to prevent GC spikes during typing
+                float waitTime = currentDelay;
+                while (waitTime > 0)
+                {
+                    waitTime -= Time.deltaTime;
+                    yield return null;
+                }
             }
         }
         isTyping = false;
 
-        // Auto-trigger next logic when typing finishes
         if (isSkipping) StartCoroutine(SkipDelayTrigger());
         else if (isAutoMode) StartCoroutine(AutoAdvanceTimer());
     }
@@ -329,18 +355,17 @@ public class DialogueEngine : MonoBehaviour
 
     IEnumerator AutoAdvanceTimer() { yield return new WaitForSeconds(autoPlayDelay); AdvanceDialogue(); }
     
-    // Tiny fraction of a second delay when skipping so portraits have time to visually swap
     IEnumerator SkipDelayTrigger() { yield return new WaitForSeconds(0.1f); AdvanceDialogue(); }
 
-    [Header("Player Control Integration")]
-    public GameObject playerObject;
-    public GameObject questTrackerText;
+    /// <summary>
+    /// Closes the dialogue interface and restores standard gameplay controls.
+    /// </summary>
     public void EndDialogue()
     {
         isDialogueActive = false;
         isAutoMode = false;
         isSkipping = false;
-        currentConversation = null; // Clear memory so it doesn't accidentally steal input later!
+        currentConversation = null; 
         if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
         if (ambientDust != null) ambientDust.SetActive(false);
         if (vignetteOverlay != null) vignetteOverlay.SetActive(false);
@@ -354,9 +379,6 @@ public class DialogueEngine : MonoBehaviour
 
             if (questTrackerText != null) questTrackerText.SetActive(true);
 
-            Debug.Log("Dialogue complete! Player_Kaelen is now active and free to roam.");
-
-            // Core Camera Tracking
             CameraFollow camScript = Camera.main.GetComponent<CameraFollow>();
             if (camScript != null)
             {
@@ -373,9 +395,6 @@ public class DialogueEngine : MonoBehaviour
 
     }
 
-    // ==========================================
-    // BUTTON CONTROLS
-    // ==========================================
     public void Button_Skip() 
     { 
         if (!isDialogueActive) return; 
@@ -408,7 +427,7 @@ public class DialogueEngine : MonoBehaviour
         }
     }
 
-    public void Button_Log() { if (logPanel != null && logHistoryText != null) { logHistoryText.text = _conversationHistory; logPanel.SetActive(true); } }
+    public void Button_Log() { if (logPanel != null && logHistoryText != null) { logHistoryText.text = _conversationHistory.ToString(); logPanel.SetActive(true); } }
     public void Button_CloseLog() { if (logPanel != null) logPanel.SetActive(false); }
     public void Button_Config() { if (configPanel != null) configPanel.SetActive(true); }
     public void Button_CloseConfig() { if (configPanel != null) configPanel.SetActive(false); }

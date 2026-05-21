@@ -1,57 +1,67 @@
 using UnityEngine;
 using System.Collections;
 
+/// <summary>
+/// Manages the game's pause state, including UI transitions, screen capture effects, and menu navigation.
+/// </summary>
 public class PauseManager : MonoBehaviour
 {
-    #region Variables
     [Header("Visual Connections")]
+    [Tooltip("The main CanvasGroup for the pause menu, used for fading and interaction control.")]
     public CanvasGroup pauseMenuUI;
+    [Tooltip("The parent GameObject containing the shattered glass visual effect.")]
     public GameObject shatteredGlassVisuals; 
+    [Tooltip("A simple black background used for fading during menu transitions.")]
     public CanvasGroup voidBackground;
 
     [Header("Menu Panels (State Machine)")]
+    [Tooltip("The panel containing the primary pause menu buttons (Resume, Settings, Quit).")]
     public GameObject panelMainMenu;
+    [Tooltip("The panel for the Save/Load interface.")]
     public GameObject panelSaveLoad;
+    [Tooltip("The panel for the 'Are you sure?' quit confirmation.")]
     public GameObject panelQuitConfirm;
     
     [Header("Settings / RIG Interface UI")]
-    public GameObject settingsOverlay;            // Replaced the old panelSettings
-    public CanvasGroup settingsCanvasGroup;       // Controls the master fade
-    public RectTransform settingsPanelTransform;  // Controls the hardware "pop" scale
+    [Tooltip("The parent GameObject for the settings menu overlay.")]
+    public GameObject settingsOverlay;
+    [Tooltip("The CanvasGroup for the settings panel, used for fading.")]
+    public CanvasGroup settingsCanvasGroup;
+    [Tooltip("The RectTransform of the settings panel, used for scaling animations.")]
+    public RectTransform settingsPanelTransform;
 
     [Header("Audio SFX")]
+    [Tooltip("The AudioSource for playing menu sound effects.")]
     public AudioSource audioSource;
+    [Tooltip("The sound effect played when the glass shatters.")]
     public AudioClip SND_UI_Menu_Shatter;
+    [Tooltip("The duration of the audio fade in/out.")]
     public float fadeDuration = 0.5f;     
     private float _originalVolume;        
 
     [Header("Game Integration")]
-    [Tooltip("UI elements to hide (e.g., Stamina bar) during pause.")]
+    [Tooltip("Gameplay UI elements (e.g., Stamina bar) to hide when the game is paused.")]
     public GameObject[] elementsToHide;
     [Tooltip("Duration of the slow-motion 'bullet time' upon resuming.")]
     public float timeReentryDuration = 0.5f;
 
     [Header("Script References")]
+    [Tooltip("Reference to the ShatterAnimator script that controls the glass animation.")]
     public ShatterAnimator shatterAnimator;
+    [Tooltip("Reference to the script that procedurally generates the glass shards.")]
     public ProceduralGlassGenerator glassGenerator;
-    public InventoryGrid inventory;
 
-    // Internal State
     private RenderTexture _pauseScreenTexture;
     private bool _isPaused = false;
-    private bool _isAnimating = false;    // Locks input during Pause/Unpause
-    private bool _isTransitioning = false;// Locks input during Menu Swaps
+    private bool _isAnimating = false;
+    private bool _isTransitioning = false;
 
-    // Active Coroutine Trackers (prevents overlapping animations)
     private Coroutine _audioFadeCoroutine;
     private Coroutine _timeCoroutine;
     private Coroutine _uiTransitionCoroutine;
-    #endregion
 
-    #region Unity Lifecycle
     void Start()
     {
-        // 1. Setup Audio
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
         if (audioSource != null) 
         {
@@ -61,15 +71,12 @@ public class PauseManager : MonoBehaviour
             if (SND_UI_Menu_Shatter != null) SND_UI_Menu_Shatter.LoadAudioData(); 
         }
 
-        // 2. Setup Render Texture for Glass Effect
         _pauseScreenTexture = new RenderTexture(Screen.width, Screen.height, 24, RenderTextureFormat.ARGB32);
         _pauseScreenTexture.Create();
 
-        // 3. Setup Initial Glass State
         if (glassGenerator != null) glassGenerator.GenerateShards();
         if (shatteredGlassVisuals != null) shatteredGlassVisuals.SetActive(false);
         
-        // 4. Setup Base UI State
         pauseMenuUI.alpha = 1f;
         pauseMenuUI.interactable = false; 
         pauseMenuUI.blocksRaycasts = false;
@@ -78,7 +85,6 @@ public class PauseManager : MonoBehaviour
 
     void Update()
     {
-        // Listen for the "Back" or "Pause" command
         if (Input.GetKeyDown(KeyCode.Escape)) 
         {
             HandleEscapePress();
@@ -87,67 +93,66 @@ public class PauseManager : MonoBehaviour
 
     void OnDestroy()
     {
-        // Clean up memory to prevent leaks
+        // Clean up the RenderTexture to prevent memory leaks when the scene is unloaded.
         if (_pauseScreenTexture != null)
         {
             _pauseScreenTexture.Release();
             Destroy(_pauseScreenTexture);
         }
     }
-    #endregion
 
-    #region Core Pause Logic
-    // Evaluates current state and routes the Escape key press appropriately
+    /// <summary>
+    /// Central handler for the Escape key, routing it to the correct pause, unpause, or back-menu action.
+    /// </summary>
     private void HandleEscapePress()
     {
-        // Block input if the system is currently doing a cinematic shatter or menu swap
+        // Lock input during transitions to prevent overlapping animations.
         if (_isAnimating || _isTransitioning) return;
 
-        // If game is active, pause it
         if (!_isPaused)
         {
             TogglePause();
             return;
         }
 
-        // If we are deep in a submenu, elegantly return to the main menu using existing cinematic
+        // If a submenu (like Settings or Save) is open, go back to the main pause screen.
         if (IsSubMenuActive())
         {
             ReturnToMainMenuTransition();
             return;
         }
 
-        // If we are already on the main menu, unpause the game
+        // If we are on the main pause screen, unpause the game.
         if (panelMainMenu != null && panelMainMenu.activeSelf)
         {
             TogglePause();
         }
     }
 
-    // --- NEW: FORCED STARTUP LOAD KILL-SWITCH ---
+    /// <summary>
+    /// An emergency override to instantly resume the game, used when loading a save file from the main menu.
+    /// </summary>
     public void ForceResumeGame()
     {
-        // 1. Reset all internal state locks
         _isPaused = false;
         _isAnimating = false;
         _isTransitioning = false;
 
-        // 2. Kill any active animations, audio fades, or time transitions
         StopAllCoroutines();
 
-        // 3. Force Time and Audio back to normal instantly
         Time.timeScale = 1f;
         AudioListener.pause = false;
         if (audioSource != null && audioSource.isPlaying) audioSource.Stop();
 
-        // 4. Hard-reset all visuals and UI components
         if (shatteredGlassVisuals != null) shatteredGlassVisuals.SetActive(false);
         if (pauseMenuUI != null) pauseMenuUI.gameObject.SetActive(false);
         
-        // 5. Restore active gameplay HUD
         ToggleGameplayUI(true);
     }
 
+    /// <summary>
+    /// Checks if any of the secondary menu panels are currently active.
+    /// </summary>
     private bool IsSubMenuActive()
     {
         return (panelSaveLoad != null && panelSaveLoad.activeSelf) ||
@@ -155,6 +160,9 @@ public class PauseManager : MonoBehaviour
                (panelQuitConfirm != null && panelQuitConfirm.activeSelf);
     }
 
+    /// <summary>
+    /// Toggles the game's paused state, initiating either the pause or resume sequence.
+    /// </summary>
     public void TogglePause()
     {
         if (_isAnimating) return;
@@ -164,19 +172,26 @@ public class PauseManager : MonoBehaviour
         else StartCoroutine(ExecuteResumeRoutine());
     }
 
+    /// <summary>
+    /// The coroutine that executes the multi-step pause sequence.
+    /// </summary>
     private IEnumerator ExecutePauseRoutine()
     {
         _isAnimating = true;
         if (_timeCoroutine != null) StopCoroutine(_timeCoroutine);
 
-        // 1. Capture Screen
+        if (_pauseScreenTexture == null || _pauseScreenTexture.width != Screen.width || _pauseScreenTexture.height != Screen.height)
+        {
+            if (_pauseScreenTexture != null) { _pauseScreenTexture.Release(); Destroy(_pauseScreenTexture); }
+            _pauseScreenTexture = new RenderTexture(Screen.width, Screen.height, 24, RenderTextureFormat.ARGB32);
+            _pauseScreenTexture.Create();
+        }
+
         yield return new WaitForEndOfFrame();
         ScreenCapture.CaptureScreenshotIntoRenderTexture(_pauseScreenTexture);
 
-        // 2. Hide Gameplay UI
         ToggleGameplayUI(false);
 
-        // 3. Map Screen Texture to Shards
         if (shatteredGlassVisuals != null)
         {
             MeshRenderer[] shardRenderers = shatteredGlassVisuals.GetComponentsInChildren<MeshRenderer>(true);
@@ -187,14 +202,11 @@ public class PauseManager : MonoBehaviour
             }
         }
 
-        // 4. Initialize Base Pause UI
         pauseMenuUI.gameObject.SetActive(true);
         ForceResetMenuState(); 
 
-        // 5. Update Biometric UI
         SyncBiometrics();
 
-        // 6. Play Audio
         if (audioSource != null && SND_UI_Menu_Shatter != null)
         {
             audioSource.clip = SND_UI_Menu_Shatter;
@@ -204,7 +216,6 @@ public class PauseManager : MonoBehaviour
             _audioFadeCoroutine = StartCoroutine(FadeAudio(0f, _originalVolume, fadeDuration));
         }
     
-        // 7. Fire Shatter Animation
         shatteredGlassVisuals.SetActive(true);
         shatterAnimator.InitializeShards();
         yield return null; 
@@ -213,46 +224,48 @@ public class PauseManager : MonoBehaviour
         AudioListener.pause = true;
         shatterAnimator.PlayShatter(); 
         
-        // 8. Unlock Input
         yield return new WaitForSecondsRealtime(shatterAnimator.animationDuration);
         pauseMenuUI.interactable = true;
         pauseMenuUI.blocksRaycasts = true;
         _isAnimating = false; 
     }
 
+    /// <summary>
+    /// The coroutine that executes the multi-step resume sequence.
+    /// </summary>
     private IEnumerator ExecuteResumeRoutine()
     {
         _isAnimating = true;
 
-        // 1. Fade Audio Out
         if (audioSource != null && audioSource.isPlaying)
         {
             if (_audioFadeCoroutine != null) StopCoroutine(_audioFadeCoroutine);
             _audioFadeCoroutine = StartCoroutine(FadeAudio(audioSource.volume, 0f, fadeDuration));
         }
 
-        // 2. Lock Input & Enter Bullet-Time
+        // Enter a brief "bullet time" slow-motion effect for a smooth transition back to gameplay.
         Time.timeScale = 0.05f;
         AudioListener.pause = false;
         pauseMenuUI.interactable = false;
         pauseMenuUI.blocksRaycasts = false;
         
-        // 3. Fire Assemble Animation
         shatterAnimator.PlayAssemble();
         yield return new WaitForSecondsRealtime(shatterAnimator.animationDuration + 0.1f);
         
-        // 4. Cleanup UI & Restore Gameplay
         shatteredGlassVisuals.SetActive(false);
         pauseMenuUI.gameObject.SetActive(false);
         ToggleGameplayUI(true);
 
-        // 5. Ramp Time Back to Normal
+        // Smoothly ramp time scale from bullet time back to normal (1.0).
         if (_timeCoroutine != null) StopCoroutine(_timeCoroutine);
         _timeCoroutine = StartCoroutine(LerpTimeScale(0.05f, 1f, timeReentryDuration));
 
         _isAnimating = false; 
     }
 
+    /// <summary>
+    /// Toggles the visibility of designated gameplay UI elements.
+    /// </summary>
     private void ToggleGameplayUI(bool state)
     {
         if (elementsToHide == null) return;
@@ -261,10 +274,10 @@ public class PauseManager : MonoBehaviour
             if (obj != null) obj.SetActive(state);
         }
     }
-    #endregion
 
-    #region UI Panel State Machine
-    // Instantly resets everything (Called on Pause)
+    /// <summary>
+    /// Resets the menu to its default state, showing the main panel and hiding all sub-panels.
+    /// </summary>
     private void ForceResetMenuState()
     {
         if (settingsOverlay != null) settingsOverlay.SetActive(false);
@@ -275,11 +288,14 @@ public class PauseManager : MonoBehaviour
         if (voidBackground != null) voidBackground.alpha = 0f;
     }
 
-    // --- Button Triggers ---
+    /// <summary>Called by a button to open the Save/Load menu.</summary>
     public void OpenSaveLoad() => TriggerSubMenuTransition(panelSaveLoad);
+    /// <summary>Called by a button to open the Quit Confirmation menu.</summary>
     public void OpenQuitConfirm() => TriggerSubMenuTransition(panelQuitConfirm);
     
-    // Explicit trigger for the Settings Prefab logic
+    /// <summary>
+    /// Called by a button to open the Settings menu with a unique animation.
+    /// </summary>
     public void OpenSettings()
     {
         if (_isTransitioning) return;
@@ -287,9 +303,14 @@ public class PauseManager : MonoBehaviour
         _uiTransitionCoroutine = StartCoroutine(AnimateSettingsInRoutine());
     }
 
-    // Explicit trigger for the Settings Prefab Return button
+    /// <summary>
+    /// Called by the 'Back' button within the Settings menu.
+    /// </summary>
     public void CloseSettings() => ReturnToMainMenuTransition();
 
+    /// <summary>
+    /// Initiates the cinematic transition to return to the main pause menu from a sub-menu.
+    /// </summary>
     public void ReturnToMainMenuTransition()
     {
         if (_isTransitioning) return;
@@ -297,7 +318,6 @@ public class PauseManager : MonoBehaviour
         _uiTransitionCoroutine = StartCoroutine(TransitionToMainMenuRoutine());
     }
 
-    // --- Cinematic Transition Logic ---
     private void TriggerSubMenuTransition(GameObject targetPanel)
     {
         if (_isTransitioning) return;
@@ -305,12 +325,15 @@ public class PauseManager : MonoBehaviour
         _uiTransitionCoroutine = StartCoroutine(TransitionToSubMenuRoutine(targetPanel));
     }
 
+    /// <summary>
+    /// Coroutine for the cinematic transition from the main menu to a sub-menu.
+    /// </summary>
     private IEnumerator TransitionToSubMenuRoutine(GameObject subMenuPanel)
     {
         _isTransitioning = true;
         if (panelMainMenu != null) panelMainMenu.SetActive(false);
 
-        // Fade to void while glass blows away
+        // Fade to a black background while the glass shards blow off-screen.
         if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 0f, 1f, 0.2f));
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.BlowbackRoutine());
 
@@ -318,17 +341,17 @@ public class PauseManager : MonoBehaviour
         _isTransitioning = false;
     }
 
-    // NEW: Handles the cinematic glass blowback AND the premium UI fade-in
+    /// <summary>
+    /// Coroutine for the unique animated transition into the Settings menu.
+    /// </summary>
     private IEnumerator AnimateSettingsInRoutine()
     {
         _isTransitioning = true;
         if (panelMainMenu != null) panelMainMenu.SetActive(false);
 
-        // 1. Trigger the cinematic shattered glass blowback
         if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 0f, 1f, 0.2f));
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.BlowbackRoutine());
 
-        // 2. Turn on the Settings Overlay and start the premium scale/fade pop
         if (settingsOverlay != null) settingsOverlay.SetActive(true);
 
         if (settingsCanvasGroup != null && settingsPanelTransform != null)
@@ -336,7 +359,7 @@ public class PauseManager : MonoBehaviour
             settingsCanvasGroup.interactable = false;
             settingsCanvasGroup.blocksRaycasts = false;
             settingsCanvasGroup.alpha = 0f;
-            settingsPanelTransform.localScale = new Vector3(0.95f, 0.95f, 1f);
+            settingsPanelTransform.localScale = new Vector3(0.95f, 0.95f, 1f); // Start slightly smaller for a "pop" effect.
 
             float timeElapsed = 0;
             float duration = 0.25f;
@@ -361,11 +384,14 @@ public class PauseManager : MonoBehaviour
         _isTransitioning = false;
     }
 
+    /// <summary>
+    /// Coroutine for the cinematic transition from any sub-menu back to the main pause menu.
+    /// </summary>
     private IEnumerator TransitionToMainMenuRoutine()
     {
         _isTransitioning = true;
 
-        // 1. If Settings is currently open, perform the premium UI fade-out first
+        // If the settings menu is open, play its unique "out" animation.
         if (settingsOverlay != null && settingsOverlay.activeSelf && settingsCanvasGroup != null && settingsPanelTransform != null)
         {
             settingsCanvasGroup.interactable = false;
@@ -388,7 +414,7 @@ public class PauseManager : MonoBehaviour
         }
         else
         {
-            // Just close the other standard menus instantly
+            // For other menus, simply hide them.
             if (settingsOverlay != null) settingsOverlay.SetActive(false);
             if (panelSaveLoad != null) panelSaveLoad.SetActive(false);
             if (panelQuitConfirm != null) panelQuitConfirm.SetActive(false);
@@ -398,11 +424,13 @@ public class PauseManager : MonoBehaviour
         if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 1f, 0f, 0.25f));
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.RestoreRoutine());
 
-        // 3. Restore the Main Menu buttons
         if (panelMainMenu != null) panelMainMenu.SetActive(true);
         _isTransitioning = false;
     }
 
+    /// <summary>
+    /// Called by the 'Quit Game' button to close the application.
+    /// </summary>
     public void ConfirmQuit()
     {
         Debug.Log("<color=red>SYSTEM TERMINATED.</color> Exiting application...");
@@ -412,19 +440,19 @@ public class PauseManager : MonoBehaviour
         UnityEditor.EditorApplication.isPlaying = false;
         #endif
     }
-    #endregion
 
-    #region Helpers & Diagnostics
+    /// <summary>
+    /// Syncs the player's current corruption level with the visual distortion effect on the menu buttons.
+    /// </summary>
     private void SyncBiometrics()
     {
-        if (inventory == null)
+        if (InventoryManager.Instance == null)
         {
-            Debug.LogWarning("DIAGNOSTIC: InventoryGrid reference is missing!");
+            Debug.LogWarning("DIAGNOSTIC: InventoryManager reference is missing!");
             return;
         }
 
-        float corruptionCount = inventory.GetTotalCorruptedSlots(); 
-        float corruptionPct = Mathf.Clamp01(corruptionCount / 100f);
+        float corruptionPct = InventoryManager.Instance.GetCorruptionPercentage();
 
         HorrorProxyButton[] buttons = pauseMenuUI.GetComponentsInChildren<HorrorProxyButton>(true);
         foreach (HorrorProxyButton btn in buttons) 
@@ -434,6 +462,9 @@ public class PauseManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// A helper coroutine to smoothly lerp the game's Time.timeScale.
+    /// </summary>
     private IEnumerator LerpTimeScale(float startScale, float targetScale, float duration)
     {
         float timer = 0;
@@ -446,6 +477,9 @@ public class PauseManager : MonoBehaviour
         Time.timeScale = targetScale;
     }
 
+    /// <summary>
+    /// A helper coroutine to smoothly fade an AudioSource's volume.
+    /// </summary>
     private IEnumerator FadeAudio(float startVol, float targetVol, float duration)
     {
         float timer = 0;
@@ -459,6 +493,9 @@ public class PauseManager : MonoBehaviour
         if (targetVol <= 0) audioSource.Stop();
     }
 
+    /// <summary>
+    /// A helper coroutine to smoothly fade a CanvasGroup's alpha.
+    /// </summary>
     private IEnumerator FadeCanvasGroup(CanvasGroup cg, float start, float target, float duration)
     {
         float timer = 0;
@@ -470,5 +507,4 @@ public class PauseManager : MonoBehaviour
         }
         cg.alpha = target;
     }
-    #endregion
 }

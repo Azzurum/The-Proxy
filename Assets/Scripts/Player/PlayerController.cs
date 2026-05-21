@@ -1,217 +1,233 @@
 using UnityEngine;
 
+/// <summary>
+/// Manages Kaelen's core movement, sprint stamina, and animation states.
+/// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float moveSpeed = 4.0f; // Base walking speed
-    public float sprintSpeed = 6.5f; // Fast burst to gain distance
-    public float sprintMeterThreshold = 5f; 
+    [Tooltip("Base walking speed for the character.")]
+    [SerializeField] private float moveSpeed = 4.0f;
+    [Tooltip("The character's movement speed while sprinting.")]
+    [SerializeField] private float sprintSpeed = 6.5f;
+    [Tooltip("The initial stamina capacity before fatigue sets in.")]
+    [SerializeField] private float sprintMeterThreshold = 5f;
 
-    [Header("Sprint Decay")]
-    public float baseDecayRate = 0.08f; // Recover faster (takes ~1 minute while walking)
-    public float idleDecayMultiplier = 2.0f; // Greatly rewards standing perfectly still to catch your breath
-    public float thresholdIncrease = 2f; 
+    [Header("Sprint & Fatigue System")]
+    [Tooltip("The base rate at which the sprint meter recovers per second.")]
+    [SerializeField] private float baseDecayRate = 0.08f;
+    [Tooltip("Multiplier applied to the decay rate when the player is standing still.")]
+    [SerializeField] private float idleDecayMultiplier = 2.0f;
+    [Tooltip("How much the sprint meter threshold increases after being fully depleted.")]
+    [SerializeField] private float thresholdIncrease = 2f;
 
-    [Header("Crush Penalty")]
-    public float crushSpeedMultiplier = 0.8f;
+    [Header("Status Penalties")]
+    [Tooltip("Speed multiplier applied when the 'Crush' penalty is active.")]
+    [SerializeField] private float crushSpeedMultiplier = 0.8f;
+    [Tooltip("Speed multiplier applied when the sprint meter is fully depleted.")]
+    [SerializeField] private float fatigueSpeedMultiplier = 0.6f;
 
-    [Header("Fatigue Penalty")]
-    public float fatigueSpeedMultiplier = 0.6f; 
-
-    [Header("Audio Warning")]
-    public AudioClip breathingClip;
+    [Header("Audio")]
+    [Tooltip("The heavy breathing sound played as a warning when stamina is low.")]
+    [SerializeField] private AudioClip breathingClip;
 
     [Header("System State")]
-    public bool isRooted = false; 
+    [Tooltip("If true, all movement input is blocked. Used for cinematics or interactions.")]
+    public bool isRooted = false;
 
-    [Header("Animations")]
-    public Animator animator; 
-
-    private Rigidbody2D rb;
-    private Vector2 movementInput;
-    private InventoryManager inventoryManager;
-    private float sprintMeter = 0f;
-    private bool isSprinting = false;
-    private ScreenEffectManager screenEffect;
-    private AudioSource audioSource;
-    private bool corruptionAddedThisCycle = false;
-    private float currentThreshold;
-    private bool isMovementLocked = false;
-    private float baseScale;
-    
-    [Header("Depth Sorting")]
+    [Header("Animation & Visuals")]
+    [Tooltip("The Animator component for the player character.")]
+    public Animator animator;
     [Tooltip("The Unity Sorting Layer used to dynamically sort depth.")]
-    public string sortingLayerName = "Player";
-    public float depthOffset = -0.5f; // Where Kaelen's feet are relative to his center
-    private SpriteRenderer spriteRenderer;
+    [SerializeField] private string sortingLayerName = "Player";
+    [Tooltip("Vertical offset from the pivot to determine the character's sorting order (should be at their feet).")]
+    [SerializeField] private float depthOffset = -0.5f;
+
+    // Private component references
+    private Rigidbody2D _rb;
+    private AudioSource _audioSource;
+    private SpriteRenderer _spriteRenderer;
+    private ScreenEffectManager _screenEffect;
+
+    // Internal state
+    private Vector2 _movementInput;
+    private float _sprintMeter = 0f;
+    private bool _isSprinting = false;
+    private bool _corruptionAddedThisCycle = false;
+    private float _currentThreshold;
+    private bool _isMovementLocked = false;
+    private float _baseScaleX;
+    
+    /// <summary>A read-only property for the current sprint meter value.</summary>
+    public float SprintMeter => _sprintMeter;
+    /// <summary>A read-only property for the current sprint meter capacity.</summary>
+    public float SprintMeterThreshold => _currentThreshold;
 
     void Start()
     {
-        rb = GetComponent<Rigidbody2D>();
+        // --- Component Caching ---
+        _rb = GetComponent<Rigidbody2D>();
+        _audioSource = GetComponent<AudioSource>();
+        if (_audioSource == null) _audioSource = gameObject.AddComponent<AudioSource>();
+        _spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        _screenEffect = ScreenEffectManager.Instance;
         
-        // PHYSICS FAILSAFE: Force the player to be Dynamic so they physically slam into walls!
-        // (If they are accidentally set to Kinematic, they will ghost through the servers)
-        rb.bodyType = RigidbodyType2D.Dynamic;
-        rb.gravityScale = 0f;
-        rb.freezeRotation = true;
+        // --- Physics Setup ---
+        _rb.bodyType = RigidbodyType2D.Dynamic;
+        _rb.gravityScale = 0f;
+        _rb.freezeRotation = true;
 
-        // ADD FRICTIONLESS MATERIAL TO PREVENT GETTING STUCK ON WALLS
+        // Create a frictionless material at runtime to ensure the player slides along walls smoothly.
         PhysicsMaterial2D slipMat = new PhysicsMaterial2D("PlayerSlip");
         slipMat.friction = 0f;
         slipMat.bounciness = 0f;
-        rb.sharedMaterial = slipMat;
+        _rb.sharedMaterial = slipMat;
 
-        inventoryManager = FindAnyObjectByType<InventoryManager>();
-        screenEffect = FindAnyObjectByType<ScreenEffectManager>();
-        audioSource = GetComponent<AudioSource>();
-        if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
-        currentThreshold = sprintMeterThreshold;
-        baseScale = Mathf.Abs(transform.localScale.x);
-
-        // FORCE the survival horror pacing (Overrides any old values saved in the Unity Inspector!)
-        baseDecayRate = 0.08f;
-        idleDecayMultiplier = 2.0f;
-
-        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
-        if (spriteRenderer != null) spriteRenderer.sortingLayerName = sortingLayerName;
+        // --- State Initialization ---
+        _currentThreshold = sprintMeterThreshold;
+        _baseScaleX = Mathf.Abs(transform.localScale.x);
+        if (_spriteRenderer != null) _spriteRenderer.sortingLayerName = sortingLayerName;
     }
 
     void Update()
     {
-        // 1. ALWAYS read input first
-        movementInput.x = Input.GetAxisRaw("Horizontal");
-        movementInput.y = Input.GetAxisRaw("Vertical");
-        movementInput = movementInput.normalized;
-
-        // 2. IMMEDIATELY send this to the animator
-        if (animator != null)
-        {
-            if (movementInput != Vector2.zero)
-            {
-                animator.SetFloat("Horizontal", movementInput.x);
-                animator.SetFloat("Vertical", movementInput.y);
-            }
-            animator.SetFloat("Speed", movementInput.sqrMagnitude);
-        }
-
-        // 3. FLIP THE VISUALS DYNAMICALLY
-        if (movementInput.x > 0)
-        {
-            // Face Right
-            transform.localScale = new Vector3(baseScale, transform.localScale.y, transform.localScale.z);
-        }
-        else if (movementInput.x < 0)
-        {
-            // Face Left
-            transform.localScale = new Vector3(-baseScale, transform.localScale.y, transform.localScale.z);
-        }
-
-        // 4. NOW apply your gameplay locks
-        if (isRooted)
-        {
-            movementInput = Vector2.zero;
-            rb.linearVelocity = Vector2.zero;
-            return;
-        }
-
-        if (isMovementLocked)
-        {
-            movementInput = Vector2.zero;
-        }
-
-        // 5. Sprint handling
-        isSprinting = Input.GetKey(KeyCode.LeftShift) && movementInput != Vector2.zero && sprintMeter < currentThreshold;
-        bool isIdle = movementInput == Vector2.zero;
-        float decayRate = baseDecayRate * (isIdle ? idleDecayMultiplier : 1f);
-
-        if (isSprinting)
-        {
-            // LORE UPDATE: Tier 3 Crush Penalty doubles sprint stamina drain!
-            float strainRate = (inventoryManager != null && inventoryManager.CrushTier >= 3) ? 2.0f : 1.0f;
-            
-            sprintMeter += Time.deltaTime * strainRate;
-            if (sprintMeter >= currentThreshold && !corruptionAddedThisCycle)
-            {
-                inventoryManager.AddCorruptionRow();
-                currentThreshold += thresholdIncrease; 
-                sprintMeter = currentThreshold; 
-                corruptionAddedThisCycle = true;
-                isMovementLocked = true; 
-                Debug.Log("SPRINT: Extended sprinting added 1 row of corruption!");
-            }
-        }
-        else
-        {
-            sprintMeter = Mathf.Max(0f, sprintMeter - Time.deltaTime * decayRate);
-            if (sprintMeter < currentThreshold)
-            {
-                corruptionAddedThisCycle = false;
-            }
-            if (sprintMeter <= currentThreshold * 0.95f)
-            {
-                isMovementLocked = false;
-            }
-        }
-
-        // Warning when close to threshold
-        bool nearThreshold = sprintMeter >= currentThreshold - 1f && isSprinting;
-        if (screenEffect != null) screenEffect.SetWarning(nearThreshold);
-        if (nearThreshold && !audioSource.isPlaying && breathingClip != null)
-        {
-            audioSource.PlayOneShot(breathingClip);
-        }
-
-        // DYNAMIC DEPTH SORTING: Update sorting order based on Y position so Kaelen can walk behind things!
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
-        }
+        HandleInput();
+        HandleStamina();
+        UpdateAnimationAndVisuals();
     }
 
     void FixedUpdate()
     {
-        // Cancel out any physical forces so Kaelen doesn't slide when hit
-        rb.linearVelocity = Vector2.zero;
+        // Immediately kill any external physical forces to prevent sliding.
+        _rb.linearVelocity = Vector2.zero;
 
-        // Force stop if movement is locked
-        if (isMovementLocked)
+        if (isRooted || _isMovementLocked)
         {
-            rb.linearVelocity = Vector2.zero;
             return;
         }
 
-        float effectiveSpeed = moveSpeed;
-        if (inventoryManager != null && inventoryManager.CrushTier >= 1)
+        // Determine the final effective speed based on current state and penalties.
+        float effectiveSpeed = _isSprinting ? sprintSpeed : moveSpeed;
+        if (InventoryManager.Instance != null && InventoryManager.Instance.CrushTier >= 1)
         {
             effectiveSpeed *= crushSpeedMultiplier;
         }
-        if (isSprinting)
-        {
-            effectiveSpeed = sprintSpeed;
-        }
-        if (sprintMeter >= currentThreshold)
+        if (_sprintMeter >= _currentThreshold)
         {
             effectiveSpeed *= fatigueSpeedMultiplier;
         }
         
-        // Apply the calculated movement to the physics body
-        rb.MovePosition(rb.position + movementInput * effectiveSpeed * Time.fixedDeltaTime);
+        // Apply movement to the Rigidbody for smooth, collision-aware motion.
+        _rb.MovePosition(_rb.position + _movementInput * effectiveSpeed * Time.fixedDeltaTime);
     }
 
-    public float SprintMeter => sprintMeter;
-    public float SprintMeterThreshold => currentThreshold;
+    /// <summary>
+    /// Reads raw player input and handles gameplay locks like 'isRooted'.
+    /// </summary>
+    private void HandleInput()
+    {
+        if (isRooted || _isMovementLocked)
+        {
+            _movementInput = Vector2.zero;
+            return;
+        }
 
-    // ==========================================
-    // SAVE SYSTEM INTEGRATION
-    // ==========================================
+        _movementInput.x = Input.GetAxisRaw("Horizontal");
+        _movementInput.y = Input.GetAxisRaw("Vertical");
+        _movementInput = _movementInput.normalized;
+    }
+
+    /// <summary>
+    /// Manages the sprint meter, fatigue penalties, and corruption gain from over-exertion.
+    /// </summary>
+    private void HandleStamina()
+    {
+        _isSprinting = Input.GetKey(KeyCode.LeftShift) && _movementInput != Vector2.zero && _sprintMeter < _currentThreshold;
+        bool isIdle = _movementInput == Vector2.zero;
+        float decayRate = baseDecayRate * (isIdle ? idleDecayMultiplier : 1f);
+
+        if (_isSprinting)
+        {
+            // Per the GDD, the Crush penalty makes sprinting more taxing.
+            float strainRate = (InventoryManager.Instance != null && InventoryManager.Instance.CrushTier >= 3) ? 2.0f : 1.0f;
+            
+            _sprintMeter += Time.deltaTime * strainRate;
+            if (_sprintMeter >= _currentThreshold && !_corruptionAddedThisCycle)
+            {
+                if (InventoryManager.Instance != null) InventoryManager.Instance.AddCorruptionRow();
+                _currentThreshold += thresholdIncrease;
+                _sprintMeter = _currentThreshold;
+                _corruptionAddedThisCycle = true;
+                _isMovementLocked = true; // Lock movement briefly to signify exhaustion.
+            }
+        }
+        else
+        {
+            _sprintMeter = Mathf.Max(0f, _sprintMeter - Time.deltaTime * decayRate);
+            if (_sprintMeter < _currentThreshold)
+            {
+                _corruptionAddedThisCycle = false;
+            }
+            // Allow movement again once stamina has recovered slightly.
+            if (_sprintMeter <= _currentThreshold * 0.95f)
+            {
+                _isMovementLocked = false;
+            }
+        }
+
+        // Trigger audio/visual warnings when stamina is critically low.
+        bool nearThreshold = _sprintMeter >= _currentThreshold - 1f && _isSprinting;
+        if (_screenEffect != null) _screenEffect.SetWarning(nearThreshold);
+        if (nearThreshold && !_audioSource.isPlaying && breathingClip != null)
+        {
+            _audioSource.PlayOneShot(breathingClip);
+        }
+    }
+
+    /// <summary>
+    /// Updates the Animator, sprite flipping, and depth sorting based on the current movement state.
+    /// </summary>
+    private void UpdateAnimationAndVisuals()
+    {
+        if (animator != null)
+        {
+            // The animator uses the last non-zero input to determine which way to face when idle.
+            if (_movementInput != Vector2.zero)
+            {
+                animator.SetFloat("Horizontal", _movementInput.x);
+                animator.SetFloat("Vertical", _movementInput.y);
+            }
+            animator.SetFloat("Speed", _movementInput.sqrMagnitude);
+        }
+
+        // Flip the entire character transform based on horizontal movement direction.
+        if (_movementInput.x > 0.01f)
+        {
+            transform.localScale = new Vector3(_baseScaleX, transform.localScale.y, transform.localScale.z);
+        }
+        else if (_movementInput.x < -0.01f)
+        {
+            transform.localScale = new Vector3(-_baseScaleX, transform.localScale.y, transform.localScale.z);
+        }
+
+        // Dynamically update sorting order to allow walking in front of/behind objects.
+        if (_spriteRenderer != null)
+        {
+            _spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
+        }
+    }
+
+    /// <summary>
+    /// Loads the character's stamina state from a save file.
+    /// </summary>
     public void LoadStaminaState(float savedMeter, float savedThreshold)
     {
-        sprintMeter = savedMeter;
-        currentThreshold = savedThreshold;
+        _sprintMeter = savedMeter;
+        _currentThreshold = savedThreshold;
         
-        // Reset any physical locks so the player doesn't spawn frozen!
-        isMovementLocked = false;
-        corruptionAddedThisCycle = false;
+        // Ensure the player is not stuck in a locked state after loading.
+        _isMovementLocked = false;
+        _corruptionAddedThisCycle = false;
     }
 }

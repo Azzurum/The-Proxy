@@ -1,69 +1,77 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+/// <summary>
+/// Manages player aiming, weapon cooldowns, and firing logic for equipped tools.
+/// </summary>
 public class PlayerCombat : MonoBehaviour
 {
-    public InventoryManager inventoryManager;
-
-    private float repulsorCooldown = 0f;
-    private float stunnerCooldown = 0f;
-    private Texture2D generatedCrosshair;
-
     [Header("Audio SFX")]
+    [Tooltip("Audio source for playing combat sounds.")]
     public AudioSource audioSource;
+    [Tooltip("Sound played when the Arc-Pulse Stunner is fired.")]
     public AudioClip sfxStunnerFire;
+    [Tooltip("Sound played when the K-80 Repulsor is fired.")]
     public AudioClip sfxRepulsorFire;
+    [Tooltip("Sound played when attempting to fire an empty weapon.")]
     public AudioClip sfxWeaponEmpty;
+    [Tooltip("Sound played when a shot successfully connects with an enemy.")]
     public AudioClip sfxEnemyHit;
 
-    void Start()
+    private float _repulsorCooldown = 0f;
+    private float _stunnerCooldown = 0f;
+    private Texture2D _generatedCrosshair;
+    private MetRigManager _metRigManager;
+    
+    private readonly RaycastHit2D[] _raycastHits = new RaycastHit2D[5];
+    private ContactFilter2D _enemyFilter;
+
+    private void Start()
     {
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
-        if (inventoryManager == null) inventoryManager = FindAnyObjectByType<InventoryManager>();
+        _metRigManager = FindAnyObjectByType<MetRigManager>();
+        
+        _enemyFilter = ContactFilter2D.noFilter;
+        _enemyFilter.useTriggers = true;
+
         CreateCrosshair();
     }
 
     private void CreateCrosshair()
     {
-        generatedCrosshair = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+        _generatedCrosshair = new Texture2D(32, 32, TextureFormat.RGBA32, false);
         Color transparent = new Color(0, 0, 0, 0);
         for (int i = 0; i < 32; i++)
             for (int j = 0; j < 32; j++)
-                generatedCrosshair.SetPixel(i, j, transparent);
+                _generatedCrosshair.SetPixel(i, j, transparent);
 
         Color red = Color.red;
         for (int i = 10; i < 22; i++)
         {
-            generatedCrosshair.SetPixel(16, i, red);
-            generatedCrosshair.SetPixel(15, i, red);
-            generatedCrosshair.SetPixel(17, i, red);
+            _generatedCrosshair.SetPixel(16, i, red);
+            _generatedCrosshair.SetPixel(15, i, red);
+            _generatedCrosshair.SetPixel(17, i, red);
 
-            generatedCrosshair.SetPixel(i, 16, red);
-            generatedCrosshair.SetPixel(i, 15, red);
-            generatedCrosshair.SetPixel(i, 17, red);
+            _generatedCrosshair.SetPixel(i, 16, red);
+            _generatedCrosshair.SetPixel(i, 15, red);
+            _generatedCrosshair.SetPixel(i, 17, red);
         }
-        generatedCrosshair.Apply();
+        _generatedCrosshair.Apply();
     }
 
-    void Update()
+    private void Update()
     {
-        // Manage passive cooldowns
-        if (repulsorCooldown > 0) repulsorCooldown -= Time.deltaTime;
-        if (stunnerCooldown > 0) stunnerCooldown -= Time.deltaTime;
+        if (_repulsorCooldown > 0) _repulsorCooldown -= Time.deltaTime;
+        if (_stunnerCooldown > 0) _stunnerCooldown -= Time.deltaTime;
 
-        MetRigManager rigManager = FindAnyObjectByType<MetRigManager>();
-        bool isRigOpen = rigManager != null && rigManager.isRigOpen;
+        bool isRigOpen = _metRigManager != null && _metRigManager.isRigOpen;
 
-        // Temporarily disable the crosshair while managing inventory to prevent drag interference
         if (isRigOpen) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
         else UpdateCursor();
 
-        // 2. Aim and Fire (Left or Right Click)
         if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
         {
             if (isRigOpen) return;
-
-            // Prevent firing weapon when clicking on other UI elements (like Dialogue or Menus)
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
             FireActiveWeapon();
@@ -85,7 +93,7 @@ public class PlayerCombat : MonoBehaviour
 
         if (isWeapon)
         {
-            Cursor.SetCursor(generatedCrosshair, new Vector2(16, 16), CursorMode.Auto);
+            Cursor.SetCursor(_generatedCrosshair, new Vector2(16, 16), CursorMode.Auto);
         }
         else
         {
@@ -100,51 +108,44 @@ public class PlayerCombat : MonoBehaviour
         var quickSlot = HotbarManager.Instance.quickSlots[HotbarManager.Instance.currentEquippedIndex];
         ItemData activeItem = (quickSlot != null && quickSlot.containedItem != null) ? quickSlot.containedItem.itemData : null;
         
-        if (activeItem == null) return; // Nothing in hands
+        if (activeItem == null) return; 
 
         Vector2 mouseWorldPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         Vector2 aimDirection = (mouseWorldPosition - (Vector2)transform.position).normalized;
         
-        float stunRange = 5f;
-        float repulseRange = 3f;
-        float range = activeItem.itemID == "WEP-REPULSE" ? repulseRange : stunRange;
+        float range = activeItem.itemID == "WEP-REPULSE" ? 3f : 5f;
 
         Collider2D hitCollider = null;
         bool hitProxy = false;
 
-        // Weapon Aim Logic
         if (activeItem.itemID == "STUN-ARC" || activeItem.itemID == "WEP-REPULSE")
         {
-            RaycastHit2D[] hits = Physics2D.RaycastAll(transform.position, aimDirection, range);
-            foreach (var hit in hits)
+            int hitCount = Physics2D.Raycast(transform.position, aimDirection, _enemyFilter, _raycastHits, range);
+            for (int i = 0; i < hitCount; i++)
             {
-                if (hit.collider.GetComponent<ProxyAI>() != null)
+                if (_raycastHits[i].collider.TryGetComponent<ProxyAI>(out var proxy))
                 {
-                    hitCollider = hit.collider;
+                    hitCollider = _raycastHits[i].collider;
                     hitProxy = true;
                     break;
                 }
             }
 
-            // Fallback: generous circle cast for easier aiming
             if (!hitProxy)
             {
-                hits = Physics2D.CircleCastAll(transform.position, 1.5f, aimDirection, range);
-                foreach (var hit in hits)
+                hitCount = Physics2D.CircleCast(transform.position, 1.5f, aimDirection, _enemyFilter, _raycastHits, range);
+                for (int i = 0; i < hitCount; i++)
                 {
-                    if (hit.collider.GetComponent<ProxyAI>() != null)
+                    if (_raycastHits[i].collider.TryGetComponent<ProxyAI>(out var proxy))
                     {
-                        hitCollider = hit.collider;
+                        hitCollider = _raycastHits[i].collider;
                         hitProxy = true;
                         break;
                     }
                 }
             }
-            
-            Debug.Log($"<color=yellow>[DEBUG]</color> Firing {activeItem.itemID}. Aim Dir: {aimDirection}, Hit Proxy: {hitProxy}");
         }
 
-        // Execute the specific weapon logic
         if (activeItem.itemID == "STUN-ARC")
         {
             ExecuteStunner(hitProxy, hitCollider);
@@ -157,67 +158,50 @@ public class PlayerCombat : MonoBehaviour
 
     private void ExecuteStunner(bool hitProxy, Collider2D hitCollider)
     {
-        if (stunnerCooldown > 0f)
-        {
-            Debug.Log($"STUNNER RECHARGING: ({stunnerCooldown:F1}s)");
-            return;
-        }
+        if (_stunnerCooldown > 0f) return;
 
-        if (inventoryManager.TryConsumeBatteries(1))
+        if (InventoryManager.Instance != null && InventoryManager.Instance.TryConsumeBatteries(1))
         {
             if (audioSource != null) audioSource.PlayOneShot(sfxStunnerFire != null ? sfxStunnerFire : ProceduralAudioGen.GeneratePew());
 
-            stunnerCooldown = 2.0f; // Add cooldown to prevent spamming
+            _stunnerCooldown = 2.0f; 
             
-            if (hitProxy)
+            if (hitProxy && hitCollider.TryGetComponent<ProxyAI>(out var proxy))
             {
                 if (audioSource != null) audioSource.PlayOneShot(sfxEnemyHit != null ? sfxEnemyHit : ProceduralAudioGen.GenerateStaticGlitch(0.15f));
-                Debug.Log("<color=cyan>ARC-PULSE HIT:</color> The Proxy is stunned!");
-                hitCollider.GetComponent<ProxyAI>().ApplyStun();
-            }
-            else
-            {
-                Debug.Log("<color=red>ARC-PULSE MISS:</color> You fired at the wall and wasted a battery!");
+                proxy.ApplyStun();
             }
         }
         else
         {
             if (audioSource != null) audioSource.PlayOneShot(sfxWeaponEmpty != null ? sfxWeaponEmpty : ProceduralAudioGen.GenerateClick());
-            Debug.Log("STUNNER CLICK: Empty! No Aether-Core Batteries in M.E.T. Buffer.");
         }
     }
 
     private void ExecuteRepulsor(bool hitProxy, Collider2D hitCollider)
     {
-        if (repulsorCooldown <= 0f)
+        if (_repulsorCooldown <= 0f)
         {
-            if (inventoryManager.TryConsumeBatteries(1))
+            if (InventoryManager.Instance != null && InventoryManager.Instance.TryConsumeBatteries(1))
             {
                 if (audioSource != null) audioSource.PlayOneShot(sfxRepulsorFire != null ? sfxRepulsorFire : ProceduralAudioGen.GeneratePneumaticBlast());
 
-                repulsorCooldown = 10f; // Reset pneumatics
+                _repulsorCooldown = 10f; 
 
-                if (hitProxy)
+                if (hitProxy && hitCollider.TryGetComponent<ProxyAI>(out var proxy))
                 {
                     if (audioSource != null) audioSource.PlayOneShot(sfxEnemyHit != null ? sfxEnemyHit : ProceduralAudioGen.GenerateStaticGlitch(0.15f));
-                    Debug.Log("<color=cyan>REPULSOR HIT:</color> The Proxy is knocked back!");
-                    hitCollider.GetComponent<ProxyAI>().ApplyRepulsor(transform.position, 7f);
-                }
-                else
-                {
-                    Debug.Log("<color=red>REPULSOR MISS:</color> You punched the air!");
+                    proxy.ApplyRepulsor(transform.position, 7f);
                 }
             }
             else
             {
                 if (audioSource != null) audioSource.PlayOneShot(sfxWeaponEmpty != null ? sfxWeaponEmpty : ProceduralAudioGen.GenerateClick());
-                Debug.Log("REPULSOR CLICK: Empty! No Aether-Core Batteries in M.E.T. Buffer.");
             }
         }
         else
         {
             if (audioSource != null) audioSource.PlayOneShot(sfxWeaponEmpty != null ? sfxWeaponEmpty : ProceduralAudioGen.GenerateClick());
-            Debug.Log($"REPULSOR JAMMED: Pneumatics recharging... ({repulsorCooldown:F1}s)");
         }
     }
 }

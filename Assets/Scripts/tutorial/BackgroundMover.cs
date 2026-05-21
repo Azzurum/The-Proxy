@@ -1,48 +1,47 @@
 using UnityEngine;
 
+/// <summary>
+/// Handles the seamless looping translation of background elements on the X-axis.
+/// </summary>
 public class BackgroundMover : MonoBehaviour
 {
     [Header("Movement Settings")]
+    [Tooltip("The direction and speed at which the background moves per second.")]
     [SerializeField] private Vector3 moveDirection = new Vector3(0.1f, 0f, 0f);
 
-    private Vector3 startPosition;
-    private float repeatWidth;
+    private Vector3 _startPosition;
+    private float _repeatWidth;
 
-    void Start()
+    private void Start()
     {
-        startPosition = transform.position;
+        _startPosition = transform.position;
 
-        // Securely grab the exact width of the image sprite bounds
-        SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
-        if (spriteRenderer != null)
+        if (TryGetComponent<SpriteRenderer>(out var spriteRenderer))
         {
-            repeatWidth = spriteRenderer.bounds.size.x;
+            _repeatWidth = spriteRenderer.bounds.size.x;
         }
         else
         {
-            repeatWidth = 19.2f; // Secure fallback value
+            _repeatWidth = 19.2f; 
         }
     }
 
-    void Update()
+    private void Update()
     {
-        // Smooth frame-independent movement
         transform.position += moveDirection * Time.deltaTime;
 
-        // Check if we are moving right (positive X)
         if (moveDirection.x > 0)
         {
-            if (transform.position.x >= startPosition.x + repeatWidth)
+            if (transform.position.x >= _startPosition.x + _repeatWidth)
             {
-                transform.position = startPosition;
+                transform.position = _startPosition;
             }
         }
-        // Check if we are moving left (negative X)
         else if (moveDirection.x < 0)
         {
-            if (transform.position.x <= startPosition.x - repeatWidth)
+            if (transform.position.x <= _startPosition.x - _repeatWidth)
             {
-                transform.position = startPosition;
+                transform.position = _startPosition;
             }
         }
     }

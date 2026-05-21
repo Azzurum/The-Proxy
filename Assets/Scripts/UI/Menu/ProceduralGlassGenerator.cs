@@ -1,13 +1,22 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Procedurally generates fractured glass mesh shards based on screen dimensions for shatter effects.
+/// </summary>
 public class ProceduralGlassGenerator : MonoBehaviour
 {
     [Header("Generation Settings")]
+    [Tooltip("The material applied to the generated glass shards.")]
     public Material glassMaterial;
 
+    /// <summary>
+    /// Calculates screen boundaries and constructs individual shard meshes.
+    /// </summary>
     public void GenerateShards()
     {
+        for (int i = transform.childCount - 1; i >= 0; i--) Destroy(transform.GetChild(i).gameObject);
+
         Camera cam = Camera.main;
         float zDistance = Mathf.Abs(transform.localPosition.z);
         float screenHeight;
@@ -15,42 +24,31 @@ public class ProceduralGlassGenerator : MonoBehaviour
         if (cam.orthographic) screenHeight = cam.orthographicSize * 2f;
         else screenHeight = 2.0f * zDistance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
 
-        // Add buffer so edges never show
         screenHeight *= 1.05f;
         
         float halfH = screenHeight / 2f;
         float aspect = cam.aspect; 
 
-        // Center Impact Point
         Vector2 pC = new Vector2(-0.05f * aspect, 0.05f);
 
-        // BALANCED 6-WAY CUTS (Perfectly distributed sizes)
-        // C0 (Up): Slices through the top
         Vector2[] c0 = { pC, new Vector2(0.1f * aspect, 0.4f),  new Vector2(0.0f * aspect, 0.8f),  new Vector2(0.2f * aspect, 1.2f) };
-        // C1 (Right): Slices through the right edge
         Vector2[] c1 = { pC, new Vector2(0.4f * aspect, 0.2f),  new Vector2(0.7f * aspect, 0.3f),  new Vector2(1.2f * aspect, 0.1f) };
-        // C2 (Down-Right): Slices through the bottom edge
         Vector2[] c2 = { pC, new Vector2(0.3f * aspect, -0.3f), new Vector2(0.5f * aspect, -0.6f), new Vector2(0.4f * aspect, -1.2f) };
-        // C3 (Down-Left): Slices through the bottom edge
         Vector2[] c3 = { pC, new Vector2(-0.2f * aspect, -0.4f),new Vector2(-0.1f * aspect, -0.8f),new Vector2(-0.4f * aspect, -1.2f) };
-        // C4 (Left): Slices through the left edge
         Vector2[] c4 = { pC, new Vector2(-0.5f * aspect, -0.1f),new Vector2(-0.8f * aspect, -0.3f),new Vector2(-1.2f * aspect, -0.2f) };
-        // C5 (Up-Left): Slices through the top edge
         Vector2[] c5 = { pC, new Vector2(-0.4f * aspect, 0.3f), new Vector2(-0.6f * aspect, 0.6f), new Vector2(-0.2f * aspect, 1.2f) };
 
-        // Define the monitor corners
         Vector2 tr = new Vector2(aspect, 1.0f);
         Vector2 br = new Vector2(aspect, -1.0f);
         Vector2 bl = new Vector2(-aspect, -1.0f);
         Vector2 tl = new Vector2(-aspect, 1.0f);
 
-        // Build the exactly 6 Shards
-        BuildShard(c5, c0, new Vector2[] { }, halfH, 0);            // Top Center Shard
-        BuildShard(c0, c1, new Vector2[] { tr }, halfH, 1);         // Top Right Shard
-        BuildShard(c1, c2, new Vector2[] { br }, halfH, 2);         // Bottom Right Shard
-        BuildShard(c2, c3, new Vector2[] { }, halfH, 3);            // Bottom Center Shard
-        BuildShard(c3, c4, new Vector2[] { bl }, halfH, 4);         // Bottom Left Shard
-        BuildShard(c4, c5, new Vector2[] { tl }, halfH, 5);         // Top Left Shard
+        BuildShard(c5, c0, new Vector2[] { }, halfH, 0);            
+        BuildShard(c0, c1, new Vector2[] { tr }, halfH, 1);         
+        BuildShard(c1, c2, new Vector2[] { br }, halfH, 2);         
+        BuildShard(c2, c3, new Vector2[] { }, halfH, 3);            
+        BuildShard(c3, c4, new Vector2[] { bl }, halfH, 4);         
+        BuildShard(c4, c5, new Vector2[] { tl }, halfH, 5);         
     }
 
     private void BuildShard(Vector2[] cutL, Vector2[] cutR, Vector2[] corners, float halfH, int index)

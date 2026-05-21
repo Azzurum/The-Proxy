@@ -1,32 +1,37 @@
 using UnityEngine;
 
+/// <summary>
+/// Coordinates the initial tutorial dialogue sequence, locking player input during execution.
+/// </summary>
 public class TutorialDialogueTrigger : MonoBehaviour
 {
     [Header("Engine Reference")]
+    [Tooltip("Reference to the dialogue engine.")]
     public DialogueEngine dialogueEngine;
 
     [Header("Opening Scene Dialogue")]
-    // This safely hooks right into the original DialogueNode struct your team made!
+    [Tooltip("The dialogue sequence nodes to be played.")]
     public DialogueNode[] introductionConversation;
+    
+    private PlayerController _playerController;
 
-    // This is the function our Master Timeline Director will call!
+    private void Start()
+    {
+        _playerController = FindAnyObjectByType<PlayerController>();
+    }
+
+    /// <summary>
+    /// Triggered by a timeline or external event to begin the introductory conversation.
+    /// </summary>
     public void TriggerKaelenDialogue()
     {
         if (dialogueEngine != null && introductionConversation != null && introductionConversation.Length > 0)
         {
-            // 1. Lock the player so they can't move during the intro
-            PlayerController pc = FindAnyObjectByType<PlayerController>();
-            if (pc != null) pc.enabled = false;
+            if (_playerController != null) _playerController.enabled = false;
 
-            // 2. Make sure the Dialogue UI is turned on
             if (!dialogueEngine.gameObject.activeSelf) dialogueEngine.gameObject.SetActive(true);
 
-            // 3. Play the conversation
             dialogueEngine.StartDialogue(introductionConversation, false);
-        }
-        else
-        {
-            Debug.LogWarning("Dialogue Trigger missing an engine reference or lines!");
         }
     }
 }

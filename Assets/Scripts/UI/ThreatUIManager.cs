@@ -1,25 +1,37 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Manipulates standard UI boundary colors based on the proximity of the hunting entity.
+/// </summary>
 public class ThreatUIManager : MonoBehaviour
 {
-    public Image[] uiElementsToColor; // Assign visor borders, etc.
+    [Header("Visual Connections")]
+    [Tooltip("Target UI Image elements (such as the visor rim) to dynamically tint.")]
+    public Image[] uiElementsToColor; 
+    
+    [Header("Theme Definitions")]
     public Color lowThreatColor = Color.cyan;
-    public Color mediumThreatColor = new Color(1f, 0.67f, 0f); // Amber
+    public Color mediumThreatColor = new Color(1f, 0.67f, 0f); 
     public Color highThreatColor = Color.red;
 
-    private ProxyAI proxyAI;
+    private ProxyAI _proxyAI;
+    private Transform _playerTransform;
 
-    void Start()
+    private void Start()
     {
-        proxyAI = FindAnyObjectByType<ProxyAI>();
+        _proxyAI = FindAnyObjectByType<ProxyAI>();
+        if (GameObject.FindGameObjectWithTag("Player").TryGetComponent(out Transform pt))
+        {
+            _playerTransform = pt;
+        }
     }
 
-    void Update()
+    private void Update()
     {
-        if (proxyAI == null) return;
+        if (_proxyAI == null || _playerTransform == null) return;
 
-        float distance = Vector3.Distance(transform.position, proxyAI.transform.position);
+        float distance = Vector3.Distance(_playerTransform.position, _proxyAI.transform.position);
         Color targetColor;
 
         if (distance > 50f) targetColor = lowThreatColor;

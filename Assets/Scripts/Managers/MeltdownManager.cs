@@ -3,55 +3,66 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 
+/// <summary>
+/// Coordinates the final escape sequence, managing the countdown timer, the Proxy's enraged state, and audio/visual alarms.
+/// </summary>
 public class MeltdownManager : MonoBehaviour
 {
     [Header("Meltdown Settings")]
+    [Tooltip("Total time in seconds before the ship explodes, failing the mission.")]
     public float timeRemaining = 60f;
-    public bool isMeltdownActive = false; // Start false, activated by cinematic
+    [Tooltip("Is the countdown currently running?")]
+    public bool isMeltdownActive = false; 
 
     [Header("UI References")]
+    [Tooltip("The text component displaying the active countdown.")]
     public TextMeshProUGUI timerText;
-    public Image redFlashOverlay; 
-    public TextMeshProUGUI objectiveText; 
+    [Tooltip("The UI image used for the initial cinematic screen flash.")]
+    public Image redFlashOverlay;
+    [Tooltip("The UI text object prompting the player to run.")]
+    public TextMeshProUGUI objectiveText;
 
     [Header("Cinematic References")]
+    [Tooltip("The player's Transform, used to snap the camera back after the breach sequence.")]
     public Transform playerTransform;
-    public Transform proxySpawnDoor; 
+    [Tooltip("The transform representing the door that the Proxy breaches during the cinematic.")]
+    public Transform proxySpawnDoor;
 
-    private AudioSource alarmAudioSource;
-    private CameraFollow camFollow;
-    private GameOverManager gameOverManager;
-    private int lastSecondBeep = 11;
+    private AudioSource _alarmAudioSource;
+    private CameraFollow _camFollow;
+    private GameOverManager _gameOverManager;
+    private ProxyAI _proxyAI;
+    private PlayerController _playerController;
+    private int _lastSecondBeep = 11;
 
-    void Start()
+    private void Start()
     {
-        camFollow = FindAnyObjectByType<CameraFollow>();
-        gameOverManager = FindAnyObjectByType<GameOverManager>();
+        _camFollow = FindAnyObjectByType<CameraFollow>();
+        _gameOverManager = FindAnyObjectByType<GameOverManager>();
+        _proxyAI = FindAnyObjectByType<ProxyAI>();
+        _playerController = FindAnyObjectByType<PlayerController>();
 
-        // 1. Setup the Siren (but don't start timer yet)
-        alarmAudioSource = gameObject.AddComponent<AudioSource>();
-        alarmAudioSource.clip = ProceduralAudioGen.GenerateAlarm(3f);
-        alarmAudioSource.loop = true;
-        alarmAudioSource.volume = 1f;
-        alarmAudioSource.Play();
+        _alarmAudioSource = gameObject.AddComponent<AudioSource>();
+        _alarmAudioSource.clip = ProceduralAudioGen.GenerateAlarm(3f);
+        _alarmAudioSource.loop = true;
+        _alarmAudioSource.volume = 1f;
+        _alarmAudioSource.Play();
 
-        // 2. Pulse the Red Warning Screen
         if (ScreenEffectManager.Instance != null)
         {
             ScreenEffectManager.Instance.SetWarning(true);
         }
 
-        // 3. Start the Cinematic!
         StartCoroutine(EscapeCinematicRoutine());
     }
 
+    /// <summary>
+    /// Plays the initial cutscene showing the Proxy breaching the door before the final timer starts.
+    /// </summary>
     private IEnumerator EscapeCinematicRoutine()
     {
-        // 1. Lock the player
-        PlayerController pc = FindAnyObjectByType<PlayerController>();
-        if (pc != null) pc.enabled = false;
+        if (_playerController != null) _playerController.enabled = false;
 
-        // 2. Fade in from the Red Flash (from level 3's transition)
         if (redFlashOverlay != null)
         {
             redFlashOverlay.gameObject.SetActive(true);
@@ -59,7 +70,7 @@ public class MeltdownManager : MonoBehaviour
             float fade = 1f;
             while (fade > 0f)
             {
-                fade -= Time.deltaTime * 1.5f; // Fades out over ~0.6 seconds
+                fade -= Time.deltaTime * 1.5f; 
                 redFlashOverlay.color = new Color(1f, 0f, 0f, fade);
                 yield return null;
             }
@@ -68,80 +79,72 @@ public class MeltdownManager : MonoBehaviour
 
         yield return new WaitForSeconds(0.5f);
 
-        // 3. Pan the camera to the Proxy's breach point
-        ProxyAI proxy = FindAnyObjectByType<ProxyAI>();
-
-        if (camFollow != null && (proxy != null || proxySpawnDoor != null))
+        if (_camFollow != null && (_proxyAI != null || proxySpawnDoor != null))
         {
-            float originalSmooth = camFollow.smoothTime;
-            camFollow.smoothTime = 0.4f; // Slower, dramatic pan
+            float originalSmooth = _camFollow.smoothTime;
+            _camFollow.smoothTime = 0.4f; 
             
-            // Target the Proxy directly so we don't accidentally pan to an off-center door pivot!
-            camFollow.target = proxy != null ? proxy.transform : proxySpawnDoor;
+            _camFollow.target = _proxyAI != null ? _proxyAI.transform : proxySpawnDoor;
             
-            // Force the Proxy to use its Right Side Idle while the camera pans!
-            if (proxy != null) proxy.ForceLookDirection(Vector2.right);
+            if (_proxyAI != null) _proxyAI.ForceLookDirection(Vector2.right);
             
-            yield return new WaitForSeconds(1.5f); // Wait for the camera to arrive
+            yield return new WaitForSeconds(1.5f); 
 
-            // 4. The Proxy attacks the door!
-            if (proxy != null && proxySpawnDoor != null)
+            if (_proxyAI != null && proxySpawnDoor != null)
             {
-                // Force the attack to also aim right, ignoring the door's exact mathematical center!
-                proxy.TriggerCinematicAttack(proxy.transform.position + Vector3.right);
-                yield return new WaitForSeconds(0.4f); // Wait for the visual 'swing' to land
+                _proxyAI.TriggerCinematicAttack(_proxyAI.transform.position + Vector3.right);
+                yield return new WaitForSeconds(0.4f); 
             }
 
-            // 5. The door explodes!
-            Time.timeScale = 0.1f; // Cinematic slow-mo impact!
+            Time.timeScale = 0.1f; 
             if (ScreenEffectManager.Instance != null) ScreenEffectManager.Instance.TriggerFlash(Color.white, 0.2f);
-            alarmAudioSource.PlayOneShot(ProceduralAudioGen.GeneratePneumaticBlast(1f));
-            alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(150f, 0.5f));
-            camFollow.TriggerShake(0.8f, 0.6f); // Violent shake
+            _alarmAudioSource.PlayOneShot(ProceduralAudioGen.GeneratePneumaticBlast(1f));
+            _alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(150f, 0.5f));
+            _camFollow.TriggerShake(0.8f, 0.6f); 
 
-            // Destroy the door (or play its animation)
             Animator doorAnim = proxySpawnDoor != null ? proxySpawnDoor.GetComponent<Animator>() : null;
             if (doorAnim != null) doorAnim.SetTrigger("OpenDoor"); 
-            else if (proxySpawnDoor != null) proxySpawnDoor.gameObject.SetActive(false); // Fallback: just delete it
+            else if (proxySpawnDoor != null) proxySpawnDoor.gameObject.SetActive(false); 
 
-            yield return new WaitForSecondsRealtime(0.7f); // Stare at the Proxy for a split second in real-world time
-            Time.timeScale = 1f; // Snap back to full speed!
+            yield return new WaitForSecondsRealtime(0.7f); 
+            Time.timeScale = 1f; 
 
-            // 6. Pan back to Kaelen
-            camFollow.target = playerTransform != null ? playerTransform : (pc != null ? pc.transform : null);
-            yield return new WaitForSeconds(1.0f); // Wait for camera to return
+            _camFollow.target = playerTransform != null ? playerTransform : (_playerController != null ? _playerController.transform : null);
+            yield return new WaitForSeconds(1.0f); 
             
-            camFollow.smoothTime = originalSmooth; // Restore normal camera speed
+            _camFollow.smoothTime = originalSmooth; 
         }
 
-        // 7. Show the Pulsing "RUN!!!!!" Objective
         if (objectiveText != null) StartCoroutine(PulseRunTextRoutine());
 
-        // 8. Enrage the Proxy!
-        if (proxy != null)
+        if (_proxyAI != null)
         {
-            proxy.TriggerEnragedHunt();
+            _proxyAI.TriggerEnragedHunt();
         }
 
-        // 9. Unlock Kaelen and Start the 60-Second Meltdown Timer!
-        if (pc != null) pc.enabled = true;
+        if (_playerController != null) _playerController.enabled = true;
         isMeltdownActive = true;
 
-        // Hide the "RUN!!!!!" text after 3.5 seconds
         yield return new WaitForSeconds(3.5f);
         if (objectiveText != null) objectiveText.gameObject.SetActive(false);
     }
 
+    /// <summary>
+    /// Disables the meltdown sequence, usually invoked when the player reaches the escape pod.
+    /// </summary>
     public void HaltMeltdown()
     {
         isMeltdownActive = false;
-        if (alarmAudioSource != null) alarmAudioSource.Stop();
+        if (_alarmAudioSource != null) _alarmAudioSource.Stop();
         if (timerText != null) timerText.gameObject.SetActive(false);
         
         if (ScreenEffectManager.Instance != null) ScreenEffectManager.Instance.SetWarning(false);
-        if (camFollow != null) camFollow.TriggerShake(0f, 0f); // Kill continuous shake
+        if (_camFollow != null) _camFollow.TriggerShake(0f, 0f); 
     }
 
+    /// <summary>
+    /// Pulses the color and scale of the objective text to incite panic.
+    /// </summary>
     private IEnumerator PulseRunTextRoutine()
     {
         objectiveText.text = "RUN!!!!!";
@@ -149,10 +152,8 @@ public class MeltdownManager : MonoBehaviour
         
         while (objectiveText.gameObject.activeSelf)
         {
-            // Flash between Red and White rapidly
             objectiveText.color = (Mathf.FloorToInt(Time.time * 12) % 2 == 0) ? Color.red : Color.white;
             
-            // Violent scale pulsing (heartbeat effect)
             float scale = 1f + (Mathf.Sin(Time.time * 25f) * 0.15f);
             objectiveText.transform.localScale = new Vector3(scale, scale, 1f);
             
@@ -160,7 +161,7 @@ public class MeltdownManager : MonoBehaviour
         }
     }
 
-    void Update()
+    private void Update()
     {
         if (!isMeltdownActive) return;
 
@@ -168,49 +169,46 @@ public class MeltdownManager : MonoBehaviour
 
         if (timerText != null)
         {
-            // Format the timer as [MM:SS:ms] (e.g. 00:59:84)
             int minutes = Mathf.FloorToInt(timeRemaining / 60F);
             int seconds = Mathf.FloorToInt(timeRemaining - minutes * 60);
             int milliseconds = Mathf.FloorToInt((timeRemaining - minutes * 60 - seconds) * 100);
             
-            timerText.text = string.Format("{0:00}:{1:00}:{2:00}", minutes, seconds, milliseconds);
+            timerText.SetText("{0:00}:{1:00}:{2:00}", minutes, seconds, milliseconds);
             
-            // Flash the text violently red when under 10 seconds!
             if (timeRemaining <= 10f) 
             {
                 timerText.color = (Mathf.FloorToInt(Time.time * 10) % 2 == 0) ? Color.red : Color.white;
 
                 int currentSecond = Mathf.CeilToInt(timeRemaining);
-                if (currentSecond != lastSecondBeep && currentSecond > 0)
+                if (currentSecond != _lastSecondBeep && currentSecond > 0)
                 {
-                    lastSecondBeep = currentSecond;
+                    _lastSecondBeep = currentSecond;
                     
-                    // Play a harsh mechanical beep sound
-                    alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateClick(1500f, 0.15f));
-                    alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(250f, 0.2f));
+                    _alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateClick(1500f, 0.15f));
+                    _alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(250f, 0.2f));
 
-                    // Flash the screen red on the exact beat
                     if (ScreenEffectManager.Instance != null) ScreenEffectManager.Instance.TriggerFlash(new Color(1f, 0f, 0f, 0.4f), 0.2f);
                     
-                    // Violent camera shake on the beat
-                    if (camFollow != null) camFollow.TriggerShake(0.4f, 0.6f);
+                    if (_camFollow != null) _camFollow.TriggerShake(0.4f, 0.6f);
                 }
             }
         }
 
-        // Continuous Camera Shake (increases in intensity when under 10 seconds)
         float continuousShake = timeRemaining <= 10f ? 0.35f : 0.2f;
-        if (camFollow != null) camFollow.TriggerShake(0.2f, continuousShake); 
+        if (_camFollow != null) _camFollow.TriggerShake(0.2f, continuousShake); 
 
         if (timeRemaining <= 0) TriggerFailure();
     }
 
+    /// <summary>
+    /// Triggers the game over sequence when the timer runs out.
+    /// </summary>
     private void TriggerFailure()
     {
         isMeltdownActive = false;
         if (timerText != null) timerText.text = "00:00:00";
         
-        alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(3f), 1.5f);
-        if (gameOverManager != null) gameOverManager.TriggerGameOver();
+        if (_alarmAudioSource != null) _alarmAudioSource.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(3f), 1.5f);
+        if (_gameOverManager != null) _gameOverManager.TriggerGameOver();
     }
 }

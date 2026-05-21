@@ -1,71 +1,72 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Modulates coordinate rect transformations for sliding external container trays (like buffers and lockers).
+/// </summary>
 public class UITrayAnimator : MonoBehaviour
 {
+    [Header("Core Config")]
+    [Tooltip("The actual sliding UI layer subject to animation shifts.")]
     public RectTransform trayRect;
-    public Button latchButton; // Assign the Latch_ExtNode button in Inspector
+    [Tooltip("The physical push button element designated for locking overrides (e.g. Latch_ExtNode).")]
+    public Button latchButton; 
+    
+    [Header("Animation States")]
     public Vector2 openPosition;
     public Vector2 closedPosition;
+    [Tooltip("Duration required in seconds for a complete slide transition.")]
     public float animationDuration = 0.4f;
     public bool isOpen = false;
 
     [Header("Audio SFX")]
     public AudioSource audioSource;
 
-    private float animationTimer = 0f;
-    private Vector2 currentStartPos;
-    private Vector2 currentTargetPos;
+    private float _animationTimer = 0f;
+    private Vector2 _currentStartPos;
+    private Vector2 _currentTargetPos;
 
-    void Start()
+    private void Start()
     {
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
         if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
     }
 
-    void Update()
+    private void Update()
     {
-        if (animationTimer > 0)
+        if (_animationTimer > 0)
         {
-            animationTimer -= Time.deltaTime;
+            _animationTimer -= Time.deltaTime;
             
-            // Clamp the timer between 0 and 1 so the math never overshoots
-            float t = Mathf.Clamp01(1f - (animationTimer / animationDuration));
-            t = Mathf.SmoothStep(0, 1, t); // Smooth easing
+            float t = Mathf.Clamp01(1f - (_animationTimer / animationDuration));
+            t = Mathf.SmoothStep(0, 1, t); 
             
-            // Move the tray smoothly from where it started to the target
-            trayRect.anchoredPosition = Vector2.Lerp(currentStartPos, currentTargetPos, t);
+            trayRect.anchoredPosition = Vector2.Lerp(_currentStartPos, _currentTargetPos, t);
         }
     }
 
+    /// <summary>
+    /// Bounces the open/close state logic and establishes new origin vectors.
+    /// </summary>
     public void ToggleTray()
     {
-        // Disable button during animation to prevent double-clicks
         if (latchButton != null)
         {
             latchButton.interactable = false;
         }
 
         isOpen = !isOpen;
-        animationTimer = animationDuration;
+        _animationTimer = animationDuration;
         
-        // 1. Dynamically capture EXACTLY where the tray is right now so it never teleports
-        currentStartPos = trayRect.anchoredPosition; 
-        
-        // 2. Set the target based on whether we are opening or closing
-        currentTargetPos = isOpen ? openPosition : closedPosition;
-        
-        // 3. FORCE the Y position to stay exactly the same. 
-        // This guarantees the tray only slides left/right, even if your Inspector Y values are wrong!
-        currentTargetPos.y = trayRect.anchoredPosition.y;
+        _currentStartPos = trayRect.anchoredPosition; 
+        _currentTargetPos = isOpen ? openPosition : closedPosition;
+        _currentTargetPos.y = trayRect.anchoredPosition.y;
 
-        // Play the addicting mechanical UI sound
         if (audioSource != null)
         {
             audioSource.PlayOneShot(ProceduralAudioGen.GenerateTrayLatch(isOpen));
         }
 
-        // Re-enable button after animation completes
         Invoke(nameof(EnableButton), animationDuration);
     }
 

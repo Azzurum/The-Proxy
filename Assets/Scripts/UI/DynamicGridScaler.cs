@@ -1,44 +1,51 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Forces a UI GridLayoutGroup to strictly scale its cell sizes based on dynamic resolution constraints.
+/// </summary>
 [ExecuteAlways]
 [RequireComponent(typeof(GridLayoutGroup))]
 public class DynamicGridScaler : MonoBehaviour
 {
+    [Header("Grid Layout Rules")]
+    [Tooltip("The strictly enforced number of columns.")]
     public int columns = 5;
+    [Tooltip("The strictly enforced number of rows.")]
     public int rows = 10;
+    [Tooltip("The pixel padding gap between individual cells.")]
     public int spacing = 6;
     
-    private GridLayoutGroup gridLayout;
-    private RectTransform rectTransform;
+    private GridLayoutGroup _gridLayout;
+    private RectTransform _rectTransform;
 
-    void Start()
+    private void Start()
     {
-        gridLayout = GetComponent<GridLayoutGroup>();
-        rectTransform = GetComponent<RectTransform>();
+        _gridLayout = GetComponent<GridLayoutGroup>();
+        _rectTransform = GetComponent<RectTransform>();
     }
 
-    void OnRectTransformDimensionsChange()
+    private void OnRectTransformDimensionsChange()
     {
         UpdateGridSize();
     }
 
+    /// <summary>
+    /// Mathematically clamps the size of interior cells so they never overflow the bounding rect.
+    /// </summary>
     public void UpdateGridSize()
     {
-        if (gridLayout == null || rectTransform == null) return;
+        if (_gridLayout == null || _rectTransform == null || columns <= 0 || rows <= 0) return;
 
-        // Calculate available width and height
-        float availableWidth = rectTransform.rect.width - gridLayout.padding.left - gridLayout.padding.right - (spacing * (columns - 1));
-        float availableHeight = rectTransform.rect.height - gridLayout.padding.top - gridLayout.padding.bottom - (spacing * (rows - 1));
+        float availableWidth = _rectTransform.rect.width - _gridLayout.padding.left - _gridLayout.padding.right - (spacing * (columns - 1));
+        float availableHeight = _rectTransform.rect.height - _gridLayout.padding.top - _gridLayout.padding.bottom - (spacing * (rows - 1));
         
-        // Calculate what the perfect square size would be for both constraints
         float widthBasedSize = availableWidth / columns;
         float heightBasedSize = availableHeight / rows;
 
-        // Pick the smaller size so it NEVER overflows, and subtract 0.1f to prevent Unity from wrapping!
-        float finalCellSize = Mathf.Min(widthBasedSize, heightBasedSize) - 0.1f;
+        float finalCellSize = Mathf.Max(0.1f, Mathf.Min(widthBasedSize, heightBasedSize) - 0.1f);
 
-        gridLayout.cellSize = new Vector2(finalCellSize, finalCellSize);
-        gridLayout.spacing = new Vector2(spacing, spacing);
+        _gridLayout.cellSize = new Vector2(finalCellSize, finalCellSize);
+        _gridLayout.spacing = new Vector2(spacing, spacing);
     }
 }

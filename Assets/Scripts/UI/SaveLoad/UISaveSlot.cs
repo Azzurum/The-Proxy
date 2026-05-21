@@ -3,12 +3,16 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
-using UnityEngine.SceneManagement; // Required to check what level we are in
+using UnityEngine.SceneManagement; 
 
+/// <summary>
+/// Controls the complex visual state, animations, and data rendering of an individual save slot in the memory terminal.
+/// </summary>
 [RequireComponent(typeof(LayoutElement))]
 public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 {
     [Header("Slot Identity")]
+    [Tooltip("The unique identifier (0, 1, 2) mapped to this specific save file.")]
     public int slotID = 1;
 
     [Header("UI Containers")]
@@ -61,29 +65,30 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private Coroutine _hoverCoroutine;
     private UISaveSlot[] _siblingSlots;
 
-    void Awake()
+    private void Awake()
     {
         if (layoutElement == null) layoutElement = GetComponent<LayoutElement>();
         if (backgroundImage == null) backgroundImage = GetComponent<Image>();
         
-        // Find all other slots in the same folder so we can crush them when this one opens
         if (transform.parent != null)
         {
             _siblingSlots = transform.parent.GetComponentsInChildren<UISaveSlot>();
         }
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         ResetSlotStateInstantly();
         RefreshDataFromDisk();
     }
 
+    /// <summary>
+    /// Queries the disk for corresponding save data and updates all physical UI labels and states.
+    /// </summary>
     public void RefreshDataFromDisk()
     {
         if (SaveLoadManager.Instance == null) return;
 
-        // Check if we are currently in the main menu to prevent saving empty data
         bool isMainMenu = SceneManager.GetActiveScene().name == "MainMenu_Scene";
         bool hasData = SaveLoadManager.Instance.DoesSaveExist(slotID);
         
@@ -113,7 +118,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
             if (cmdLoad != null) { cmdLoad.gameObject.SetActive(true); cmdLoad.txtIndex.text = "// 01"; cmdLoad.txtCommand.text = "EXECUTE LOAD"; }
             
-            // Hide Overwrite button if in the Main Menu
             if (cmdOverwrite != null) { cmdOverwrite.gameObject.SetActive(!isMainMenu); cmdOverwrite.txtIndex.text = "// 02"; cmdOverwrite.txtCommand.text = "FORCE OVERWRITE"; }
             
             if (cmdDelete != null) { cmdDelete.gameObject.SetActive(true); cmdDelete.txtIndex.text = "// 03"; cmdDelete.txtCommand.text = "PURGE DATA"; }
@@ -129,22 +133,18 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             if (backgroundImage != null) backgroundImage.color = colorNormal;
             if (hoverWipe != null) hoverWipe.color = hoverCyan;
 
-            // Hide Load and Delete buttons because there is no data
             if (cmdLoad != null) cmdLoad.gameObject.SetActive(false);
             if (cmdDelete != null) cmdDelete.gameObject.SetActive(false);
             
-            // Hide Allocate/Save button if in the Main Menu
             if (cmdOverwrite != null) { cmdOverwrite.gameObject.SetActive(!isMainMenu); cmdOverwrite.txtIndex.text = "// 01"; cmdOverwrite.txtCommand.text = "ALLOCATE BUFFER"; }
             
             if (cmdAbort != null) { cmdAbort.gameObject.SetActive(true); cmdAbort.txtIndex.text = "// 02"; cmdAbort.txtCommand.text = "ABORT SEQUENCE"; }
         }
 
-        // Reset progress bars
         if (fillLoad) fillLoad.fillAmount = 0;
         if (fillOverwrite) fillOverwrite.fillAmount = 0;
         if (fillDelete) fillDelete.fillAmount = 0;
 
-        // Create the scrambled cipher text for the hacking effect
         char[] encryptedArr = _targetDecryptedText.ToCharArray();
         for (int i = 0; i < encryptedArr.Length; i++)
         {
@@ -164,7 +164,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             SystemLogger.Instance.Log($"TERMINAL EXPANDED. SECTOR 0{slotID} ACCESSED.", "#FFAA00");
         if (hoverWipe != null) hoverWipe.fillAmount = 0;
         
-        // Tell all other slots to shrink
         if (_siblingSlots != null)
         {
             foreach (var slot in _siblingSlots)
@@ -177,6 +176,9 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         _animationCoroutine = StartCoroutine(AnimateSlot(heightExpanded, 0f, 1f, colorExpanded));
     }
 
+    /// <summary>
+    /// Animates the slot collapsing to its smallest vertical dimension to make room for siblings.
+    /// </summary>
     public void CrushSlot()
     {
         _isExpanded = false;
@@ -185,6 +187,9 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         _animationCoroutine = StartCoroutine(AnimateSlot(heightCrushed, 0f, 0f, colorNormal));
     }
 
+    /// <summary>
+    /// Immediately forces the slot back to its unexpanded, default appearance without animations.
+    /// </summary>
     public void ResetSlotStateInstantly()
     {
         _isExpanded = false;
@@ -210,7 +215,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (backgroundImage != null) backgroundImage.color = colorNormal;
     }
 
-    // --- BUTTON COMMANDS ---
     public void Command_Load() 
     { 
         if (_isExecuting) return;
@@ -254,7 +258,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             else SystemLogger.Instance.Log("PACKING AETHER-CORE GRID POSITIONS...", "#00F0FF"); 
         }
 
-        // Animate the progress bar fill
         if (targetFill != null)
         {
             float timer = 0f;
@@ -277,7 +280,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         if (SystemSyncFX.Instance != null) SystemSyncFX.Instance.ExecuteFlash(flashType);
 
-        // Execute the actual save/load/delete code
         finalAction?.Invoke();
         
         if (SystemLogger.Instance != null && flashType != "PURGE")
@@ -291,7 +293,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     private void ReleaseAllSlots()
     {
-        // Reset all slots back to resting state and refresh their data
         if (_siblingSlots != null)
         {
             foreach (var slot in _siblingSlots)
@@ -311,7 +312,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         float timer = 0;
         float duration = 0.35f; 
 
-        // Cache starting values for smooth transition
         float startHeight = layoutElement.preferredHeight;
         float startReadoutAlpha = containerReadout != null ? containerReadout.alpha : 1f;
         float startMatrixAlpha = containerMatrix != null ? containerMatrix.alpha : 0f;
@@ -319,12 +319,11 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         Color startColor = backgroundImage != null ? backgroundImage.color : colorNormal;
         
         Vector3 startMatrixPos = containerMatrix != null ? containerMatrix.transform.localPosition : Vector3.zero;
-        float targetMatrixY = targetMatrixAlpha > 0.5f ? 0f : -20f; // Slide up into place
+        float targetMatrixY = targetMatrixAlpha > 0.5f ? 0f : -20f; 
         
         Vector3 startReadoutPos = containerReadout != null ? containerReadout.transform.localPosition : Vector3.zero;
-        float targetReadoutY = targetReadoutAlpha > 0.5f ? 0f : -20f; // Slide up and fade out
+        float targetReadoutY = targetReadoutAlpha > 0.5f ? 0f : -20f; 
 
-        // Disable clicks while animating
         if (containerMatrix != null)
         {
             containerMatrix.interactable = false;
@@ -335,7 +334,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         {
             timer += Time.unscaledDeltaTime;
             float t = timer / duration;
-            // Smooth curve math
             t = t < 0.5f ? 2f * t * t : 1f - Mathf.Pow(-2f * t + 2f, 2f) / 2f;
             
             layoutElement.preferredHeight = Mathf.Lerp(startHeight, targetHeight, t);
@@ -358,7 +356,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             yield return null;
         }
 
-        // Snap to exact final targets
         layoutElement.preferredHeight = targetHeight;
         if (containerReadout != null) 
         {
@@ -370,7 +367,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         {
             containerMatrix.alpha = targetMatrixAlpha;
             containerMatrix.transform.localPosition = new Vector3(startMatrixPos.x, targetMatrixY, startMatrixPos.z);
-            // Re-enable clicks if fully visible
             if (targetMatrixAlpha >= 1f)
             {
                 containerMatrix.interactable = true;
@@ -384,7 +380,6 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     {
         if (_isExpanded) return;
         
-        // Trigger the visual hacking/decryption effect
         if (_scrambleCoroutine != null) StopCoroutine(_scrambleCoroutine);
         _scrambleCoroutine = StartCoroutine(ScrambleTextRoutine(_targetDecryptedText));
 
@@ -422,12 +417,13 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private IEnumerator ScrambleTextRoutine(string targetText)
     {
         if (actionText == null || string.IsNullOrEmpty(targetText)) yield break;
-        float iter = 0; int len = targetText.Length;
+        float iter = 0; 
+        int len = targetText.Length;
         string glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!<>-_\\/[]{}—=+*^?#";
+        char[] currentText = new char[len];
         
         while (iter < len)
         {
-            char[] currentText = new char[len];
             for (int i = 0; i < len; i++)
             {
                 if (i < iter) currentText[i] = targetText[i];

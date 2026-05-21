@@ -2,16 +2,19 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// Coordinates the visualization of the active corruption tier and next shock countdown.
+/// </summary>
 public class UI_ParasiteOverride : MonoBehaviour
 {
     public static UI_ParasiteOverride Instance;
 
     [Header("Core Engine")]
-    public float cycleTime = 60.0f;        
-    private float timeLeft;
+    [HideInInspector] public float cycleTime = 60.0f;        
+    private float _timeLeft;
     
     public int currentStacks = 0;
-    public int maxStacks = 10;             
+    [HideInInspector] public int maxStacks = 10;             
 
     [Header("Text References")]
     public TextMeshProUGUI titleText;
@@ -32,42 +35,42 @@ public class UI_ParasiteOverride : MonoBehaviour
     public Color criticalColor = new Color(1f, 0f, 0.2f);
     public Color emptyBlockColor = new Color(0.04f, 0.04f, 0.04f);
 
-    private Image[] stackBlocks;
-    private InventoryManager invManager;
+    private Image[] _stackBlocks;
+    private InventoryManager _invManager;
 
-    void Awake()
+    private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
-    void Start()
+    private void Start()
     {
-        invManager = FindAnyObjectByType<InventoryManager>();
-        timeLeft = cycleTime;
+        _invManager = FindAnyObjectByType<InventoryManager>();
+        _timeLeft = cycleTime;
         if (stackContainer != null)
         {
             int childCount = stackContainer.childCount;
-            stackBlocks = new Image[childCount];
+            _stackBlocks = new Image[childCount];
             for (int i = 0; i < childCount; i++)
             {
-                stackBlocks[i] = stackContainer.GetChild(i).GetComponent<Image>();
+                _stackBlocks[i] = stackContainer.GetChild(i).GetComponent<Image>();
             }
         }
     }
 
-    void Update()
+    private void Update()
     {
-        if (invManager != null)
+        if (_invManager != null)
         {
-            timeLeft = currentStacks < maxStacks ? invManager.shockTimer : 0f;
-            cycleTime = invManager.shockInterval;
+            _timeLeft = currentStacks < maxStacks ? _invManager.shockTimer : 0f;
+            cycleTime = _invManager.shockInterval;
         }
 
-        if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime;
-        if (timerReadoutText != null) timerReadoutText.text = timeLeft.ToString("F2") + "s"; 
+        if (timerFill != null) timerFill.fillAmount = _timeLeft / cycleTime;
+        if (timerReadoutText != null) timerReadoutText.SetText("{0:F2}s", _timeLeft); 
 
-        if (stackCounterText != null) stackCounterText.text = $"[ {currentStacks:D2} / 10 ]";
+        if (stackCounterText != null) stackCounterText.SetText("[ {0:D2} / 10 ]", currentStacks);
 
         Color currentTheme = stableColor;
         string currentTitle = "MOTHER // ASSIMILATING";
@@ -92,13 +95,14 @@ public class UI_ParasiteOverride : MonoBehaviour
         ApplyThemeColor(currentTheme);
     }
 
-    // NEW EXACT SYNC METHOD: The Inventory will use this to force the UI to match reality
+    /// <summary>
+    /// Directly calibrates the UI visual logic to mirror physical reality based on the passed physical entity blocks.
+    /// </summary>
     public void SetExactStacks(int physicalItemCount)
     {
         int newStacks = physicalItemCount / 10; 
         if (newStacks > maxStacks) newStacks = maxStacks;
         
-        // CRITICAL FIX: Only reset the timer if MOTHER actually gains or loses a tier of corruption!
         if (newStacks != currentStacks)
         {
             currentStacks = newStacks;
@@ -116,36 +120,34 @@ public class UI_ParasiteOverride : MonoBehaviour
         foreach (var txt in slotKeyTexts) { if (txt != null) txt.color = theme; }
         foreach (var outline in slotHighlights) { if (outline != null) outline.effectColor = theme; }
 
-        if (stackBlocks != null)
+        if (_stackBlocks != null)
         {
-            for (int i = 0; i < stackBlocks.Length; i++)
+            for (int i = 0; i < _stackBlocks.Length; i++)
             {
-                if (stackBlocks[i] == null) continue;
-                stackBlocks[i].color = (i < currentStacks) ? theme : emptyBlockColor;
+                if (_stackBlocks[i] == null) continue;
+                _stackBlocks[i].color = (i < currentStacks) ? theme : emptyBlockColor;
             }
         }
     }
 
-    // ==========================================
-    // SAVE SYSTEM INTEGRATION
-    // ==========================================
     public float GetCurrentTimer()
     {
-        return timeLeft;
+        return _timeLeft;
     }
 
+    /// <summary>
+    /// Restores the visual and logical progression of the corruption timer based on serialized save data.
+    /// </summary>
     public void LoadParasiteData(int savedStacks, float savedTimer)
     {
         currentStacks = savedStacks;
-        timeLeft = savedTimer;
+        _timeLeft = savedTimer;
 
-        // Sync the actual gameplay manager to the loaded save data!
-        if (invManager == null) invManager = FindAnyObjectByType<InventoryManager>();
-        if (invManager != null) invManager.shockTimer = savedTimer;
+        if (_invManager == null) _invManager = FindAnyObjectByType<InventoryManager>();
+        if (_invManager != null) _invManager.shockTimer = savedTimer;
 
-        // Force visual update immediately on load
-        if (timerFill != null) timerFill.fillAmount = timeLeft / cycleTime;
-        if (timerReadoutText != null) timerReadoutText.text = timeLeft.ToString("F2") + "s";
-        if (stackCounterText != null) stackCounterText.text = $"[ {currentStacks:D2} / 10 ]";
+        if (timerFill != null) timerFill.fillAmount = _timeLeft / cycleTime;
+        if (timerReadoutText != null) timerReadoutText.SetText("{0:F2}s", _timeLeft);
+        if (stackCounterText != null) stackCounterText.SetText("[ {0:D2} / 10 ]", currentStacks);
     }
 }

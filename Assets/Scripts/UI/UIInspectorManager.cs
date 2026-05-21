@@ -1,9 +1,11 @@
 using UnityEngine;
 using TMPro;
 
+/// <summary>
+/// Coordinates the top-level readout panel which highlights details about the currently selected item on the grid.
+/// </summary>
 public class UIInspectorManager : MonoBehaviour
 {
-    // A Singleton allows any item to easily find this manager without complicated wiring
     public static UIInspectorManager Instance;
 
     [Header("Inspector Bar (Top)")]
@@ -11,20 +13,20 @@ public class UIInspectorManager : MonoBehaviour
     public TextMeshProUGUI substatsText;
     public TextMeshProUGUI descriptionText;
 
-    void Awake()
+    private void Awake()
     {
-        // Set up the Singleton
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
-    void Start()
+    private void Start()
     {
-        // Clear the screen when the game boots
         ClearInspector();
     }
 
-    // Call this to wipe the screens clean to their default states
+    /// <summary>
+    /// Clears the inspector panels returning them to an idle state readout.
+    /// </summary>
     public void ClearInspector()
     {
         if (titleText != null) titleText.text = "AWAITING I/O";
@@ -32,7 +34,9 @@ public class UIInspectorManager : MonoBehaviour
         if (descriptionText != null) descriptionText.text = "Select a digitized matter node to view quantum properties and structural analysis.";
     }
 
-    // Items will call this and pass their data when clicked!
+    /// <summary>
+    /// Populates the inspector interface components with a clicked item's underlying ItemData context.
+    /// </summary>
     public void InspectItem(ItemData data)
     {
         if (data == null) return;

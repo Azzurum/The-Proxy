@@ -1,21 +1,32 @@
 using UnityEngine;
 
+/// <summary>
+/// Serves as the physical interaction volume for activating a Sync Terminal UI.
+/// </summary>
 public class TerminalInteractable : MonoBehaviour
 {
     [Header("Terminal Data")]
+    [Tooltip("The text data to display when the player accesses this terminal.")]
     public TerminalLogData assignedLog;
+    [Tooltip("Reference to the terminal UI manager.")]
     public SyncTerminalUI uiManager;
 
     [Header("Visuals")]
+    [Tooltip("Reference to the floating interaction prompt.")]
     public FloatingPrompt promptText;
 
     private bool _isPlayerNear = false;
     private GameObject _playerRef;
+    private QuestTracker _questTracker;
+
+    private void Start()
+    {
+        _questTracker = FindAnyObjectByType<QuestTracker>();
+    }
 
     private void Update()
     {
-        QuestTracker tracker = FindObjectOfType<QuestTracker>();
-        if (tracker == null || tracker.GetCurrentObjective() < 2)
+        if (_questTracker == null || _questTracker.GetCurrentObjective() < 2)
             return;
 
         if (_isPlayerNear && Input.GetKeyDown(KeyCode.E) && !uiManager.terminalCanvas.gameObject.activeInHierarchy)
@@ -35,8 +46,7 @@ public class TerminalInteractable : MonoBehaviour
             _isPlayerNear = true;
             _playerRef = collision.gameObject;
 
-            QuestTracker tracker = FindObjectOfType<QuestTracker>();
-            if (tracker != null && tracker.GetCurrentObjective() == 2)
+            if (_questTracker != null && _questTracker.GetCurrentObjective() == 2)
             {
                 if (promptText != null)
                     promptText.ShowPrompt();

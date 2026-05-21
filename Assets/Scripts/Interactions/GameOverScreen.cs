@@ -2,15 +2,19 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Handles the visual fade-out sequence and restart logic when the player fails the game.
+/// </summary>
 public class GameOverScreen : MonoBehaviour
 {
     [Header("UI References")]
+    [Tooltip("The CanvasGroup component used to fade the entire game over screen.")]
     public CanvasGroup canvasGroup;
+    [Tooltip("How long in seconds it takes for the screen to fully fade to black.")]
     public float fadeDuration = 2.5f;
 
     void Start()
     {
-        // Ensure the screen is invisible and unclickable when the game starts
         if (canvasGroup != null)
         {
             canvasGroup.alpha = 0f;
@@ -19,9 +23,11 @@ public class GameOverScreen : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Activates the UI element and begins the fade-to-black coroutine.
+    /// </summary>
     public void TriggerGameOver()
     {
-        // THE FIX: Force the object to turn on so the Coroutine is allowed to run!
         gameObject.SetActive(true); 
 
         if (canvasGroup != null)
@@ -32,12 +38,10 @@ public class GameOverScreen : MonoBehaviour
 
     private IEnumerator FadeToBlack()
     {
-        // Block player clicks while it fades
         canvasGroup.blocksRaycasts = true; 
         
         float elapsedTime = 0f;
 
-        // Smoothly increase the alpha to 1 (solid black)
         while (elapsedTime < fadeDuration)
         {
             elapsedTime += Time.deltaTime;
@@ -46,13 +50,14 @@ public class GameOverScreen : MonoBehaviour
         }
 
         canvasGroup.alpha = 1f;
-        canvasGroup.interactable = true; // Turn the Restart button on!
+        canvasGroup.interactable = true; 
     }
 
-    // Connect this to your Btn_Restart!
+    /// <summary>
+    /// Reloads the currently active scene, functionally restarting the game from the last checkpoint or beginning.
+    /// </summary>
     public void Button_RestartShift()
     {
-        // This grabs whatever scene you are currently in and reloads it fresh
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }

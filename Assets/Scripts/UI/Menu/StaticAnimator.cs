@@ -1,5 +1,8 @@
 using UnityEngine;
 
+/// <summary>
+/// Manipulates the texture offset of a material to simulate aggressive screen static and tearing.
+/// </summary>
 public class StaticAnimator : MonoBehaviour
 {
     [Tooltip("Drag your Mat_GlitchStatic material here")]
@@ -17,19 +20,15 @@ public class StaticAnimator : MonoBehaviour
     {
         if (staticMaterial == null) return;
 
-        // We use unscaledDeltaTime so the static still moves even when Time.timeScale is 0!
         _timer += Time.unscaledDeltaTime;
 
-        if (_timer > (1f / flickerSpeed))
+        if (_timer > (1f / Mathf.Max(0.01f, flickerSpeed)))
         {
             _timer = 0f;
 
-            // THE FIX: Instead of jumping anywhere across the whole image, 
-            // we only jump a tiny amount forward or backward based on your intensity.
             float randomX = Random.Range(-flickerIntensity, flickerIntensity);
             float randomY = Random.Range(-flickerIntensity, flickerIntensity);
             
-            // _BaseMap is the code name for the main texture in URP Unlit shaders
             staticMaterial.SetTextureOffset("_BaseMap", new Vector2(randomX, randomY));
         }
     }

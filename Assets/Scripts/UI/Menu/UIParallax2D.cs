@@ -1,5 +1,8 @@
 using UnityEngine;
 
+/// <summary>
+/// Applies a subtle parallax tracking effect to UI elements based on mouse position.
+/// </summary>
 public class UIParallax2D : MonoBehaviour
 {
     [Header("2D Parallax Settings")]
@@ -17,16 +20,14 @@ public class UIParallax2D : MonoBehaviour
 
     void OnEnable()
     {
-        // Remember exactly where it started so it doesn't drift away forever
         _originalLocalPos = transform.localPosition;
-        _screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
     }
 
     void Update()
     {
+        _screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
         Vector2 mousePos = Input.mousePosition;
 
-        // Get mouse position from -1 to 1
         float offsetX = (mousePos.x - _screenCenter.x) / _screenCenter.x;
         float offsetY = (mousePos.y - _screenCenter.y) / _screenCenter.y;
 
@@ -42,13 +43,11 @@ public class UIParallax2D : MonoBehaviour
             0f
         );
 
-        // Slide smoothly ignoring Time.timeScale = 0
         transform.localPosition = Vector3.Lerp(transform.localPosition, targetPos, smoothSpeed * Time.unscaledDeltaTime);
     }
 
     void OnDisable()
     {
-        // Snap back to normal when closed
         transform.localPosition = _originalLocalPos;
     }
 }
