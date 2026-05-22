@@ -49,6 +49,7 @@ public class PlayerInteraction : MonoBehaviour
         if (interactionPrompt == null)
         {
             interactionPrompt = FindAnyObjectByType<FloatingPrompt>(FindObjectsInactive.Include);
+            if (interactionPrompt == null) Debug.LogWarning("<color=yellow>[WARNING]</color> No FloatingPrompt found in the scene! The 'E' interact prompt will not appear.");
         }
     }
 
@@ -81,15 +82,11 @@ public class PlayerInteraction : MonoBehaviour
         for (int i = 0; i < hitCount; i++)
         {
             GameObject obj = _overlapResults[i].gameObject;
-            
-            if (!IsInteractable(obj) && obj.transform.parent != null && IsInteractable(obj.transform.parent.gameObject))
-            {
-                obj = obj.transform.parent.gameObject;
-            }
 
             if (IsInteractable(obj))
             {
-                float dist = Vector2.Distance(transform.position, obj.transform.position);
+                // We check the physical distance from the player to the object's closest point
+                float dist = Vector2.Distance(transform.position, _overlapResults[i].ClosestPoint(transform.position));
                 if (dist < minDistance)
                 {
                     minDistance = dist;
@@ -116,17 +113,13 @@ public class PlayerInteraction : MonoBehaviour
         {
             Color promptColor = Color.white;
 
-            if (_closestInteractable.CompareTag("Interactable") || _closestInteractable.CompareTag("MasterKey"))
+            // If it's a physical item, check if the external tray is full and color the prompt red if it is
+            PhysicalItem pi = _closestInteractable.GetComponentInParent<PhysicalItem>();
+            if (pi != null && pi.itemData != null && InventoryManager.Instance != null)
             {
-                PhysicalItem pi = _closestInteractable.GetComponentInParent<PhysicalItem>();
-                
-                // Warn the player visually before they even press 'E' if their buffer cannot hold the item.
-                if (pi != null && pi.itemData != null && InventoryManager.Instance != null)
+                if (!InventoryManager.Instance.CanFitItemToExternalTray(pi.itemData))
                 {
-                    if (!InventoryManager.Instance.CanFitItemToExternalTray(pi.itemData))
-                    {
-                        promptColor = Color.red; 
-                    }
+                    promptColor = Color.red; 
                 }
             }
 
@@ -141,11 +134,28 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     /// <summary>
-    /// Checks the specific game tags to determine if the object is part of the interaction layer.
+    /// Determines if an object is interactable via the IInteractable interface or legacy tags.
     /// </summary>
     private bool IsInteractable(GameObject obj)
     {
-        return obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") || 
+        // Modern approach: Does it have the interface?
+        if (obj.TryGetComponent<IInteractable>(out var interactable) && interactable.CanInteract())
+        {
+            return true;
+        }
+        
+        // Check parent for interface just in case the collider is on a child object
+        if (obj.transform.parent != null && obj.transform.parent.TryGetComponent<IInteractable>(out var parentInteractable) && parentInteractable.CanInteract())
+        {
+            return true;
+        }
+
+        return IsLegacyInteractable(obj) || (obj.transform.parent != null && IsLegacyInteractable(obj.transform.parent.gameObject));
+    }
+
+    private bool IsLegacyInteractable(GameObject obj)
+    {
+        return obj.CompareTag("Interactable") || obj.CompareTag("MasterKey") ||
                obj.CompareTag("Generator") || obj.CompareTag("Locker") || 
                obj.CompareTag("LockedDoor");
     }
@@ -159,6 +169,19 @@ public class PlayerInteraction : MonoBehaviour
 
         GameObject obj = _closestInteractable;
 
+        // 1. Try the Modern Interface Approach First
+        if (obj.TryGetComponent<IInteractable>(out var interactable))
+        {
+            interactable.Interact(this.gameObject);
+            return;
+        }
+        else if (obj.transform.parent != null && obj.transform.parent.TryGetComponent<IInteractable>(out var parentInteractable))
+        {
+            parentInteractable.Interact(this.gameObject);
+            return;
+        }
+
+        // 2. Fallback to Legacy Tag Routing
         if (obj.CompareTag("Interactable") || obj.CompareTag("MasterKey"))
         {
             HandleItemPickup(obj);
