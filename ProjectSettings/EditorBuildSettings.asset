@@ -9,16 +9,25 @@ EditorBuildSettings:
     path: Assets/Scenes/MainGame.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   - enabled: 1
+    path: Assets/Scenes/UI_MainMenu.unity
+    guid: 133e3a4b220a5bb47a8d41febcfddfc1
+  - enabled: 1
+    path: Assets/Scenes/Settings_Scene.unity
+    guid: afcc368a5c036c842a9c091d581610e1
+  - enabled: 1
     path: Assets/Scenes/Intro_EarthOffice.unity
     guid: 5cd6655ab6c2d9640862514339de09b3
   - enabled: 1
     path: Assets/Scenes/Copy of level_1.unity
     guid: 3dd8faecbdcd0fb4ca2d8b134ac0052f
   - enabled: 1
+    path: Assets/Scenes/level_1.unity
+    guid: b3ba5cd4a0d922640b57424e8479ef72
+  - enabled: 1
     path: Assets/Scenes/level_2.unity
     guid: e7237f4a86a7a294cb908a4b835f9fa4
   - enabled: 1
-    path: Assets/Scenes/Ending_03_ZeroSectorPurgeEscape.unity
+    path: Assets/Scenes/level_3.unity
     guid: db3627c38d97d654c86c3be0ee64364e
   - enabled: 1
     path: Assets/Scenes/Ending_01_KernelPanic.unity
@@ -29,14 +38,5 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/UI_Credits.unity
     guid: ccb1b330a8eef4b479a55db28751e418
-  - enabled: 1
-    path: Assets/Scenes/UI_MainMenu.unity
-    guid: 133e3a4b220a5bb47a8d41febcfddfc1
-  - enabled: 1
-    path: Assets/Scenes/level_1.unity
-    guid: b3ba5cd4a0d922640b57424e8479ef72
-  - enabled: 1
-    path: Assets/Scenes/Settings_Scene.unity
-    guid: afcc368a5c036c842a9c091d581610e1
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}

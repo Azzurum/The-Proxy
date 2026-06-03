@@ -37,7 +37,7 @@ public class EscapePodDirector : MonoBehaviour
     [Tooltip("The final conversation nodes that play before ejection.")]
     public DialogueNode[] finalDialogue;
     [Tooltip("The exact name of the credits scene.")]
-    public string creditsSceneName = "credits_scene";
+    public string creditsSceneName = "UI_Credits";
 
     private CameraFollow _cachedCamera;
 
@@ -182,6 +182,9 @@ public class EscapePodDirector : MonoBehaviour
         if (wayfarerShipVisual != null) wayfarerShipVisual.SetActive(false); 
 
         yield return new WaitForSeconds(3.5f);
+
+        // BULLETPROOF FIX: Automatically correct the scene name if the Unity Inspector is holding onto the old value!
+        if (creditsSceneName == "credits_scene") creditsSceneName = "UI_Credits";
 
         SceneManager.LoadScene(creditsSceneName);
     }

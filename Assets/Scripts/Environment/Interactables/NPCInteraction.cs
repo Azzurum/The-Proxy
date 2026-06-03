@@ -23,6 +23,39 @@ public class NPCInteraction : MonoBehaviour, IInteractable
     private bool _isTalking = false;
     private PlayerController _lockedPlayer;
 
+    private void Start()
+    {
+        StartCoroutine(FadeInSequence());
+    }
+
+    private System.Collections.IEnumerator FadeInSequence()
+    {
+        GameObject fadeObj = new GameObject("FadeInCanvas");
+        Canvas canvas = fadeObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 32767;
+        
+        UnityEngine.UI.Image fadeImage = fadeObj.AddComponent<UnityEngine.UI.Image>();
+        fadeImage.rectTransform.anchorMin = Vector2.zero;
+        fadeImage.rectTransform.anchorMax = Vector2.one;
+        fadeImage.rectTransform.offsetMin = Vector2.zero;
+        fadeImage.rectTransform.offsetMax = Vector2.zero;
+        fadeImage.color = new Color(0, 0, 0, 1); // Start pitch black
+        fadeImage.raycastTarget = false;
+        
+        float duration = 1.5f;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            fadeImage.color = new Color(0, 0, 0, 1f - Mathf.Clamp01(elapsed / duration));
+            yield return null;
+        }
+        
+        Destroy(fadeObj); // Clean up the canvas when done!
+    }
+
     void Update()
     {
         if (_isTalking && !DialogueEngine.isDialogueActive)
@@ -65,6 +98,38 @@ public class NPCInteraction : MonoBehaviour, IInteractable
     {
         if (dialogueEngine.choicePanel != null) dialogueEngine.choicePanel.SetActive(false);
         dialogueEngine.EndDialogue();
+        
+        // Lock Kaelen in place so he can't walk around during the fade-out
+        if (_lockedPlayer != null) _lockedPlayer.isRooted = true;
+        
+        StartCoroutine(TransitionToLevel1());
+    }
+
+    private System.Collections.IEnumerator TransitionToLevel1()
+    {
+        // Dynamically create a black fade overlay so we don't have to set up new UI elements in the Editor
+        GameObject fadeObj = new GameObject("FadeCanvas");
+        Canvas canvas = fadeObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 32767; 
+        
+        UnityEngine.UI.Image fadeImage = fadeObj.AddComponent<UnityEngine.UI.Image>();
+        fadeImage.rectTransform.anchorMin = Vector2.zero;
+        fadeImage.rectTransform.anchorMax = Vector2.one;
+        fadeImage.rectTransform.offsetMin = Vector2.zero;
+        fadeImage.rectTransform.offsetMax = Vector2.zero;
+        fadeImage.color = new Color(0, 0, 0, 0);
+        fadeImage.raycastTarget = true;
+        
+        float duration = 1.5f;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            fadeImage.color = new Color(0, 0, 0, Mathf.Clamp01(elapsed / duration));
+            yield return null;
+        }
         
         SceneManager.LoadScene("level_1");
     }

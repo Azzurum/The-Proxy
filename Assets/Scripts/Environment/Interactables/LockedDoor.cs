@@ -87,7 +87,14 @@ public class LockedDoor : MonoBehaviour, IInteractable
                 InventoryManager.Instance.ConsumeItem(requiredItemID);
             }
 
-            if (audioSource != null && sfxUnlockSuccess != null) audioSource.PlayOneShot(sfxUnlockSuccess);
+            if (audioSource != null)
+            {
+                if (sfxUnlockSuccess != null) 
+                    audioSource.PlayOneShot(sfxUnlockSuccess);
+                else 
+                    audioSource.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime(0.4f));
+            }
+
             if (doorAnimator != null) doorAnimator.SetTrigger(openTriggerName);
 
             // Disable all colliders on this object and its children to allow passage.
@@ -102,7 +109,14 @@ public class LockedDoor : MonoBehaviour, IInteractable
         }
         else
         {
-            if (audioSource != null && sfxUnlockFail != null) audioSource.PlayOneShot(sfxUnlockFail);
+            if (audioSource != null)
+            {
+                if (sfxUnlockFail != null) 
+                    audioSource.PlayOneShot(sfxUnlockFail);
+                else 
+                    audioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(120f, 0.2f));
+            }
+
             if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog($"Requires {requiredItemID}", Color.red, "ACCESS DENIED");
         }
     }

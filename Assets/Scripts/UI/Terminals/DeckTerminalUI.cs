@@ -31,6 +31,12 @@ public class DeckTerminalUI : MonoBehaviour
     [Tooltip("Button to close the terminal UI without traveling.")]
     public Button buttonExit;
 
+    private AudioSource _audioSource;
+    private void Awake()
+    {
+        _audioSource = gameObject.AddComponent<AudioSource>();
+    }
+
     private void OnEnable()
     {
         // When the UI appears, ensure the cursor is unlocked and visible for interaction.
@@ -43,6 +49,12 @@ public class DeckTerminalUI : MonoBehaviour
 
         DisableCurrentFloorButton();
         CheckMasterKeyAccess();
+
+        // Prevent the beep from playing on the exact frame the game starts if the Canvas was left on in the Editor!
+        if (_audioSource != null && Time.timeSinceLevelLoad > 0.1f) 
+        {
+            _audioSource.PlayOneShot(ProceduralAudioGen.GenerateBeep(600f, 0.1f));
+        }
     }
 
     /// <summary>
@@ -71,7 +83,8 @@ public class DeckTerminalUI : MonoBehaviour
     /// </summary>
     private void CheckMasterKeyAccess()
     {
-        bool hasKey = InventoryManager.Instance != null && InventoryManager.Instance.HasItem(requiredMasterKeyID); 
+        // TESTING BYPASS: Always allow access to all floors!
+        bool hasKey = true; // InventoryManager.Instance != null && InventoryManager.Instance.HasItem(requiredMasterKeyID); 
 
         if (hasKey)
         {
@@ -105,6 +118,7 @@ public class DeckTerminalUI : MonoBehaviour
     /// <param name="sceneName">The name of the destination scene to load.</param>
     public void SelectDeck(string sceneName)
     {
+        PlayClickSound();
         LockCursorAndClose();
         if (connectedElevator != null)
         {
@@ -117,6 +131,7 @@ public class DeckTerminalUI : MonoBehaviour
     /// </summary>
     public void CancelInteraction()
     {
+        PlayClickSound();
         LockCursorAndClose();
         if (connectedElevator != null)
         {
@@ -124,6 +139,11 @@ public class DeckTerminalUI : MonoBehaviour
         }
     }
 
+    private void PlayClickSound()
+    {
+        Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateClick(800f, 0.05f), camPos, ProceduralAudioGen.globalVolume);
+    }
     /// <summary>
     /// Restores the game's default cursor state and hides the terminal UI.
     /// </summary>

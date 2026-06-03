@@ -31,6 +31,10 @@ public class PlayerController : MonoBehaviour
     [Header("Audio")]
     [Tooltip("The heavy breathing sound played as a warning when stamina is low.")]
     [SerializeField] private AudioClip breathingClip;
+    [Tooltip("Time between footstep sounds while walking.")]
+    [SerializeField] private float walkStepInterval = 0.45f;
+    [Tooltip("Time between footstep sounds while sprinting.")]
+    [SerializeField] private float sprintStepInterval = 0.28f;
 
     [Header("System State")]
     [Tooltip("If true, all movement input is blocked. Used for cinematics or interactions.")]
@@ -58,6 +62,7 @@ public class PlayerController : MonoBehaviour
     private float _currentThreshold;
     private bool _isMovementLocked = false;
     private float _baseScaleX;
+    private float _footstepTimer = 0f;
     
     /// <summary>A read-only property for the current sprint meter value.</summary>
     public float SprintMeter => _sprintMeter;
@@ -88,6 +93,25 @@ public class PlayerController : MonoBehaviour
         _currentThreshold = sprintMeterThreshold;
         _baseScaleX = Mathf.Abs(transform.localScale.x);
         if (_spriteRenderer != null) _spriteRenderer.sortingLayerName = sortingLayerName;
+
+        // --- BULLETPROOF CAMERA FIX ---
+        // Guarantees the camera always finds and locks onto Kaelen instantly when any new scene starts!
+        // (We skip this in level_1 so we don't accidentally interrupt the opening space cinematic).
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "level_1")
+        {
+            CameraFollow camFollow = FindAnyObjectByType<CameraFollow>(FindObjectsInactive.Include);
+            if (camFollow != null)
+            {
+                camFollow.target = this.transform;
+                camFollow.enabled = true; // Force it on in case it was saved as disabled in the prefab!
+                
+                Camera cam = camFollow.GetComponent<Camera>();
+                if (cam != null)
+                {
+                    cam.transform.position = this.transform.position + camFollow.offset;
+                }
+            }
+        }
     }
 
     void Update()
@@ -95,6 +119,7 @@ public class PlayerController : MonoBehaviour
         HandleInput();
         HandleStamina();
         UpdateAnimationAndVisuals();
+        HandleFootsteps();
     }
 
     void FixedUpdate()
@@ -186,6 +211,26 @@ public class PlayerController : MonoBehaviour
     }
 
     /// <summary>
+    /// Triggers procedural soft footstep sounds based on movement and sprint state.
+    /// </summary>
+    private void HandleFootsteps()
+    {
+        if (_movementInput != Vector2.zero && !isRooted && !_isMovementLocked)
+        {
+            _footstepTimer -= Time.deltaTime;
+            if (_footstepTimer <= 0f)
+            {
+                _audioSource.PlayOneShot(ProceduralAudioGen.GenerateSoftFootstep());
+                _footstepTimer = _isSprinting ? sprintStepInterval : walkStepInterval;
+            }
+        }
+        else
+        {
+            _footstepTimer = 0f; // Instantly step when starting to move
+        }
+    }
+
+    /// <summary>
     /// Updates the Animator, sprite flipping, and depth sorting based on the current movement state.
     /// </summary>
     private void UpdateAnimationAndVisuals()
@@ -199,6 +244,9 @@ public class PlayerController : MonoBehaviour
                 animator.SetFloat("Vertical", _movementInput.y);
             }
             animator.SetFloat("Speed", _movementInput.sqrMagnitude);
+
+            // Double the animation speed if we are actively sprinting!
+            animator.speed = (_isSprinting && _movementInput != Vector2.zero && !isRooted && !_isMovementLocked) ? 2.0f : 1.0f;
         }
 
         // Flip the entire character transform based on horizontal movement direction.

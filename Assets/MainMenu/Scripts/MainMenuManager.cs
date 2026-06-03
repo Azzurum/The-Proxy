@@ -36,7 +36,8 @@ public class MainMenuManager : MonoBehaviour
 
         // If you accidentally dragged the Main Menu prefab into a gameplay level (like Floor 3),
         // this will force it to hide completely so it doesn't block your face while playing!
-        if (SceneManager.GetActiveScene().name != "MainMenu_Scene")
+        string sceneName = SceneManager.GetActiveScene().name;
+        if (sceneName != "MainMenu_Scene" && sceneName != "MainMenu" && sceneName != "UI_MainMenu")
         {
             if (menuMatrix != null) menuMatrix.SetActive(false);
         }

@@ -21,7 +21,7 @@ public class CreditsDirector : MonoBehaviour
     public float startDelay = 2f;
     public float endDelay = 3f;
     [Tooltip("The exact string name of the main menu scene.")]
-    public string mainMenuSceneName = "MainMenu"; 
+    public string mainMenuSceneName = "UI_MainMenu"; 
 
     private AudioSource _musicSource;
     private bool _isSkipping = false;
@@ -133,6 +133,10 @@ public class CreditsDirector : MonoBehaviour
         sfx.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(1.5f), 1f);
         
         yield return new WaitForSeconds(2f);
+
+        // BULLETPROOF FIX: Automatically correct the scene name if the Unity Inspector is holding onto the old value!
+        if (mainMenuSceneName == "MainMenu" || mainMenuSceneName == "MainMenu_Scene") 
+            mainMenuSceneName = "UI_MainMenu";
 
         if (!string.IsNullOrEmpty(mainMenuSceneName))
         {

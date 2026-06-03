@@ -20,9 +20,9 @@ public class CommandConsole : MonoBehaviour, IInteractable
     [Tooltip("The exact name of the escape sequence scene.")]
     public string escapeSceneName = "level_escape";
     [Tooltip("The exact name of the credits scene.")]
-    public string creditsSceneName = "credits_scene";
+    public string creditsSceneName = "UI_Credits";
     [Tooltip("The exact name of the bad ending cinematic scene.")]
-    public string ending1SceneName = "Ending1_Scene";
+    public string ending1SceneName = "Ending_01_KernelPanic";
     [Tooltip("Reference to the floating interaction prompt UI.")]
     public FloatingPrompt interactionPrompt;
 
@@ -170,6 +170,10 @@ public class CommandConsole : MonoBehaviour, IInteractable
         }
 
         yield return new WaitForSeconds(2f);
+        
+        // BULLETPROOF FIX: Automatically correct the scene name if the Unity Inspector is holding onto the old value!
+        if (ending1SceneName == "Ending1_Scene") ending1SceneName = "Ending_01_KernelPanic";
+        
         SceneManager.LoadScene(ending1SceneName);
     }
 

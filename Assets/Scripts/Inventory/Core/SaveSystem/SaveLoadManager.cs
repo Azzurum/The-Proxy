@@ -37,6 +37,11 @@ public class SaveLoadManager : MonoBehaviour
 
     private void Start()
     {
+        // AUTO-WIRE references so the prefab works instantly and flawlessly in any scene!
+        if (playerKaelen == null) { PlayerController pc = FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include); if (pc != null) playerKaelen = pc.transform; }
+        if (enemyProxy == null) { ProxyAI proxy = FindAnyObjectByType<ProxyAI>(FindObjectsInactive.Include); if (proxy != null) enemyProxy = proxy.transform; }
+        if (metRigInventory == null) metRigInventory = FindAnyObjectByType<InventoryManager>(FindObjectsInactive.Include);
+
         if (pendingLoadSlot != -1)
         {
             int slotToLoad = pendingLoadSlot;
@@ -102,6 +107,8 @@ public class SaveLoadManager : MonoBehaviour
 
         if (metRigInventory != null)
         {
+            // Safely abort any mid-drag items before saving so they don't get wiped from existence!
+            if (DraggableItem.itemBeingDragged != null) DraggableItem.itemBeingDragged.AbortDrag();
             metRigInventory.SyncDataFromUI();
             data.motherCorruptionPercent = metRigInventory.GetCorruptionPercentage();
             if (InventorySaveHandler.Instance != null) data.gridInventoryItems = InventorySaveHandler.Instance.ExportInventoryForSave();

@@ -8,6 +8,8 @@ public class JammedDoor : MonoBehaviour
     [Header("UI Prompt")]
     [Tooltip("The canvas containing the interaction prompt graphic.")]
     public GameObject interactionPromptCanvas;
+    [Tooltip("The UI Image used as a radial fill to show hold progress.")]
+    public UnityEngine.UI.Image fillRing;
 
     [Header("Dialogue Interaction")]
     [Tooltip("Reference to the dialogue engine.")]
@@ -25,12 +27,14 @@ public class JammedDoor : MonoBehaviour
 
     private float _holdTimer = 0f;
     private AudioSource _audioSource;
+    private AudioSource _weldSource;
     private bool _isPlayerInZone = false;
     private bool _hasTriggeredMonologue = false;
     private bool _isDoorOpen = false;
     private GameObject _cachedPlayer;
     private QuestTracker _questTracker;
     private HotbarManager _hotbarManager;
+    private float _interactionCooldown = 0f;
 
     private void Start()
     {
@@ -38,12 +42,33 @@ public class JammedDoor : MonoBehaviour
         _questTracker = FindAnyObjectByType<QuestTracker>();
         _hotbarManager = FindAnyObjectByType<HotbarManager>();
 
+        // Generate a dedicated 3D Audio Source exclusively for the welding sparks!
+        _weldSource = gameObject.AddComponent<AudioSource>();
+        _weldSource.spatialBlend = 1f;
+        _weldSource.minDistance = 2f;
+        _weldSource.maxDistance = 15f;
+        _weldSource.loop = true;
+        _weldSource.clip = ProceduralAudioGen.GenerateSparkCrackle(0.5f);
+
         if (interactionPromptCanvas != null)
             interactionPromptCanvas.SetActive(false);
     }
 
     private void Update()
     {
+        // Completely ignore interactions and reset timers if a dialogue is currently active!
+        if (DialogueEngine.isDialogueActive)
+        {
+            _interactionCooldown = 0.2f;
+            _holdTimer = 0f;
+            if (fillRing != null) fillRing.fillAmount = 0f;
+            if (weldingSparksFX != null) weldingSparksFX.Stop();
+            if (_weldSource != null) _weldSource.Stop();
+            return;
+        }
+
+        if (_interactionCooldown > 0f) { _interactionCooldown -= Time.deltaTime; return; }
+
         if (_isPlayerInZone && !_isDoorOpen)
         {
             if (!_hasTriggeredMonologue)
@@ -51,14 +76,20 @@ public class JammedDoor : MonoBehaviour
                 if (Input.GetKey(KeyCode.E) || Input.GetButton("Submit"))
                 {
                     _holdTimer += Time.deltaTime;
+                    if (fillRing != null) fillRing.fillAmount = _holdTimer / holdDuration;
+
                     if (_holdTimer >= holdDuration)
                     {
                         TriggerDoorFailure();
                     }
                 }
-                if (Input.GetKeyUp(KeyCode.E)) _holdTimer = 0f;
+                else
+                {
+                    _holdTimer = 0f;
+                    if (fillRing != null) fillRing.fillAmount = 0f;
+                }
             }
-            else if (_questTracker != null && _questTracker.GetCurrentObjective() == 5)
+            else
             {
                 bool holdingWelder = false;
 
@@ -75,26 +106,39 @@ public class JammedDoor : MonoBehaviour
                     }
                 }
 
-                if (Input.GetKey(KeyCode.E) && holdingWelder)
+                if (holdingWelder)
                 {
-                    _holdTimer += Time.deltaTime;
-
-                    if (weldingSparksFX != null && !weldingSparksFX.isPlaying)
+                    if (Input.GetKey(KeyCode.E) || Input.GetButton("Submit"))
                     {
-                        weldingSparksFX.Play();
+                        _holdTimer += Time.deltaTime;
+                        if (fillRing != null) fillRing.fillAmount = _holdTimer / holdDuration;
+
+                        if (weldingSparksFX != null && !weldingSparksFX.isPlaying)
+                        {
+                            weldingSparksFX.Play();
+                        if (_weldSource != null) _weldSource.Play();
+                        }
+
+                        if (_holdTimer >= holdDuration)
+                        {
+                            ExecuteWeldBypass();
+                        }
                     }
-
-                    if (_holdTimer >= holdDuration)
+                    else
                     {
-                        ExecuteWeldBypass();
+                        _holdTimer = 0f;
+                        if (fillRing != null) fillRing.fillAmount = 0f;
+                        if (weldingSparksFX != null) weldingSparksFX.Stop();
+                    if (_weldSource != null) _weldSource.Stop();
                     }
                 }
                 else
                 {
-                    if (Input.GetKeyUp(KeyCode.E) || !holdingWelder)
+                    // Player has triggered monologue but is NOT holding the welder. Give feedback!
+                    if (Input.GetKeyDown(KeyCode.E) || Input.GetButtonDown("Submit"))
                     {
-                        _holdTimer = 0f;
-                        if (weldingSparksFX != null) weldingSparksFX.Stop();
+                        if (_audioSource != null) _audioSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(150f, 0.3f));
+                        if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog("Requires Fusion Welder", Color.red, "JAMMED");
                     }
                 }
             }
@@ -104,25 +148,40 @@ public class JammedDoor : MonoBehaviour
     private void TriggerDoorFailure()
     {
         _holdTimer = 0f;
+        if (fillRing != null) fillRing.fillAmount = 0f;
         if (_audioSource != null && _audioSource.clip != null) _audioSource.Play();
+
+        if (doorDialogueNodes == null || doorDialogueNodes.Length == 0) AutoFillDialogue();
 
         if (dialogueEngine != null && doorDialogueNodes != null && doorDialogueNodes.Length > 0)
         {
             _hasTriggeredMonologue = true;
             if (interactionPromptCanvas != null) interactionPromptCanvas.SetActive(false);
 
-            if (_cachedPlayer != null) _cachedPlayer.SetActive(false);
+            if (_cachedPlayer != null)
+            {
+                PlayerController pc = _cachedPlayer.GetComponent<PlayerController>();
+                if (pc != null) pc.isRooted = true;
+            }
 
+            dialogueEngine.gameObject.SetActive(true);
             dialogueEngine.StartDialogue(doorDialogueNodes);
+
+            if (_questTracker != null)
+            {
+                _questTracker.AdvanceObjective(2, "Access the Sync-Terminal");
+            }
         }
     }
 
     private void ExecuteWeldBypass()
     {
         _holdTimer = 0f;
+        if (fillRing != null) fillRing.fillAmount = 0f;
         _isDoorOpen = true;
 
         if (weldingSparksFX != null) weldingSparksFX.Stop();
+        if (_weldSource != null) _weldSource.Stop();
 
         if (TryGetComponent<Animator>(out var doorAnim))
         {
@@ -168,8 +227,20 @@ public class JammedDoor : MonoBehaviour
             _isPlayerInZone = false;
             _cachedPlayer = null;
             _holdTimer = 0f;
+            if (fillRing != null) fillRing.fillAmount = 0f;
             if (weldingSparksFX != null) weldingSparksFX.Stop();
+            if (_weldSource != null) _weldSource.Stop();
             if (interactionPromptCanvas != null) interactionPromptCanvas.SetActive(false);
         }
+    }
+
+    [ContextMenu("Auto-Fill Door Dialogue")]
+    private void AutoFillDialogue()
+    {
+        doorDialogueNodes = new DialogueNode[]
+        {
+            new DialogueNode { speakerName = "KAELEN", dialogueText = "The main blast door is completely jammed shut. The manual release is dead." },
+            new DialogueNode { speakerName = "KAELEN", dialogueText = "I should check the Sync-Terminal over there to see if the crew left a maintenance log or a workaround." }
+        };
     }
 }

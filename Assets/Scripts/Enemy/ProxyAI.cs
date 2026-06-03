@@ -36,7 +36,7 @@ public class ProxyAI : MonoBehaviour
 
     [Header("Perception System")]
     [Tooltip("The radius within which the Proxy can hear player footsteps.")]
-    public float hearingRadius = 14f; 
+    public float hearingRadius = 25f; 
     private Vector3 previousPlayerPos;
 
     [Header("Movement Stats")]
@@ -70,7 +70,7 @@ public class ProxyAI : MonoBehaviour
     [Tooltip("Cooldown in seconds after executing a strike.")]
     public float attackRecovery = 1.5f;
     [Tooltip("The maximum distance from the player to execute a melee strike.")]
-    public float attackRange = 1.5f;
+    public float attackRange = 1.8f;
 
     private bool isPlayerInMeleeRange = false;
     private bool canAttack = true;
@@ -82,18 +82,18 @@ public class ProxyAI : MonoBehaviour
 
     [Header("Sixth Sense (Passive Tracking)")]
     [Tooltip("Minimum time before the Proxy passively pings the player's location.")]
-    public float minSixthSenseTime = 20f;
+    public float minSixthSenseTime = 8f;
     [Tooltip("Maximum time before the Proxy passively pings the player's location.")]
-    public float maxSixthSenseTime = 60f;
+    public float maxSixthSenseTime = 16f;
     private float sixthSenseTimer = 0f;
 
     [Header("Dynamic Avoidance (Whiskers)")]
     [Tooltip("Length of the dynamic collision-avoidance raycasts.")]
-    public float whiskerLength = 1.5f;
+    public float whiskerLength = 2.0f;
     [Tooltip("The angle offset for each pair of whiskers.")]
-    public float whiskerAngle = 25f;
+    public float whiskerAngle = 15f;
     [Tooltip("Number of paired whiskers (e.g., 4 pairs = 8 side whiskers + 1 forward).")]
-    public int whiskerCount = 4; 
+    public int whiskerCount = 6; 
     [Tooltip("The physical radius size considered for navigation clearance.")]
     public float proxyWidth = 0.25f; 
     [Tooltip("LayerMask containing solid environmental obstacles.")]
@@ -103,9 +103,9 @@ public class ProxyAI : MonoBehaviour
     [Tooltip("The distance threshold to determine if the Proxy is physically stuck.")]
     public float stuckDistanceThreshold = 0.5f;
     [Tooltip("Time in seconds before the Proxy attempts to recalculate a path when stuck.")]
-    public float stuckTimeLimit = 1.0f;
+    public float stuckTimeLimit = 0.5f;
     [Tooltip("Time in seconds of being stuck before triggering the failsafe teleport.")]
-    public float teleportFailsafeLimit = 4.0f;
+    public float teleportFailsafeLimit = 2.0f;
     private Vector2 _stuckCheckPos;
     private float _stuckTimer = 0f;
     private float _totalStuckTime = 0f;
@@ -134,6 +134,12 @@ public class ProxyAI : MonoBehaviour
     public AudioClip sfxAttackSwing;
     public AudioClip sfxAttackHit;
     public AudioClip sfxStunned;
+    
+    [Tooltip("Time between footstep sounds while wandering/investigating.")]
+    [SerializeField] private float walkStepInterval = 0.5f;
+    [Tooltip("Time between footstep sounds while hunting.")]
+    [SerializeField] private float sprintStepInterval = 0.3f;
+    private float _footstepTimer = 0f;
 
     void Start()
     {
@@ -173,6 +179,16 @@ public class ProxyAI : MonoBehaviour
         _cachedCamera = FindAnyObjectByType<CameraFollow>();
 
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        if (audioSource == null) 
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+        
+        // Force 3D sound settings even if the AudioSource was already attached in the Editor!
+        audioSource.spatialBlend = 1f; 
+        audioSource.rolloffMode = AudioRolloffMode.Linear;
+        audioSource.minDistance = 2f;
+        audioSource.maxDistance = 18f;
 
         if (targetPlayer != null) previousPlayerPos = targetPlayer.position;
 
@@ -264,10 +280,30 @@ public class ProxyAI : MonoBehaviour
         }
         
         UpdateAnimationSpeed();
+        HandleFootsteps();
 
         if (spriteRenderer != null)
         {
             spriteRenderer.sortingOrder = Mathf.RoundToInt((transform.position.y + depthOffset) * -10f);
+        }
+    }
+
+    private void HandleFootsteps()
+    {
+        if (hasMoveTarget && currentState != AIState.Idle && currentState != AIState.Stunned && currentState != AIState.Attacking && currentState != AIState.KnockedBack)
+        {
+            _footstepTimer -= Time.deltaTime;
+            if (_footstepTimer <= 0f)
+            {
+                if (audioSource != null) audioSource.PlayOneShot(ProceduralAudioGen.GenerateFootstep());
+                
+                float activeMultiplier = isSignalEmpowered ? signalSpeedMultiplier : 1f;
+                _footstepTimer = (currentState == AIState.Hunting ? sprintStepInterval : walkStepInterval) / activeMultiplier;
+            }
+        }
+        else
+        {
+            _footstepTimer = 0f;
         }
     }
 
@@ -334,7 +370,23 @@ public class ProxyAI : MonoBehaviour
         float distanceToPlayer = Vector2.Distance(transform.position, targetPlayer.position);
         float playerMovement = Vector3.Distance(targetPlayer.position, previousPlayerPos);
 
+        bool playerDetected = false;
+
+        // 1. Hearing Check
         if (playerMovement > 0.001f && distanceToPlayer <= hearingRadius)
+        {
+            playerDetected = true;
+        }
+        
+        // 2. Line of Sight Check (Instantly spot the player down a dark hallway!)
+        if (!playerDetected && distanceToPlayer <= 30f)
+        {
+            Vector2 dirToPlayer = (targetPlayer.position - transform.position).normalized;
+            RaycastHit2D hit = Physics2D.Raycast(transform.position, dirToPlayer, distanceToPlayer, obstacleMask);
+            if (hit.collider == null) playerDetected = true;
+        }
+
+        if (playerDetected)
         {
             lastKnownPosition = targetPlayer.position;
             hasLastKnownPosition = true;
@@ -771,7 +823,7 @@ public class ProxyAI : MonoBehaviour
         }
         else if (currentState == AIState.Attacking)
         {
-            animator.speed = activeMultiplier; 
+            animator.speed = activeMultiplier * 1.75f; 
         }
         else
         {
@@ -787,6 +839,8 @@ public class ProxyAI : MonoBehaviour
     {
         isEnraged = true;
         isSignalEmpowered = true; 
+        
+        sprintSpeed *= 1.30f; // Boost sprint speed by 30% for the final chase sequence!
         ChangeState(AIState.Hunting);
     }
 
@@ -888,7 +942,8 @@ public class ProxyAI : MonoBehaviour
         {
             Vector2 slideDir = Vector2.Perpendicular(hit.normal).normalized;
             if (Vector2.Dot(slideDir, targetDir) < 0) slideDir = -slideDir;
-            return slideDir;
+            // Add a slight push AWAY from the wall to prevent snagging on tight corners
+            return (slideDir + hit.normal * 0.4f).normalized;
         }
 
         return targetDir;

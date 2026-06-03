@@ -39,7 +39,11 @@ public class SystemSyncFX : MonoBehaviour
     /// </summary>
     public void PlayCrushSound()
     {
-        if (fxSource != null && sfxCrush != null) fxSource.PlayOneShot(sfxCrush);
+        if (fxSource != null) 
+        {
+            if (sfxCrush != null) fxSource.PlayOneShot(sfxCrush);
+            else fxSource.PlayOneShot(ProceduralAudioGen.GeneratePneumaticBlast(0.2f));
+        }
     }
 
     /// <summary>
@@ -56,7 +60,13 @@ public class SystemSyncFX : MonoBehaviour
             case "PURGE": targetColor = colorPurge; targetClip = sfxPurge; break;
         }
 
-        if (fxSource != null && targetClip != null) fxSource.PlayOneShot(targetClip);
+        if (fxSource != null) 
+        {
+            if (targetClip != null) fxSource.PlayOneShot(targetClip);
+            else if (type.ToUpper() == "LOAD") fxSource.PlayOneShot(ProceduralAudioGen.GenerateAscendingChime(0.5f));
+            else if (type.ToUpper() == "PURGE") fxSource.PlayOneShot(ProceduralAudioGen.GenerateErrorBuzz(200f, 0.4f));
+            else fxSource.PlayOneShot(ProceduralAudioGen.GenerateServerRise(0.4f));
+        }
         
         StopAllCoroutines();
         StartCoroutine(FlashRoutine(targetColor));

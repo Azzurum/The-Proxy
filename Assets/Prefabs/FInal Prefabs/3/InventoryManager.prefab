@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2935352873038475437
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 9126788875389123942}
+  - component: {fileID: 1352859803699784767}
+  m_Layer: 0
+  m_Name: InventoryManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &9126788875389123942
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2935352873038475437}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -244.66298, y: 659.0515, z: 0}
+  m_LocalScale: {x: 0.2, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1352859803699784767
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2935352873038475437}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a6a6ca6be05c55468981d4350fceb90, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InventoryManager
+  inventoryState: {fileID: 11400000, guid: d5173facf5d6b94458d045e7160c853a, type: 2}
+  gridLeft: {fileID: 0}
+  gridRight: {fileID: 0}
+  gridExt: {fileID: 0}
+  emptySlotPrefab: {fileID: 426848560161969633, guid: 97cbe3977cb062346a3d686a64ad8fa7, type: 3}
+  filledItemPrefab: {fileID: 2441399646411546366, guid: b30ae1328cfdd8140b3e4bc8054c5a0d, type: 3}
+  itemDatabase: []
+  cellSizeOverride: 62
+  gridRefreshPending: 0
+  corruptionData: {fileID: 11400000, guid: 13e438fe0a7c0da40b8f0aa8a6c96154, type: 2}
+  shockInterval: 60
+  shockTimer: 0
+  onItemDropped:
+    m_PersistentCalls:
+      m_Calls: []
+  uiInspectIcon: {fileID: 0}
+  isSystemActive: 1
+  suppressGameOver: 0
+  isInteractingWithLocker: 0

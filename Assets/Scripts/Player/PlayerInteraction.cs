@@ -247,9 +247,24 @@ public class PlayerInteraction : MonoBehaviour
     {
         // Cache tracker reference on first use.
         if (_questTracker == null) _questTracker = FindAnyObjectByType<QuestTracker>();
-        if (_questTracker != null && _questTracker.GetCurrentObjective() < 3) return;
+        if (_questTracker != null && _questTracker.GetCurrentObjective() < 3)
+        {
+            PlayAudio(sfxInventoryFull, ProceduralAudioGen.GenerateErrorBuzz());
+            if (UIPickupLog.Instance != null) UIPickupLog.Instance.AddLog("Authorization Required", Color.red, "LOCKED");
+            return;
+        }
 
-        PlayAudio(sfxLockerOpen, ProceduralAudioGen.GenerateClick(300f, 0.3f));
+        // Force the Locker to emit 3D sound from its exact location instead of the player!
+        AudioSource lockerAudio = lockerObject.GetComponent<AudioSource>();
+        if (lockerAudio == null)
+        {
+            lockerAudio = lockerObject.AddComponent<AudioSource>();
+            lockerAudio.spatialBlend = 1f;
+            lockerAudio.rolloffMode = AudioRolloffMode.Linear;
+            lockerAudio.minDistance = 2f;
+            lockerAudio.maxDistance = 15f;
+        }
+        lockerAudio.PlayOneShot(sfxLockerOpen != null ? sfxLockerOpen : ProceduralAudioGen.GenerateTrayLatch(true));
 
         if (lockerObject.TryGetComponent<Animator>(out Animator anim))
         {
@@ -261,12 +276,25 @@ public class PlayerInteraction : MonoBehaviour
         if (_metRigManager != null && !_metRigManager.isRigOpen)
         {
             _metRigManager.OpenRig(); 
-            if (_questTracker != null) _questTracker.AdvanceObjective(4, "Move Fusion Welder to Hotbar");
+            if (_questTracker != null) _questTracker.AdvanceObjective(4, "Equip the Fusion Welder in your Hotbar");
 
             if (_metRigManager.terminalOverlayUI != null)
             {
                 Transform tourOverlay = _metRigManager.terminalOverlayUI.transform.Find("MET_Rig_Tour_Overlay");
-                if (tourOverlay != null) tourOverlay.gameObject.SetActive(true);
+                if (tourOverlay != null) 
+                {
+                    tourOverlay.gameObject.SetActive(true);
+                    CanvasGroup cg = tourOverlay.GetComponent<CanvasGroup>();
+                    if (cg == null) cg = tourOverlay.gameObject.AddComponent<CanvasGroup>();
+                    cg.blocksRaycasts = false; // FAILSAFE: Ensure this graphic doesn't block you from dragging items!
+                    cg.interactable = false;
+
+                    // BULLETPROOF FIX: Physically strip raycasts from all tutorial graphics so they CANNOT absorb your mouse clicks!
+                    foreach (var graphic in tourOverlay.GetComponentsInChildren<UnityEngine.UI.Graphic>(true)) 
+                    {
+                        graphic.raycastTarget = false;
+                    }
+                }
             }
         }
 

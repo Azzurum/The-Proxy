@@ -15,9 +15,24 @@ public class ProceduralGlassGenerator : MonoBehaviour
     /// </summary>
     public void GenerateShards()
     {
-        for (int i = transform.childCount - 1; i >= 0; i--) Destroy(transform.GetChild(i).gameObject);
+        // Loop through all children, but strictly IGNORE the Pause_Background so it doesn't get deleted!
+        for (int i = transform.childCount - 1; i >= 0; i--) 
+        {
+            Transform child = transform.GetChild(i);
+            if (child.name != "Pause_Background") Destroy(child.gameObject);
+        }
 
         Camera cam = Camera.main;
+        
+        // Fix clipping if Z is too close to the camera lens without overriding your custom depth!
+        Vector3 localPos = transform.localPosition;
+        localPos.x = 0f;
+        localPos.y = 0f;
+        if (localPos.z <= 0.5f) localPos.z = 5f;
+        transform.localPosition = localPos;
+        transform.localRotation = Quaternion.identity;
+        transform.localScale = Vector3.one;
+
         float zDistance = Mathf.Abs(transform.localPosition.z);
         float screenHeight;
 
@@ -103,6 +118,7 @@ public class ProceduralGlassGenerator : MonoBehaviour
         mesh.RecalculateBounds();
 
         GameObject shardObj = new GameObject("Shard_" + index);
+        shardObj.layer = 0; // FAILSAFE: Force the shard onto the Default layer so it doesn't inherit hidden UI layers!
         shardObj.transform.SetParent(this.transform);
         shardObj.transform.localPosition = cog;
         shardObj.transform.localRotation = Quaternion.identity;

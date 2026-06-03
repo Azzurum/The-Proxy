@@ -41,6 +41,8 @@ public class ShatterAnimator : MonoBehaviour
     /// </summary>
     public void InitializeShards()
     {
+        if (glassParent == null) glassParent = transform; // Failsafe if the reference was lost
+
         int totalChildren = glassParent.childCount;
         int shardCount = 0;
         
@@ -114,6 +116,9 @@ public class ShatterAnimator : MonoBehaviour
         StopAllCoroutines(); 
         _isFullyShattered = false;
         StartCoroutine(AnimateTransition(true)); 
+
+        Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateStaticGlitch(0.4f), camPos, ProceduralAudioGen.globalVolume * 0.6f);
     }
     
     /// <summary>
@@ -124,6 +129,9 @@ public class ShatterAnimator : MonoBehaviour
         StopAllCoroutines(); 
         _isFullyShattered = false;
         StartCoroutine(AnimateTransition(false)); 
+
+        Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateAscendingChime(0.5f), camPos, ProceduralAudioGen.globalVolume * 0.6f);
     }
 
     /// <summary>
@@ -205,6 +213,9 @@ public class ShatterAnimator : MonoBehaviour
         Vector3[] startPositions = new Vector3[_shards.Length];
         for (int i = 0; i < _shards.Length; i++) startPositions[i] = _shards[i].localPosition;
 
+        Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GeneratePneumaticBlast(0.3f), camPos, ProceduralAudioGen.globalVolume * 0.8f);
+
         while (elapsed < duration)
         {
             elapsed += Time.unscaledDeltaTime;
@@ -221,7 +232,6 @@ public class ShatterAnimator : MonoBehaviour
             }
             yield return null;
         }
-        glassParent.gameObject.SetActive(false); 
     }
 
     /// <summary>
@@ -229,12 +239,14 @@ public class ShatterAnimator : MonoBehaviour
     /// </summary>
     public IEnumerator RestoreRoutine()
     {
-        glassParent.gameObject.SetActive(true);
         float elapsed = 0f;
         float duration = 0.25f;
 
         Vector3[] startPositions = new Vector3[_shards.Length];
         for (int i = 0; i < _shards.Length; i++) startPositions[i] = _shards[i].localPosition;
+
+        Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(0.3f), camPos, ProceduralAudioGen.globalVolume * 0.8f);
 
         while (elapsed < duration)
         {

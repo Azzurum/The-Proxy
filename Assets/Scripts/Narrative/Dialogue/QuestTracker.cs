@@ -28,10 +28,11 @@ public class QuestTracker : MonoBehaviour
             gameplayHudGroup.SetActive(false);
         }
 
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
+        // Look for Kaelen even if the Director has disabled him temporarily
+        PlayerController pc = FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include);
+        if (pc != null)
         {
-            _cachedPlayer = player.transform;
+            _cachedPlayer = pc.transform;
             _playerStartPos = _cachedPlayer.position;
         }
     }
@@ -59,7 +60,8 @@ public class QuestTracker : MonoBehaviour
     /// </summary>
     public void AdvanceObjective(int expectedStep, string newObjectiveText)
     {
-        if (_currentObjectiveIndex == expectedStep - 1)
+        // Flexibly allow progression even if the player skipped an optional step
+        if (_currentObjectiveIndex < expectedStep)
         {
             _currentObjectiveIndex = expectedStep;
             UpdateObjectiveUI(newObjectiveText);

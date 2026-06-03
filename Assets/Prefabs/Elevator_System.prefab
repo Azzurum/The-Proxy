@@ -1981,6 +1981,7 @@ MonoBehaviour:
   statusLight: {fileID: 7507206990751608032}
   lockedColor: {r: 0.85, g: 0.12, b: 0.15, a: 1}
   unlockedColor: {r: 0.15, g: 0.85, b: 0.25, a: 1}
+  requiredMasterKeyID: MasterKey2
   buttonDeck1: {fileID: 4446666270956915049}
   buttonDeck2: {fileID: 8498180510733697304}
   buttonDeck3: {fileID: 1186512845642952206}
@@ -2623,9 +2624,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 5362371966025748100}
-        m_TargetAssemblyTypeName: DeckTerminalUI, Assembly-CSharp
-        m_MethodName: SelectDeck
+      - m_Target: {fileID: 5397873706749160742}
+        m_TargetAssemblyTypeName: ElevatorInteraction, Assembly-CSharp
+        m_MethodName: ConfirmDeparture
         m_Mode: 5
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -3122,9 +3123,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 5362371966025748100}
-        m_TargetAssemblyTypeName: DeckTerminalUI, Assembly-CSharp
-        m_MethodName: SelectDeck
+      - m_Target: {fileID: 5397873706749160742}
+        m_TargetAssemblyTypeName: ElevatorInteraction, Assembly-CSharp
+        m_MethodName: ConfirmDeparture
         m_Mode: 5
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -3422,9 +3423,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 5362371966025748100}
-        m_TargetAssemblyTypeName: DeckTerminalUI, Assembly-CSharp
-        m_MethodName: SelectDeck
+      - m_Target: {fileID: 5397873706749160742}
+        m_TargetAssemblyTypeName: ElevatorInteraction, Assembly-CSharp
+        m_MethodName: ConfirmDeparture
         m_Mode: 5
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

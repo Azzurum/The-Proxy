@@ -68,9 +68,9 @@ public class UI_ParasiteOverride : MonoBehaviour
         }
 
         if (timerFill != null) timerFill.fillAmount = _timeLeft / cycleTime;
-        if (timerReadoutText != null) timerReadoutText.SetText("{0:F2}s", _timeLeft); 
+        if (timerReadoutText != null) timerReadoutText.text = $"{Mathf.CeilToInt(_timeLeft)}s"; 
 
-        if (stackCounterText != null) stackCounterText.SetText("[ {0:D2} / 10 ]", currentStacks);
+        if (stackCounterText != null) stackCounterText.text = $"[ {currentStacks:D2} / 10 ]";
 
         Color currentTheme = stableColor;
         string currentTitle = "MOTHER // ASSIMILATING";
@@ -147,7 +147,7 @@ public class UI_ParasiteOverride : MonoBehaviour
         if (_invManager != null) _invManager.shockTimer = savedTimer;
 
         if (timerFill != null) timerFill.fillAmount = _timeLeft / cycleTime;
-        if (timerReadoutText != null) timerReadoutText.SetText("{0:F2}s", _timeLeft);
-        if (stackCounterText != null) stackCounterText.SetText("[ {0:D2} / 10 ]", currentStacks);
+        if (timerReadoutText != null) timerReadoutText.text = $"{Mathf.CeilToInt(_timeLeft)}s";
+        if (stackCounterText != null) stackCounterText.text = $"[ {currentStacks:D2} / 10 ]";
     }
 }

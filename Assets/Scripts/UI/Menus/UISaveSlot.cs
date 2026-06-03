@@ -64,6 +64,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private Coroutine _animationCoroutine;
     private Coroutine _hoverCoroutine;
     private UISaveSlot[] _siblingSlots;
+    private AudioSource _audioSource;
 
     private void Awake()
     {
@@ -74,6 +75,7 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         {
             _siblingSlots = transform.parent.GetComponentsInChildren<UISaveSlot>();
         }
+        _audioSource = gameObject.AddComponent<AudioSource>();
     }
 
     private void OnEnable()
@@ -87,9 +89,14 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     /// </summary>
     public void RefreshDataFromDisk()
     {
-        if (SaveLoadManager.Instance == null) return;
+        if (SaveLoadManager.Instance == null) 
+        {
+            Debug.LogWarning("SaveLoadManager is missing from this scene! Save slots will not function.");
+            return;
+        }
 
-        bool isMainMenu = SceneManager.GetActiveScene().name == "MainMenu_Scene";
+        string sceneName = SceneManager.GetActiveScene().name;
+        bool isMainMenu = sceneName == "MainMenu_Scene" || sceneName == "MainMenu" || sceneName == "UI_MainMenu";
         bool hasData = SaveLoadManager.Instance.DoesSaveExist(slotID);
         
         if (matrixHeaderText != null) matrixHeaderText.text = $"SECTOR_{slotID:D2} IDENTIFIED";
@@ -163,6 +170,8 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (SystemLogger.Instance != null) 
             SystemLogger.Instance.Log($"TERMINAL EXPANDED. SECTOR 0{slotID} ACCESSED.", "#FFAA00");
         if (hoverWipe != null) hoverWipe.fillAmount = 0;
+
+        if (_audioSource != null) _audioSource.PlayOneShot(ProceduralAudioGen.GenerateTrayLatch(true));
         
         if (_siblingSlots != null)
         {
@@ -385,6 +394,8 @@ public class UISaveSlot : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         if (_hoverCoroutine != null) StopCoroutine(_hoverCoroutine);
         _hoverCoroutine = StartCoroutine(AnimateHoverWipe(1f));
+
+        if (_audioSource != null) _audioSource.PlayOneShot(ProceduralAudioGen.GenerateBeep(800f, 0.05f));
     }
 
     public void OnPointerExit(PointerEventData eventData)

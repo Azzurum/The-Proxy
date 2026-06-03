@@ -7,7 +7,7 @@ using System.Collections.Generic;
 /// Manages the behavior of a UI item that can be clicked, dragged, rotated, and dropped into inventory slots.
 /// </summary>
 [RequireComponent(typeof(CanvasGroup))]
-public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
+public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler, IPointerDownHandler
 {
     [Header("Item Data")]
     [Tooltip("The ScriptableObject that defines this item's properties.")]
@@ -125,11 +125,42 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         // Determine if the item is currently in a hotbar slot.
         bool inHotbar = false;
         if (transform.parent != null && transform.parent.GetComponent<HotbarSlot>() != null) inHotbar = true;
-        if (itemBeingDragged == this && parentAfterDrag != null && parentAfterDrag.GetComponent<HotbarSlot>() != null) inHotbar = true;
+        
+        // --- FIX: Force full size while dragging so you can clearly see the real footprint! ---
+        if (itemBeingDragged == this) inHotbar = false;
+
+        // --- DEDICATED RAYCAST HITBOX FIX ---
+        // We create a dedicated, invisible child Image to act purely as a reliable click/drag surface!
+        // This prevents the root Image from being accidentally disabled, ensuring right-clicks and hotbar drags ALWAYS work.
+        Transform hitboxTrans = transform.Find("DragHitbox");
+        Image hitbox = null;
+        if (hitboxTrans == null)
+        {
+            GameObject go = new GameObject("DragHitbox", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(transform, false);
+            go.transform.SetAsLastSibling(); // Render on top to catch clicks first
+            hitbox = go.GetComponent<Image>();
+            hitbox.color = new Color(0, 0, 0, 0); // Invisible
+            
+            RectTransform rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+        else
+        {
+            hitbox = hitboxTrans.GetComponent<Image>();
+            hitboxTrans.SetAsLastSibling();
+        }
+        hitbox.raycastTarget = true;
+        hitbox.enabled = true; 
+        // ------------------------------------
 
         if (inHotbar)
         {
-            rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
+            float activeCellSize = cellSize > 10f ? cellSize : 75f; // Failsafe against 0 scale
+            rectTransform.sizeDelta = new Vector2(activeCellSize, activeCellSize);
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
             rectTransform.localEulerAngles = Vector3.zero;
 
@@ -148,7 +179,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         // Standard grid item layout logic.
         if (uiItem != null) uiItem.SetTetrisGridVisibility(true);
-
+        
         rectTransform.sizeDelta = new Vector2(baseFp.width * cellSize, baseFp.height * cellSize);
         rectTransform.pivot = new Vector2(0.5f, 0.5f);
         rectTransform.localEulerAngles = new Vector3(0f, 0f, isRotated ? -90f : 0f);
@@ -192,9 +223,13 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             if (InventoryManager.Instance != null && itemData != null)
                 InventoryManager.Instance.SetInspectionIcon(itemData.icon);
         }
-        else if (eventData.button == PointerEventData.InputButton.Right)
+    }
+
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Right)
         {
-            // Right-click attempts to use the item.
+            // Right-click attempts to use the item (moved to PointerDown to bypass Unity's drag-cancellation of clicks!)
             ItemUsageManager usageManager = FindAnyObjectByType<ItemUsageManager>();
             if (usageManager != null && itemData != null)
             {
@@ -208,6 +243,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     /// </summary>
     public void OnBeginDrag(PointerEventData eventData)
     {
+        // Only allow dragging with the Left Mouse Button! (Fixes right-click consumable bug)
+        if (eventData.button != PointerEventData.InputButton.Left) return;
+
         if (itemData != null && itemData.itemID == "CRPT") return;
 
         itemBeingDragged = this;
@@ -236,6 +274,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         Vector3 cleanPos = rectTransform.localPosition;
         cleanPos.z = 0f;
         rectTransform.localPosition = cleanPos;
+        rectTransform.localScale = Vector3.one; // Force it back to full size immediately when leaving the hotbar!
 
         UpdateVisualSize();
         UpdateDragPosition(eventData);
@@ -256,6 +295,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     /// </summary>
     public void OnDrag(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left) return;
         if (itemData != null && itemData.itemID == "CRPT") return;
         UpdateDragPosition(eventData);
     }
@@ -286,6 +326,7 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     /// </summary>
     public void OnEndDrag(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left) return;
         if (itemData != null && itemData.itemID == "CRPT") return;
 
         itemBeingDragged = null;
@@ -297,11 +338,89 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         ClearAllSlotHighlights();
         SetRotationHintVisible(false);
 
+            // --- FAILSAFE: Manually accept Hotbar drops in case Unity's EventSystem dropped the event ---
+            if (!dropAccepted && eventData != null && eventData.pointerEnter != null)
+            {
+                HotbarSlot hoveredHotbar = eventData.pointerEnter.GetComponentInParent<HotbarSlot>();
+                if (hoveredHotbar != null)
+                {
+                    parentAfterDrag = hoveredHotbar.transform;
+                    dropAccepted = true;
+                }
+            }
+
+        // --- FIX: Detect if the item was dropped completely off the UI to eject it into the world! ---
+        if (!dropAccepted)
+        {
+            bool droppedOnValidGrid = false;
+            if (eventData != null && eventData.pointerEnter != null)
+            {
+                // Check if we dropped it anywhere inside an inventory or hotbar panel
+                if (eventData.pointerEnter.GetComponentInParent<InventorySlot>() != null || 
+                    eventData.pointerEnter.GetComponentInParent<HotbarSlot>() != null ||
+                    eventData.pointerEnter.GetComponentInParent<DraggableItem>() != null)
+                {
+                    droppedOnValidGrid = true;
+                }
+
+                // --- DISCARD AREA FIX ---
+                // If you drop the item on a custom UI panel named "Discard", force the ejection!
+                Transform currentTransform = eventData.pointerEnter.transform;
+                while (currentTransform != null)
+                {
+                    string hoverName = currentTransform.name.ToLower();
+                    if (hoverName.Contains("discard") || hoverName.Contains("trash") || hoverName.Contains("eject") || hoverName.Contains("world") || hoverName.Contains("drop"))
+                    {
+                        droppedOnValidGrid = false;
+                        break;
+                    }
+                    currentTransform = currentTransform.parent;
+                }
+            }
+
+            if (!droppedOnValidGrid) ejectedFromRig = true;
+        }
+
         // If the item was dragged off the grid, spawn it in the world.
         if (ejectedFromRig)
         {
-            if (WorldItemSpawner.Instance != null) WorldItemSpawner.Instance.DiscardItemToWorld(gameObject);
-            else Destroy(gameObject); // Failsafe
+            // Failsafe Warning: If the item vanishes but doesn't spawn in the world, tell the developer exactly why!
+            if (itemData != null && itemData.worldPrefab == null)
+            {
+                Debug.LogError($"<color=red>CANNOT SPAWN ITEM:</color> '{itemData.itemName}' does not have a World Prefab assigned in its ItemData! The UI item was deleted but nothing spawned.");
+            }
+
+            if (itemData != null && itemData.worldPrefab != null)
+            {
+                if (WorldItemSpawner.Instance != null)
+                {
+                    WorldItemSpawner.Instance.EjectItem(itemData);
+                }
+                else
+                {
+                    // BULLETPROOF FALLBACK: If the Spawner is missing from the scene entirely, spawn it manually!
+                    Debug.LogWarning($"<color=yellow>[WARNING]</color> No WorldItemSpawner found in the scene! Spawning '{itemData.itemName}' using automatic fallback.");
+                    
+                    PlayerController player = FindAnyObjectByType<PlayerController>();
+                    Vector3 spawnPos = player != null ? player.transform.position : Vector3.zero;
+                    
+                    GameObject droppedItem = Instantiate(itemData.worldPrefab, spawnPos, Quaternion.identity);
+                    PhysicalItem pi = droppedItem.GetComponent<PhysicalItem>();
+                    if (pi != null)
+                    {
+                        Vector3 targetPos = spawnPos + (Vector3)Random.insideUnitCircle * 2f;
+                        pi.TriggerDropAnimation(spawnPos, targetPos);
+                    }
+                }
+            }
+            Destroy(gameObject); // Destroy the UI representation!
+
+            // Instantly update the backend data so the game knows the item is gone!
+            if (InventoryManager.Instance != null)
+            {
+                InventoryManager.Instance.SyncDataFromUI();
+                InventoryManager.Instance.OnItemDroppedSignal();
+            }
             return;
         }
 
@@ -316,8 +435,15 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
                 if (HotbarManager.Instance != null)
                 {
-                    HotbarManager.Instance.quickSlots[0] = hotbarSlot;
-                    HotbarManager.Instance.EquipSlot(1);
+                    // Dynamically find which slot it was dropped into instead of hardcoding 0!
+                    for (int i = 0; i < HotbarManager.Instance.quickSlots.Length; i++)
+                    {
+                        if (HotbarManager.Instance.quickSlots[i] == hotbarSlot)
+                        {
+                            HotbarManager.Instance.EquipSlot(i);
+                            break;
+                        }
+                    }
                 }
 
                 StartSmoothPlacement(parentAfterDrag);
@@ -345,7 +471,16 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             }
             StartSmoothPlacement(parentAfterDrag);
         }
-        else StartRejectedReturn();
+        else 
+        {
+            // FIX: Restore the item to the hotbar data if the drop was rejected so it isn't wiped!
+            if (originalParent != null)
+            {
+                HotbarSlot originalHotbar = originalParent.GetComponent<HotbarSlot>();
+                if (originalHotbar != null) originalHotbar.containedItem = this;
+            }
+            StartRejectedReturn();
+        }
     }
 
     /// <summary>
@@ -440,13 +575,18 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         UpdateVisualSize();
         animateCoroutine = null;
 
+        // --- DYNAMIC LAYER SORTING FIX ---
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
-        if (myCanvas != null && slot != null)
+        if (myCanvas != null)
         {
             Canvas rootCanvas = GetComponentInParent<Canvas>()?.rootCanvas;
             int baseOrder = (rootCanvas != null) ? rootCanvas.sortingOrder : 0;
-            myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
+            if (slot != null) {
+                myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
+            } else {
+                myCanvas.sortingOrder = baseOrder + 6; // Sit nicely in the hotbar!
+            }
         }
     }
 
@@ -496,14 +636,18 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
         UpdateVisualSize();
         animateCoroutine = null;
 
-        // --- DYNAMIC LAYER SORTING INTEGRATED HERE TOO ---
+        // --- DYNAMIC LAYER SORTING FIX ---
         Canvas myCanvas = GetComponent<Canvas>();
         InventorySlot slot = targetParent.GetComponent<InventorySlot>();
-        if (myCanvas != null && slot != null)
+        if (myCanvas != null)
         {
             Canvas rootCanvas = GetComponentInParent<Canvas>()?.rootCanvas;
             int baseOrder = (rootCanvas != null) ? rootCanvas.sortingOrder : 0;
-            myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
+            if (slot != null) {
+                myCanvas.sortingOrder = (slot.gridRegion == InventorySlot.GridRegion.External) ? (baseOrder + 1) : (baseOrder + 5);
+            } else {
+                myCanvas.sortingOrder = baseOrder + 6; // Sit nicely in the hotbar!
+            }
         }
 
         if (InventoryManager.Instance != null) InventoryManager.Instance.SyncDataFromUI();
@@ -615,6 +759,9 @@ public class DraggableItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
         if (originalParent != null)
         {
+            HotbarSlot originalHotbar = originalParent.GetComponent<HotbarSlot>();
+            if (originalHotbar != null) originalHotbar.containedItem = this;
+
             transform.SetParent(originalParent, true);
 
             if (originalParent.GetComponent<HotbarSlot>() != null)

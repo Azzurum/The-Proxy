@@ -112,6 +112,11 @@ public class ElevatorInteraction : MonoBehaviour
             _playerRigidbody.bodyType = RigidbodyType2D.Kinematic; 
             _playerRigidbody.interpolation = RigidbodyInterpolation2D.None; 
         }
+
+        // FAILSAFE: Turn off Kaelen's physical collider so he doesn't get stuck on hidden walls inside the elevator!
+        Collider2D playerCol = _playerTransform.GetComponent<Collider2D>();
+        if (playerCol != null) playerCol.enabled = false;
+
         if (_playerController != null) _playerController.enabled = false;
 
         // Hide the player's minimap blip as they are entering a "vehicle".
@@ -129,6 +134,7 @@ public class ElevatorInteraction : MonoBehaviour
 
         // Open elevator doors and wait.
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Open");
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(1.2f), transform.position, ProceduralAudioGen.globalVolume * 0.8f);
         yield return new WaitForSeconds(1f); 
 
         // Move player to the designated spot inside the elevator.
@@ -155,6 +161,7 @@ public class ElevatorInteraction : MonoBehaviour
         if (playerAnim != null) playerAnim.SetFloat("Speed", 0f);
 
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Close");
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(1.2f), transform.position, ProceduralAudioGen.globalVolume * 0.8f);
         yield return new WaitForSeconds(1f); 
 
         // Show the deck selection terminal.
@@ -167,8 +174,40 @@ public class ElevatorInteraction : MonoBehaviour
     /// <param name="targetScene">The name of the scene to load.</param>
     public void ConfirmDeparture(string targetScene)
     {
+        StartCoroutine(DepartureFadeRoutine(targetScene));
+    }
+
+    private IEnumerator DepartureFadeRoutine(string targetScene)
+    {
         // Let the static manager know which elevator was used so the arrival script can trigger.
         ElevatorManager.LastUsedElevatorID = elevatorID;
+
+        // Hide the terminal
+        if (deckTerminalCanvas != null) deckTerminalCanvas.SetActive(false);
+
+        GameObject fadeObj = new GameObject("ElevatorFadeOut");
+        Canvas canvas = fadeObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 32767; 
+        
+        UnityEngine.UI.Image fadeImage = fadeObj.AddComponent<UnityEngine.UI.Image>();
+        fadeImage.rectTransform.anchorMin = Vector2.zero;
+        fadeImage.rectTransform.anchorMax = Vector2.one;
+        fadeImage.rectTransform.offsetMin = Vector2.zero;
+        fadeImage.rectTransform.offsetMax = Vector2.zero;
+        fadeImage.color = new Color(0, 0, 0, 0);
+        fadeImage.raycastTarget = true;
+        
+        float duration = 1.5f;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            fadeImage.color = new Color(0, 0, 0, Mathf.Clamp01(elapsed / duration));
+            yield return null;
+        }
+        
         SceneManager.LoadScene(targetScene);
     }
 
@@ -187,6 +226,7 @@ public class ElevatorInteraction : MonoBehaviour
     {
         // Open doors and wait.
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Open");
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(1.2f), transform.position, ProceduralAudioGen.globalVolume * 0.8f);
         yield return new WaitForSeconds(1f);
 
         SpriteRenderer[] allPlayerSprites = _playerTransform.GetComponentsInChildren<SpriteRenderer>();
@@ -227,10 +267,15 @@ public class ElevatorInteraction : MonoBehaviour
             _playerRigidbody.interpolation = RigidbodyInterpolation2D.Interpolate; 
         }
 
+        // Re-enable Kaelen's collider so he can bump into walls again
+        Collider2D playerCol = _playerTransform.GetComponent<Collider2D>();
+        if (playerCol != null) playerCol.enabled = true;
+
         if (_playerController != null) _playerController.enabled = true;
 
         // Close doors and reset state.
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Close");
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(1.2f), transform.position, ProceduralAudioGen.globalVolume * 0.8f);
         
         // Allow the player to interact with the elevator again.
         _sequenceStarted = false; 

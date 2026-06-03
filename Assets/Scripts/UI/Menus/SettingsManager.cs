@@ -108,11 +108,19 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt("CrtDistortion", isEnabled ? 1 : 0);
         PlayerPrefs.Save();
         
-        UICRTPattern crtOverlay = FindAnyObjectByType<UICRTPattern>();
-        if (crtOverlay != null)
+        // DYNAMIC FIX: Find ALL CRT Effects in the scene (both scanlines and flickers) and toggle them!
+        UICRTPattern[] crtPatterns = FindObjectsByType<UICRTPattern>(FindObjectsInactive.Include);
+        foreach (UICRTPattern pattern in crtPatterns)
         {
-            crtOverlay.enabled = isEnabled;
-            if (crtOverlay.TryGetComponent(out RawImage rawImage)) rawImage.enabled = isEnabled;
+            pattern.enabled = isEnabled;
+            if (pattern.TryGetComponent(out RawImage rawImage)) rawImage.enabled = isEnabled;
+        }
+
+        CRTEffects[] crtFX = FindObjectsByType<CRTEffects>(FindObjectsInactive.Include);
+        foreach (CRTEffects fx in crtFX)
+        {
+            fx.enabled = isEnabled;
+            if (fx.flickerImage != null) fx.flickerImage.enabled = isEnabled;
         }
     }
 

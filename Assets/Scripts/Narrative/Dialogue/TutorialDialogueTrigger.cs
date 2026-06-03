@@ -14,10 +14,12 @@ public class TutorialDialogueTrigger : MonoBehaviour
     public DialogueNode[] introductionConversation;
     
     private PlayerController _playerController;
+    private bool _hasTriggered = false;
 
     private void Start()
     {
-        _playerController = FindAnyObjectByType<PlayerController>();
+        // Safe search in case Kaelen is hidden by the Director
+        _playerController = FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include);
     }
 
     /// <summary>
@@ -25,9 +27,12 @@ public class TutorialDialogueTrigger : MonoBehaviour
     /// </summary>
     public void TriggerKaelenDialogue()
     {
+        if (_hasTriggered) return; // FAILSAFE: Prevent this sequence from ever playing twice!
+
         if (dialogueEngine != null && introductionConversation != null && introductionConversation.Length > 0)
         {
-            if (_playerController != null) _playerController.enabled = false;
+            _hasTriggered = true;
+            if (_playerController != null) _playerController.isRooted = true;
 
             if (!dialogueEngine.gameObject.activeSelf) dialogueEngine.gameObject.SetActive(true);
 

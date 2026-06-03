@@ -22,6 +22,9 @@ public class UIPanelAnimator : MonoBehaviour
         
         _rectTransform.anchoredPosition = new Vector2(Screen.width, _restingPosition.y);
         _currentRoutine = StartCoroutine(SlideIn());
+
+        Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateWhoosh(0.2f), camPos, ProceduralAudioGen.globalVolume * 0.5f);
     }
 
     private IEnumerator SlideIn()
@@ -53,6 +56,9 @@ public class UIPanelAnimator : MonoBehaviour
         {
             if (_currentRoutine != null) StopCoroutine(_currentRoutine);
             _currentRoutine = StartCoroutine(SlideOutRoutine());
+
+            Vector3 camPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+            AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateWhoosh(0.2f), camPos, ProceduralAudioGen.globalVolume * 0.5f);
         }
     }
 

@@ -17,11 +17,21 @@ public static class ProceduralAudioGen
     // The Cache: Stores generated clips by their unique parameter strings
     private static Dictionary<string, AudioClip> clipCache = new Dictionary<string, AudioClip>();
 
+    private static bool TryGetCachedClip(string key, out AudioClip clip)
+    {
+        if (clipCache.TryGetValue(key, out clip))
+        {
+            if (clip != null) return true; // Unity's overloaded != checks if the native asset survived
+            clipCache.Remove(key);         // Native asset was destroyed by Scene Load, clear the wrapper!
+        }
+        return false;
+    }
+
     // Generates a smooth, high-pitched "Beep" (Great for UI clicks or the Decoy ticking)
     public static AudioClip GenerateBeep(float frequency = 880f, float duration = 0.1f)
     {
         string key = $"Beep_{frequency}_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -46,17 +56,18 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateErrorBuzz(float frequency = 150f, float duration = 0.3f)
     {
         string key = $"ErrorBuzz_{frequency}_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
 
         for (int i = 0; i < sampleCount; i++)
         {
-            // Square wave math (harsh/electronic)
+            // Soft Sine Harmonics (replaces the harsh square wave so it doesn't hurt the ears!)
             float time = i / (float)SampleRate;
-            float sinValue = Mathf.Sin(2 * Mathf.PI * frequency * time);
-            samples[i] = (sinValue > 0 ? 0.5f : -0.5f) * globalVolume; // Snap to extreme highs/lows
+            float fundamental = Mathf.Sin(2 * Mathf.PI * frequency * time);
+            float harmonic = Mathf.Sin(2 * Mathf.PI * frequency * 2.0f * time) * 0.5f;
+            samples[i] = (fundamental + harmonic) * 0.35f * globalVolume; 
 
             // Taper the ends
             if (i < 500) samples[i] *= i / 500f;
@@ -73,15 +84,18 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateStaticGlitch(float duration = 0.2f)
     {
         string key = $"StaticGlitch_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
 
+        float lastOut = 0f;
         for (int i = 0; i < sampleCount; i++)
         {
-            // Random noise generation
-            samples[i] = Random.Range(-0.8f, 0.8f) * globalVolume;
+            // Low-pass filtered noise (Brown/Pink-ish) to prevent ear strain
+            float white = Random.Range(-0.8f, 0.8f);
+            lastOut = (lastOut + (0.1f * white)) / 1.1f;
+            samples[i] = lastOut * 1.5f * globalVolume;
             
             // Fade out
             samples[i] *= 1f - ((float)i / sampleCount); 
@@ -100,7 +114,7 @@ public static class ProceduralAudioGen
         float actualStartFreq = startFrequency + (Mathf.Round(Random.Range(-3f, 3f)) * 100f);
 
         string key = $"Pew_{actualStartFreq}_{endFrequency}_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -135,7 +149,7 @@ public static class ProceduralAudioGen
         float startFreq = Mathf.Round(Random.Range(13f, 17f)) * 10f; 
 
         string key = $"Pneumatic_{startFreq}_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -172,7 +186,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateClick(float frequency = 1000f, float duration = 0.05f)
     {
         string key = $"Click_{frequency}_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -194,7 +208,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateAscendingChime(float duration = 0.2f)
     {
         string key = $"Chime_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -222,7 +236,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateHiss(float duration = 1.5f)
     {
         string key = $"Hiss_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -242,7 +256,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateWhoosh(float duration = 0.4f)
     {
         string key = $"Whoosh_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -262,7 +276,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateTrayLatch(bool opening)
     {
         string key = $"TrayLatch_{opening}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * 0.1f);
         float[] samples = new float[sampleCount];
@@ -296,7 +310,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateHeartbeat(float duration = 1.0f)
     {
         string key = $"Heartbeat_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -328,7 +342,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateAlarm(float duration = 2.0f)
     {
         string key = $"Alarm_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -342,7 +356,7 @@ public static class ProceduralAudioGen
             float freq = 800f + 400f * Mathf.Sin(2f * Mathf.PI * 1.5f * t); 
             phase += 2f * Mathf.PI * freq / SampleRate;
             
-            samples[i] = Mathf.Sin(phase) * globalVolume * 0.4f;
+            samples[i] = Mathf.Sin(phase) * globalVolume * 0.25f; // Lowered volume to prevent harshness
             
             // Taper the extreme edges to prevent speaker popping
             if (i < 1000) samples[i] *= i / 1000f;
@@ -355,11 +369,47 @@ public static class ProceduralAudioGen
         return clip;
     }
 
+    // Generates a crisp metallic footstep (Great for walking on spaceship floor grates)
+    public static AudioClip GenerateSoftFootstep(float duration = 0.15f)
+    {
+        string key = $"SoftFootstep_{duration}";
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+        float phase1 = 0f;
+        float phase2 = 0f;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+            float envelope = Mathf.Exp(-t * 40f); // Harder decay for a solid boot impact
+            
+            // The Highs: A subtle metallic ping/click
+            float freqPing = 1200f * Mathf.Exp(-t * 20f); 
+            phase1 += 2f * Mathf.PI * freqPing / SampleRate;
+            float ping = Mathf.Sin(phase1) * 0.05f;
+            
+            // The Lows: A solid boot thud
+            float freqThud = 90f * Mathf.Exp(-t * 10f); 
+            phase2 += 2f * Mathf.PI * freqThud / SampleRate;
+            float thud = Mathf.Sin(phase2) * 0.4f;
+            
+            // Mix them together
+            samples[i] = (thud + ping) * envelope * globalVolume;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcSoftFootstep", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
     // Generates a heavy, gravelly footstep (Great for the Proxy walking)
     public static AudioClip GenerateFootstep(float duration = 0.2f)
     {
         string key = $"Footstep_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -392,7 +442,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateWhisper(float duration = 0.6f)
     {
         string key = $"Whisper_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -445,7 +495,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateSparkCrackle(float duration = 0.2f)
     {
         string key = $"SparkCrackle_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -471,7 +521,7 @@ public static class ProceduralAudioGen
     public static AudioClip GenerateServerRise(float duration = 0.4f)
     {
         string key = $"ServerRise_{duration}";
-        if (clipCache.TryGetValue(key, out AudioClip cachedClip)) return cachedClip;
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
 
         int sampleCount = (int)(SampleRate * duration);
         float[] samples = new float[sampleCount];
@@ -504,6 +554,28 @@ public static class ProceduralAudioGen
         }
 
         AudioClip clip = AudioClip.Create("ProcServerRise", sampleCount, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        clipCache[key] = clip;
+        return clip;
+    }
+
+    // Generates a soft, pleasant typewriter blip (Great for dialogue and visual novels)
+    public static AudioClip GenerateTextBlip(float frequency = 600f, float duration = 0.04f)
+    {
+        string key = $"TextBlip_{frequency}_{duration}";
+        if (TryGetCachedClip(key, out AudioClip cachedClip)) return cachedClip;
+
+        int sampleCount = (int)(SampleRate * duration);
+        float[] samples = new float[sampleCount];
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = (float)i / SampleRate;
+            float env = Mathf.Exp(-t * 60f); // Quick decay envelope for a plucky, cute sound
+            samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * env * 0.3f * globalVolume;
+        }
+
+        AudioClip clip = AudioClip.Create("ProcTextBlip", sampleCount, 1, SampleRate, false);
         clip.SetData(samples, 0);
         clipCache[key] = clip;
         return clip;

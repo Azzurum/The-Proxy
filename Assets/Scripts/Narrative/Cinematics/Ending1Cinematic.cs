@@ -23,7 +23,7 @@ public class Ending1Cinematic : MonoBehaviour
     [Tooltip("Speed multiplier for the player's forced, puppet-like walk.")]
     public float walkSpeed = 1.5f;
     [Tooltip("The name of the scene to load upon completion (usually credits).")]
-    public string nextSceneName = "credits_scene"; 
+    public string nextSceneName = "UI_Credits"; 
 
     private void Start()
     {
@@ -192,6 +192,10 @@ public class Ending1Cinematic : MonoBehaviour
         drone.Stop();
 
         yield return new WaitForSeconds(3.5f);
+        
+        // BULLETPROOF FIX: Automatically correct the scene name if the Unity Inspector is holding onto the old value!
+        if (nextSceneName == "credits_scene") nextSceneName = "UI_Credits";
+        
         SceneManager.LoadScene(nextSceneName);
     }
 

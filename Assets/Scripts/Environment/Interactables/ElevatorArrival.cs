@@ -34,9 +34,13 @@ public class ElevatorArrival : MonoBehaviour
 
         if (!string.IsNullOrEmpty(currentID) && currentID == lastUsed)
         {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            // DYNAMIC FIX: Find Kaelen even if his GameObject is turned off in the Unity Editor!
+            PlayerController pc = FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include);
+            GameObject player = pc != null ? pc.gameObject : null;
+            
             if (player != null)
             {
+                player.SetActive(true); // Failsafe to wake him up
                 // Temporarily disable all player sprites to prevent them from flashing on screen before the sequence starts.
                 SpriteRenderer[] sprites = player.GetComponentsInChildren<SpriteRenderer>();
                 foreach (SpriteRenderer s in sprites) 
@@ -61,6 +65,11 @@ public class ElevatorArrival : MonoBehaviour
                     rb.bodyType = RigidbodyType2D.Kinematic; 
                     rb.interpolation = RigidbodyInterpolation2D.None; 
                 }
+                
+                if (player.TryGetComponent<Collider2D>(out var col))
+                {
+                    col.enabled = false; // Turn off collider for the cinematic walk-out
+                }
                 if (player.TryGetComponent<PlayerController>(out var movement))
                 {
                     movement.enabled = false;
@@ -78,10 +87,35 @@ public class ElevatorArrival : MonoBehaviour
     {
         Animator playerAnim = player.GetComponentInChildren<Animator>();
 
+        // Create the seamless fade-in from black
+        GameObject fadeObj = new GameObject("ElevatorFadeIn");
+        Canvas canvas = fadeObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 32767;
+        
+        UnityEngine.UI.Image fadeImage = fadeObj.AddComponent<UnityEngine.UI.Image>();
+        fadeImage.rectTransform.anchorMin = Vector2.zero;
+        fadeImage.rectTransform.anchorMax = Vector2.one;
+        fadeImage.rectTransform.offsetMin = Vector2.zero;
+        fadeImage.rectTransform.offsetMax = Vector2.zero;
+        fadeImage.color = new Color(0, 0, 0, 1);
+        fadeImage.raycastTarget = true;
+
         yield return new WaitForSeconds(initialDelay);
+
+        float fadeDur = 1.5f;
+        float elapsed = 0f;
+        while (elapsed < fadeDur)
+        {
+            elapsed += Time.deltaTime;
+            fadeImage.color = new Color(0, 0, 0, 1f - Mathf.Clamp01(elapsed / fadeDur));
+            yield return null;
+        }
+        Destroy(fadeObj);
 
         // Open the elevator doors.
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Open"); 
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(doorAnimationTime), transform.position, ProceduralAudioGen.globalVolume * 0.8f);
         yield return new WaitForSeconds(doorAnimationTime);
 
         // Re-enable player sprites now that they are visibly walking out.
@@ -119,6 +153,11 @@ public class ElevatorArrival : MonoBehaviour
             rb.interpolation = RigidbodyInterpolation2D.Interpolate; 
         }
         
+        if (player.TryGetComponent<Collider2D>(out var col2))
+        {
+            col2.enabled = true; // Turn the collider back on for gameplay!
+        }
+
         if (player.TryGetComponent<PlayerController>(out var movement))
         {
             movement.enabled = true;
@@ -126,5 +165,6 @@ public class ElevatorArrival : MonoBehaviour
 
         yield return new WaitForSeconds(0.5f);
         if (elevatorAnimator != null) elevatorAnimator.Play("Elevator_Close"); 
+        AudioSource.PlayClipAtPoint(ProceduralAudioGen.GenerateServerRise(doorAnimationTime), transform.position, ProceduralAudioGen.globalVolume * 0.8f);
     }
 }

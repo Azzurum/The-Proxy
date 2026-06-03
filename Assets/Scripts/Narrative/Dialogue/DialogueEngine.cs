@@ -129,7 +129,16 @@ public class DialogueEngine : MonoBehaviour
 
         _mainCameraFollow = FindAnyObjectByType<CameraFollow>();
 
-        if (dialogueCanvas != null && dialogueCanvas != this.gameObject) dialogueCanvas.SetActive(false);
+        // --- ROBUSTNESS FIX: Auto-wire the dialogue canvas if the prefab link was broken ---
+        if (dialogueCanvas == null)
+        {
+            // The DialogueEngine script should be on a manager object, and the canvas is expected to be a child.
+            Transform wrapper = transform.Find("Dialogue_Wrapper");
+            if (wrapper != null) dialogueCanvas = wrapper.gameObject;
+        }
+
+        // At the start of any scene, the dialogue UI should always be hidden.
+        if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
         if (logPanel != null) logPanel.SetActive(false);
         if (configPanel != null) configPanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
@@ -201,7 +210,10 @@ public class DialogueEngine : MonoBehaviour
         if (autoButtonText != null) autoButtonText.color = Color.white;
         if (skipButtonText != null) skipButtonText.color = Color.white;
 
-        if (dialogueCanvas == null) dialogueCanvas = this.gameObject;
+        // 2. FAILSAFE: Ensure the Modal_Overlay (the black background) is strictly turned off
+        Transform modalOverlay = transform.Find("Modal_Overlay");
+        if (modalOverlay != null) modalOverlay.gameObject.SetActive(false);
+
         if (dialogueCanvas != null) dialogueCanvas.SetActive(true);
 
         dialogueCanvas.transform.SetAsLastSibling();
@@ -211,9 +223,6 @@ public class DialogueEngine : MonoBehaviour
         cg.alpha = 1f;
         cg.interactable = true;
         cg.blocksRaycasts = true;
-
-        if (ambientDust != null) ambientDust.SetActive(true);
-        if (vignetteOverlay != null) vignetteOverlay.SetActive(true);
 
         portraitLeft.SetFocus(false);
         portraitRight.SetFocus(false);
@@ -271,6 +280,9 @@ public class DialogueEngine : MonoBehaviour
         _conversationHistory.Append("<color=#FFB300>> ").Append(speakerSafe).Append("</color>\n").Append(node.dialogueText).Append("\n\n");
         if (logHistoryText != null) logHistoryText.text = _conversationHistory.ToString();
 
+        AudioSource audio = GetComponent<AudioSource>();
+        if (audio == null) audio = gameObject.AddComponent<AudioSource>();
+
         bool isScreaming = cleanName == "MOTHER" &&
                            node.dialogueText.Length > 5 && 
                            node.dialogueText == node.dialogueText.ToUpper() && 
@@ -278,8 +290,6 @@ public class DialogueEngine : MonoBehaviour
 
         if (isScreaming) 
         {
-            AudioSource audio = GetComponent<AudioSource>();
-            if (audio == null) audio = gameObject.AddComponent<AudioSource>();
             audio.PlayOneShot(ProceduralAudioGen.GenerateStaticGlitch(2.5f), 1.0f);
         }
 
@@ -314,6 +324,11 @@ public class DialogueEngine : MonoBehaviour
                 if (isScreaming && _mainCameraFollow != null && i % 2 == 0)
                 {
                     _mainCameraFollow.TriggerShake(0.15f, 0.35f); 
+                }
+                else if (!isScreaming && i % 2 == 0 && i > 0)
+                {
+                    // Play the pleasant visual novel blip on every other letter to create a perfect typing rhythm!
+                    audio.PlayOneShot(ProceduralAudioGen.GenerateTextBlip(), 0.5f);
                 }
 
                 float currentDelay = typingSpeed;
@@ -390,15 +405,17 @@ public class DialogueEngine : MonoBehaviour
         isSkipping = false;
         currentConversation = null; 
         if (dialogueCanvas != null) dialogueCanvas.SetActive(false);
-        if (ambientDust != null) ambientDust.SetActive(false);
-        if (vignetteOverlay != null) vignetteOverlay.SetActive(false);
 
         if (playerObject != null)
         {
             playerObject.SetActive(true);
             
             PlayerController pc = playerObject.GetComponent<PlayerController>();
-            if (pc != null) pc.enabled = true;
+            if (pc != null) 
+            {
+                pc.enabled = true;
+                pc.isRooted = false; // FAILSAFE: Universally ensure the player can move when dialogue closes!
+            }
 
             if (questTrackerText != null) questTrackerText.SetActive(true);
 
@@ -411,9 +428,15 @@ public class DialogueEngine : MonoBehaviour
         }
 
         QuestTracker tracker = FindAnyObjectByType<QuestTracker>();
-        if (tracker != null && tracker.GetCurrentObjective() == 1)
+        if (tracker != null)
         {
-            tracker.AdvanceObjective(2, "Access the Sync-Terminal");
+            // Reveal the HUD and the WASD quest immediately after the cinematic conversation ends!
+            if (tracker.gameplayHudGroup != null) tracker.gameplayHudGroup.SetActive(true);
+
+            if (tracker.GetCurrentObjective() == 1)
+            {
+                tracker.AdvanceObjective(2, "Access the Sync-Terminal");
+            }
         }
 
     }

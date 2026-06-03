@@ -21,19 +21,21 @@ public class CinematicTypewriter : MonoBehaviour
     private string _fullHangarText;
     private WaitForSeconds _typingDelay;
 
-    private void Start()
+    private void Awake()
     {
         _typingDelay = new WaitForSeconds(typingSpeed);
 
         if (spaceText != null)
         {
             _fullSpaceText = spaceText.text;
+            spaceText.text = ""; // Force clear to prevent double-vision ghosting
             spaceText.maxVisibleCharacters = 0;
         }
 
         if (hangarText != null)
         {
             _fullHangarText = hangarText.text;
+            hangarText.text = ""; // Force clear to prevent double-vision ghosting
             hangarText.maxVisibleCharacters = 0;
         }
     }

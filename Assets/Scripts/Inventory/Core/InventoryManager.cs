@@ -291,11 +291,11 @@ public class InventoryManager : MonoBehaviour
         if (didCleanAnything)
         {
             // Shift all items down by one row (towards index 49).
-            // Iterate backwards to prevent overwriting data.
+            // Start from the bottom to prevent propagating nulls all the way to the top!
             for (int i = 44; i >= 0; i--)
             {
-                inventoryState.mainGridSlots[i] = inventoryState.mainGridSlots[i + columns];
-                inventoryState.mainGridSlots[i + 50] = inventoryState.mainGridSlots[i + 50 + columns];
+                inventoryState.mainGridSlots[i + columns] = inventoryState.mainGridSlots[i];
+                inventoryState.mainGridSlots[i + 50 + columns] = inventoryState.mainGridSlots[i + 50];
             }
             // Clear the top row (indices 0-4)
             for (int i = 0; i < 5; i++)
@@ -821,11 +821,8 @@ public class InventoryManager : MonoBehaviour
         // CRITICAL FIX: To prevent completely wiping the inventory array, abort if the grid is physically hidden or pending a refresh.
         if (gridRefreshPending || !IsGridVisible()) return;
 
-        // FIX: If the player hits save while actively dragging an item, force it back into the grid so it isn't wiped from existence!
-        if (DraggableItem.itemBeingDragged != null)
-        {
-            DraggableItem.itemBeingDragged.AbortDrag();
-        }
+        // (The global AbortDrag check was removed from here because it instantly cancelled dragging! 
+        // It is now safely handled explicitly in SaveLoadManager when actually saving.)
 
         for (int i = 0; i < 100; i++) inventoryState.mainGridSlots[i] = null;
         if (gridExt != null) for (int i = 0; i < 25; i++) inventoryState.extGridSlots[i] = null;

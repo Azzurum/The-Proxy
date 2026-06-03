@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Manages the game's pause state, including UI transitions, screen capture effects, and menu navigation.
@@ -62,6 +63,11 @@ public class PauseManager : MonoBehaviour
 
     void Start()
     {
+        // DYNAMIC FAILSAFE: Reconnect the Glass Visuals if the prefab unpacking broke the links!
+        if (shatterAnimator == null) shatterAnimator = FindAnyObjectByType<ShatterAnimator>(FindObjectsInactive.Include);
+        if (glassGenerator == null) glassGenerator = FindAnyObjectByType<ProceduralGlassGenerator>(FindObjectsInactive.Include);
+        if (shatteredGlassVisuals == null && shatterAnimator != null) shatteredGlassVisuals = shatterAnimator.gameObject;
+
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
         if (audioSource != null) 
         {
@@ -81,6 +87,58 @@ public class PauseManager : MonoBehaviour
         pauseMenuUI.interactable = false; 
         pauseMenuUI.blocksRaycasts = false;
         pauseMenuUI.gameObject.SetActive(false);
+
+        // Failsafe: Ensure the void background NEVER blocks your mouse clicks!
+        if (voidBackground != null) 
+        {
+            voidBackground.blocksRaycasts = false;
+            voidBackground.interactable = false;
+        }
+
+        // Automatically wire all the UI buttons so you don't have to do it manually in the Unity Editor!
+        AutoWireButton(panelMainMenu, "Btn_Continue", TogglePause);
+        AutoWireButton(panelMainMenu, "Btn_SaveLoad", OpenSaveLoad);
+        AutoWireButton(panelMainMenu, "Btn_Settings", OpenSettings);
+        // Wire Quit directly to the exit function, bypassing the confirmation panel in case it is missing!
+        AutoWireButton(panelMainMenu, "Btn_Quit", ConfirmQuit); 
+
+        AutoWireButton(panelQuitConfirm, "Btn_Confirm", ConfirmQuit);
+        AutoWireButton(panelQuitConfirm, "Btn_Cancel", ReturnToMainMenuTransition);
+
+        AutoWireButton(panelSaveLoad, "Btn_Return", ReturnToMainMenuTransition);
+
+        if (settingsOverlay != null)
+        {
+            AutoWireButton(settingsOverlay, "Panel_Switchboard/Btn_Return", CloseSettings);
+            AutoWireButton(settingsOverlay, "Btn_Return", CloseSettings); // Fallback
+        }
+
+        // Force the Pause Menu to render OVER EVERYTHING (Fixes the Grid overlap issue)
+        if (pauseMenuUI != null)
+        {
+            Canvas pauseCanvas = pauseMenuUI.GetComponent<Canvas>();
+            if (pauseCanvas == null) pauseCanvas = pauseMenuUI.GetComponentInParent<Canvas>();
+            if (pauseCanvas != null)
+            {
+                pauseCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                pauseCanvas.sortingOrder = 32767;
+            }
+        }
+    }
+
+    private void AutoWireButton(GameObject parentPanel, string buttonPath, UnityEngine.Events.UnityAction action)
+    {
+        if (parentPanel == null) return;
+        Transform btnTransform = parentPanel.transform.Find(buttonPath);
+        if (btnTransform != null)
+        {
+            UnityEngine.UI.Button btn = btnTransform.GetComponent<UnityEngine.UI.Button>();
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(action);
+            }
+        }
     }
 
     void Update()
@@ -194,11 +252,31 @@ public class PauseManager : MonoBehaviour
 
         if (shatteredGlassVisuals != null)
         {
-            MeshRenderer[] shardRenderers = shatteredGlassVisuals.GetComponentsInChildren<MeshRenderer>(true);
-            foreach (MeshRenderer shard in shardRenderers)
+            // 1. Explicitly grab the Pause Background and push it back, but respect its custom artwork/scale!
+            Transform bgTrans = shatteredGlassVisuals.transform.Find("Pause_Background");
+            if (bgTrans != null)
             {
-                if (shard.gameObject.name == "Pause_Background") continue;
-                shard.material.mainTexture = _pauseScreenTexture; 
+                bgTrans.gameObject.SetActive(true);
+                bgTrans.localPosition = new Vector3(0f, 0f, 2f); // Push it slightly backward so it doesn't fight with the glass shards!
+                Renderer bgRenderer = bgTrans.GetComponent<Renderer>();
+                if (bgRenderer != null)
+                {
+                    bgTrans.gameObject.layer = 0; // Force to Default layer to ensure visibility
+                    bgRenderer.sortingLayerName = "Default"; // Force it onto the base layer
+                    bgRenderer.sortingOrder = 31998; // Ensure it sits perfectly behind the glass shards (which are 32000)
+                }
+            }
+
+            // 2. Map the screenshot to the glass shards and push them in front of the background
+            Renderer[] renderers = shatteredGlassVisuals.GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer r in renderers)
+            {
+                if (r.gameObject.name == "Pause_Background") continue;
+                
+                r.gameObject.layer = 0; // Force layer to Default
+                r.sortingLayerName = "Default"; // Force it onto the visible base layer
+                r.sortingOrder = 32000; 
+                if (r is MeshRenderer shard) shard.material.mainTexture = _pauseScreenTexture; 
             }
         }
 
@@ -250,10 +328,15 @@ public class PauseManager : MonoBehaviour
         pauseMenuUI.blocksRaycasts = false;
         
         shatterAnimator.PlayAssemble();
+        
+        // SIMULTANEOUSLY fade out the UI menu while the glass assembles
+        StartCoroutine(FadeCanvasGroup(pauseMenuUI, 1f, 0f, shatterAnimator.animationDuration));
+        
         yield return new WaitForSecondsRealtime(shatterAnimator.animationDuration + 0.1f);
         
         shatteredGlassVisuals.SetActive(false);
         pauseMenuUI.gameObject.SetActive(false);
+        pauseMenuUI.alpha = 1f; // Reset the alpha so it's visible next time you pause
         ToggleGameplayUI(true);
 
         // Smoothly ramp time scale from bullet time back to normal (1.0).
@@ -284,7 +367,7 @@ public class PauseManager : MonoBehaviour
         if (panelSaveLoad != null) panelSaveLoad.SetActive(false);
         if (panelQuitConfirm != null) panelQuitConfirm.SetActive(false);
         
-        if (panelMainMenu != null) panelMainMenu.SetActive(true);
+        MoveMenuToFront(panelMainMenu);
         if (voidBackground != null) voidBackground.alpha = 0f;
     }
 
@@ -334,10 +417,11 @@ public class PauseManager : MonoBehaviour
         if (panelMainMenu != null) panelMainMenu.SetActive(false);
 
         // Fade to a black background while the glass shards blow off-screen.
-        if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 0f, 1f, 0.2f));
+        if (voidBackground != null) voidBackground.alpha = 0f; // Removed the dark overlay per your request!
+        
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.BlowbackRoutine());
 
-        if (subMenuPanel != null) subMenuPanel.SetActive(true);
+        MoveMenuToFront(subMenuPanel);
         _isTransitioning = false;
     }
 
@@ -349,10 +433,11 @@ public class PauseManager : MonoBehaviour
         _isTransitioning = true;
         if (panelMainMenu != null) panelMainMenu.SetActive(false);
 
-        if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 0f, 1f, 0.2f));
+        if (voidBackground != null) voidBackground.alpha = 0f; // Removed the dark overlay
+        
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.BlowbackRoutine());
 
-        if (settingsOverlay != null) settingsOverlay.SetActive(true);
+        MoveMenuToFront(settingsOverlay);
 
         if (settingsCanvasGroup != null && settingsPanelTransform != null)
         {
@@ -421,10 +506,11 @@ public class PauseManager : MonoBehaviour
         }
 
         // 2. Cinematic Glass Restore
-        if (voidBackground != null) StartCoroutine(FadeCanvasGroup(voidBackground, 1f, 0f, 0.25f));
+        if (voidBackground != null) voidBackground.alpha = 0f; // Removed the dark overlay
+        
         if (shatterAnimator != null) yield return StartCoroutine(shatterAnimator.RestoreRoutine());
 
-        if (panelMainMenu != null) panelMainMenu.SetActive(true);
+        MoveMenuToFront(panelMainMenu);
         _isTransitioning = false;
     }
 
@@ -433,12 +519,69 @@ public class PauseManager : MonoBehaviour
     /// </summary>
     public void ConfirmQuit()
     {
-        Debug.Log("<color=red>SYSTEM TERMINATED.</color> Exiting application...");
-        Application.Quit();
+        Debug.Log("<color=red>SYSTEM TERMINATED.</color> Returning to Main Menu...");
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
         
-        #if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-        #endif
+        // Bulletproof scene loading: It will hunt for whatever your Main Menu scene is actually named!
+        if (Application.CanStreamedLevelBeLoaded("MainMenu_Scene")) SceneManager.LoadScene("MainMenu_Scene");
+        else if (Application.CanStreamedLevelBeLoaded("MainMenu")) SceneManager.LoadScene("MainMenu");
+        else if (Application.CanStreamedLevelBeLoaded("UI_MainMenu")) SceneManager.LoadScene("UI_MainMenu");
+        else SceneManager.LoadScene(0); // Failsafe: load the very first scene in Build Settings
+    }
+
+    private void MoveMenuToFront(GameObject menuPanel)
+    {
+        if (menuPanel != null)
+        {
+            menuPanel.SetActive(true);
+            menuPanel.transform.SetAsLastSibling();
+            
+            // DYNAMIC FAILSAFE: Find the CRT effects by script instead of name, so it works no matter what you named them!
+            Canvas rootCanvas = menuPanel.GetComponentInParent<Canvas>();
+            if (rootCanvas != null)
+            {
+                UICRTPattern[] crtPatterns = rootCanvas.GetComponentsInChildren<UICRTPattern>(true);
+                foreach (UICRTPattern pattern in crtPatterns)
+                {
+                    pattern.gameObject.SetActive(true);
+                    
+                    // Push the CRT object to the absolute bottom of the hierarchy so it renders on top of the menus
+                    pattern.transform.SetAsLastSibling(); 
+                    if (pattern.transform.parent != null) pattern.transform.parent.SetAsLastSibling();
+
+                    // Force it to perfectly stretch across the entire screen
+                    RectTransform rect = pattern.GetComponent<RectTransform>();
+                    if (rect != null)
+                    {
+                        rect.anchorMin = Vector2.zero;
+                        rect.anchorMax = Vector2.one;
+                        rect.offsetMin = Vector2.zero;
+                        rect.offsetMax = Vector2.zero;
+                    }
+
+                    // Turn it on (if the player hasn't disabled it in settings)
+                    bool isEnabled = PlayerPrefs.GetInt("CrtDistortion", 1) == 1;
+                    UnityEngine.UI.RawImage img = pattern.GetComponent<UnityEngine.UI.RawImage>();
+                    if (img != null) img.enabled = isEnabled;
+                    pattern.enabled = isEnabled;
+                }
+
+                // Do the exact same for the other CRT effect script
+                CRTEffects[] crtFX = rootCanvas.GetComponentsInChildren<CRTEffects>(true);
+                foreach (CRTEffects fx in crtFX)
+                {
+                    fx.gameObject.SetActive(true);
+                    fx.transform.SetAsLastSibling();
+                    if (fx.transform.parent != null) fx.transform.parent.SetAsLastSibling();
+
+                    // Turn it on (if the player hasn't disabled it in settings)
+                    bool isEnabled = PlayerPrefs.GetInt("CrtDistortion", 1) == 1;
+                    fx.enabled = isEnabled;
+                    if (fx.flickerImage != null) fx.flickerImage.enabled = isEnabled;
+                }
+            }
+        }
     }
 
     /// <summary>
